@@ -1,0 +1,179 @@
+import * as cdk from 'aws-cdk-lib';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as iam from 'aws-cdk-lib/aws-iam';
+import * as logs from 'aws-cdk-lib/aws-logs';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
+import * as sns from 'aws-cdk-lib/aws-sns';
+import * as cloudwatch_actions from 'aws-cdk-lib/aws-cloudwatch-actions';
+import { Construct } from 'constructs';
+import * as fs from 'fs';
+import * as path from 'path';
+
+export interface OpenClawAgentsStackProps extends cdk.StackProps {
+  /** EC2 instance type */
+  instanceType?: string;
+  /** Alert email for CloudWatch alarms */
+  alertEmail?: string;
+}
+
+export class OpenclawAgentsStack extends cdk.Stack {
+  constructor(scope: Construct, id: string, props?: OpenClawAgentsStackProps) {
+    super(scope, id, props);
+
+    const instanceType = props?.instanceType ?? 't3.small';
+    const alertEmail = props?.alertEmail ?? 'claude-agent-1@missioncritical.llc';
+
+    // ──────────────────────────────────────────────
+    // VPC — single public subnet to keep costs down
+    // ──────────────────────────────────────────────
+    const vpc = new ec2.Vpc(this, 'OpenClawVpc', {
+      maxAzs: 2,
+      natGateways: 0,
+      subnetConfiguration: [
+        {
+          name: 'Public',
+          subnetType: ec2.SubnetType.PUBLIC,
+          cidrMask: 24,
+        },
+      ],
+    });
+
+    // ──────────────────────────────────────────────
+    // Security Group — outbound only
+    // Slack Socket Mode + Anthropic API = outbound WebSocket/HTTPS
+    // No inbound ports needed at all
+    // ──────────────────────────────────────────────
+    const sg = new ec2.SecurityGroup(this, 'OpenClawSG', {
+      vpc,
+      description: 'OpenClaw agents - outbound only for Slack Socket Mode and Anthropic API',
+      allowAllOutbound: true,
+    });
+
+    // ──────────────────────────────────────────────
+    // IAM Role
+    // ──────────────────────────────────────────────
+    const role = new iam.Role(this, 'OpenClawRole', {
+      assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
+      description: 'OpenClaw agent host',
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchAgentServerPolicy'),
+      ],
+    });
+
+    // Read secrets from SSM Parameter Store
+    role.addToPolicy(new iam.PolicyStatement({
+      actions: ['ssm:GetParameter', 'ssm:GetParameters'],
+      resources: [
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/openclaw/*`,
+      ],
+    }));
+
+    // ──────────────────────────────────────────────
+    // CloudWatch Logs
+    // ──────────────────────────────────────────────
+    const logGroup = new logs.LogGroup(this, 'OpenClawLogs', {
+      logGroupName: '/openclaw/agents',
+      retention: logs.RetentionDays.TWO_WEEKS,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // ──────────────────────────────────────────────
+    // User Data — reads scripts/bootstrap.sh
+    // ──────────────────────────────────────────────
+    const userData = ec2.UserData.forLinux();
+    const bootstrapScript = fs.readFileSync(
+      path.join(__dirname, '..', 'scripts', 'bootstrap.sh'),
+      'utf-8'
+    );
+    userData.addCommands(bootstrapScript);
+
+    // ──────────────────────────────────────────────
+    // EC2 Instance
+    // ──────────────────────────────────────────────
+    const instance = new ec2.Instance(this, 'OpenClawHost', {
+      vpc,
+      instanceType: new ec2.InstanceType(instanceType),
+      machineImage: ec2.MachineImage.latestAmazonLinux2023(),
+      securityGroup: sg,
+      role,
+      userData,
+      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+      blockDevices: [
+        {
+          deviceName: '/dev/xvda',
+          volume: ec2.BlockDeviceVolume.ebs(30, {
+            volumeType: ec2.EbsDeviceVolumeType.GP3,
+            encrypted: true,
+          }),
+        },
+      ],
+    });
+
+    cdk.Tags.of(instance).add('Name', 'openclaw-agents');
+    cdk.Tags.of(instance).add('Project', 'openclaw');
+
+    // ──────────────────────────────────────────────
+    // Monitoring & Alerts
+    // ──────────────────────────────────────────────
+    const alarmTopic = new sns.Topic(this, 'OpenClawAlarms', {
+      displayName: 'OpenClaw Agent Alerts',
+    });
+
+    new sns.Subscription(this, 'AlarmEmail', {
+      topic: alarmTopic,
+      protocol: sns.SubscriptionProtocol.EMAIL,
+      endpoint: alertEmail,
+    });
+
+    // High CPU
+    new cloudwatch.Alarm(this, 'HighCpuAlarm', {
+      metric: new cloudwatch.Metric({
+        namespace: 'AWS/EC2',
+        metricName: 'CPUUtilization',
+        dimensionsMap: { InstanceId: instance.instanceId },
+        statistic: 'Average',
+        period: cdk.Duration.minutes(5),
+      }),
+      threshold: 80,
+      evaluationPeriods: 3,
+      alarmDescription: 'OpenClaw host CPU > 80% for 15 min',
+    }).addAlarmAction(new cloudwatch_actions.SnsAction(alarmTopic));
+
+    // Instance health
+    new cloudwatch.Alarm(this, 'StatusCheckAlarm', {
+      metric: new cloudwatch.Metric({
+        namespace: 'AWS/EC2',
+        metricName: 'StatusCheckFailed',
+        dimensionsMap: { InstanceId: instance.instanceId },
+        statistic: 'Maximum',
+        period: cdk.Duration.minutes(1),
+      }),
+      threshold: 1,
+      evaluationPeriods: 2,
+      alarmDescription: 'OpenClaw host failed status check',
+    }).addAlarmAction(new cloudwatch_actions.SnsAction(alarmTopic));
+
+    // ──────────────────────────────────────────────
+    // Outputs
+    // ──────────────────────────────────────────────
+    new cdk.CfnOutput(this, 'InstanceId', {
+      value: instance.instanceId,
+      description: 'EC2 Instance ID',
+    });
+
+    new cdk.CfnOutput(this, 'PublicIp', {
+      value: instance.instancePublicIp,
+      description: 'Public IP (no inbound ports open)',
+    });
+
+    new cdk.CfnOutput(this, 'LogGroup', {
+      value: logGroup.logGroupName,
+    });
+
+    new cdk.CfnOutput(this, 'SSMConnect', {
+      value: `aws ssm start-session --target ${instance.instanceId}`,
+      description: 'Connect via SSM Session Manager',
+    });
+  }
+}
