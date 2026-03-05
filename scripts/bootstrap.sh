@@ -5,7 +5,9 @@
 # ──────────────────────────────────────────────────────────
 set -euo pipefail
 
-REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
+# IMDSv2 requires a token on Amazon Linux 2023
+IMDS_TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+REGION=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
 OPENCLAW_HOME="/opt/openclaw"
 
 echo "▶ Installing Docker..."
