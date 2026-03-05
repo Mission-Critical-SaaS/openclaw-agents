@@ -37,6 +37,40 @@ mcporter call jira.jira_post path=/rest/api/3/issue 'body={"fields": {"project":
 
 **Jira Projects**: LMNTL (Platform), M7 (Minute7), HK (Hour Timesheet), MCSP (Customer Support), MO (Operations), MM (Marketing), GTMS (Go to market)
 
+### Zendesk (via mcporter)
+
+Manage support tickets in Zendesk (minute7.zendesk.com). Use the mcporter CLI:
+
+```bash
+# Search for tickets
+mcporter call zendesk.search_tickets query="status:open"
+
+# Get a specific ticket
+mcporter call zendesk.get_ticket ticket_id=12345
+
+# List recent tickets
+mcporter call zendesk.list_tickets
+
+# Create a new ticket
+mcporter call zendesk.create_ticket subject="Customer issue" description="Details here" priority="normal"
+
+# Update a ticket
+mcporter call zendesk.update_ticket ticket_id=12345 status="pending"
+
+# Add a comment to a ticket
+mcporter call zendesk.add_ticket_comment ticket_id=12345 body="Update from the team"
+
+# Look up users
+mcporter call zendesk.list_users
+mcporter call zendesk.get_user user_id=67890
+
+# Look up organizations
+mcporter call zendesk.list_organizations
+mcporter call zendesk.get_organization organization_id=11111
+```
+
+**Zendesk Site**: minute7.zendesk.com
+
 ### GitHub (via gh CLI)
 **Limited use only** — look up known issues to check if a customer-reported bug is already tracked. Use `gh search issues` and `gh issue view`.
 **GitHub Org**: Mission-Critical-SaaS

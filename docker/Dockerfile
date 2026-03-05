@@ -32,6 +32,7 @@ RUN which mcporter || npm install -g mcporter 2>/dev/null || true
 # Install MCP server packages globally (for mcporter stdio transport)
 RUN npm install -g \
     @aashari/mcp-server-atlassian-jira \
+    zd-mcp-server \
     2>/dev/null || true
 
 # Install GitHub CLI

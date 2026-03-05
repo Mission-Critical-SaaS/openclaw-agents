@@ -22,6 +22,9 @@ The secret is a JSON object with these keys:
 | `ATLASSIAN_USER_EMAIL` | Atlassian service account email | Atlassian admin |
 | `ATLASSIAN_API_TOKEN` | Atlassian API token | [id.atlassian.com](https://id.atlassian.com/manage-profile/security/api-tokens) |
 | `GITHUB_TOKEN` | GitHub personal access token | [github.com/settings/tokens](https://github.com/settings/tokens) |
+| `@ENDESK_SUBDOMAIN` | Zendesk subdomain (e.g., `minute7`) | Zendesk admin |
+| `ZENDESK_EMAIL` | Zendesk agent email | Zendesk admin |
+| `ZENDESK_API_TOKEN` | Zendesk API token | [Zendesk Admin Center](https://minute7.zendesk.com/admin/apps-integrations/apis/api-tokens) |
 
 ## Viewing Secrets
 
@@ -67,6 +70,15 @@ docker-compose restart
 4. Regenerate the app token under **Basic Information > App-Level Tokens**
 5. Update both tokens in Secrets Manager
 6. Restart the container
+
+## Rotating the Zendesk API Token
+
+1. Go to [minute7.zendesk.com/admin](https://minute7.zendesk.com/admin/apps-integrations/apis/api-tokens)
+2. Create a new API token with description "OpenClaw Scout Agent"
+3. Copy the token immediately (it won’t be shown again)
+4. Update `ZENDESK_API_TOKEN` in Secrets Manager
+5. Restart the container
+6. Delete the old token in Zendesk Admin Center
 
 ## Rotating the Anthropic API Key
 

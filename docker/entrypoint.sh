@@ -41,7 +41,7 @@ for agent in scout trak kit; do
 done
 
 # ─── Configure mcporter for Jira MCP ───
-echo "▶ Configuring mcporter (Jira MCP)..."
+echo "▶ Configuring mcporter (Jira + Zendesk MCP)..."
 mkdir -p /root/.mcporter
 cat > /root/.mcporter/mcporter.json <<EOF
 {
@@ -54,6 +54,16 @@ cat > /root/.mcporter/mcporter.json <<EOF
         "ATLASSIAN_SITE_NAME": "${ATLASSIAN_SITE_NAME}",
         "ATLASSIAN_USER_EMAIL": "${ATLASSIAN_USER_EMAIL}",
         "ATLASSIAN_API_TOKEN": "${ATLASSIAN_API_TOKEN}"
+      }
+    },
+    "zendesk": {
+      "command": "npx",
+      "args": ["-y", "zd-mcp-server"],
+      "description": "Zendesk Support MCP for Minute7",
+      "env": {
+        "ZENDESK_SUBDOMAIN": "${ZENDESK_SUBDOMAIN}",
+        "ZENDESK_EMAIL": "${ZENDESK_EMAIL}",
+        "ZENDESK_API_TOKEN": "${ZENDESK_API_TOKEN}"
       }
     }
   },
