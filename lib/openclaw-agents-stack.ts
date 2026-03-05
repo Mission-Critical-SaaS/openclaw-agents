@@ -55,7 +55,7 @@ export class OpenclawAgentsStack extends cdk.Stack {
     // ──────────────────────────────────────────────
     const role = new iam.Role(this, 'OpenClawRole', {
       assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
-      description: 'OpenClaw agent host — LMNTL AI Agents account',
+      description: 'OpenClaw agent host - LMNTL AI Agents account',
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
         iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchAgentServerPolicy'),
