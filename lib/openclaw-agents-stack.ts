@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as cloudwatch_actions from 'aws-cdk-lib/aws-cloudwatch-actions';
@@ -21,7 +22,7 @@ export class OpenclawAgentsStack extends cdk.Stack {
     super(scope, id, props);
 
     const instanceType = props?.instanceType ?? 't3.small';
-    const alertEmail = props?.alertEmail ?? 'claude-agent-1@missioncritical.llc';
+    const alertEmail = props?.alertEmail ?? 'david@lmntl.ai';
 
     // ──────────────────────────────────────────────
     // VPC — single public subnet to keep costs down
@@ -54,18 +55,26 @@ export class OpenclawAgentsStack extends cdk.Stack {
     // ──────────────────────────────────────────────
     const role = new iam.Role(this, 'OpenClawRole', {
       assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
-      description: 'OpenClaw agent host',
+      description: 'OpenClaw agent host — LMNTL AI Agents account',
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
         iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchAgentServerPolicy'),
       ],
     });
 
-    // Read secrets from SSM Parameter Store
+    // ──────────────────────────────────────────────
+    // Secrets Manager — single JSON secret for all credentials
+    // Populated out-of-band via CLI before first deploy
+    // ──────────────────────────────────────────────
+    const secret = secretsmanager.Secret.fromSecretNameV2(
+      this, 'OpenClawSecret', 'openclaw/agents'
+    );
+
+    // Grant EC2 read access to the secret
     role.addToPolicy(new iam.PolicyStatement({
-      actions: ['ssm:GetParameter', 'ssm:GetParameters'],
+      actions: ['secretsmanager:GetSecretValue'],
       resources: [
-        `arn:aws:ssm:${this.region}:${this.account}:parameter/openclaw/*`,
+        `arn:aws:secretsmanager:${this.region}:${this.account}:secret:openclaw/agents-*`,
       ],
     }));
 
@@ -112,6 +121,8 @@ export class OpenclawAgentsStack extends cdk.Stack {
 
     cdk.Tags.of(instance).add('Name', 'openclaw-agents');
     cdk.Tags.of(instance).add('Project', 'openclaw');
+    cdk.Tags.of(instance).add('Environment', 'production');
+    cdk.Tags.of(instance).add('Account', 'lmntl-ai-agents');
 
     // ──────────────────────────────────────────────
     // Monitoring & Alerts

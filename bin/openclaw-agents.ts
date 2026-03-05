@@ -6,9 +6,9 @@ const app = new cdk.App();
 
 new OpenclawAgentsStack(app, 'OpenclawAgentsStack', {
   env: {
-    account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION ?? 'us-west-2',
+    account: '669308278244', // LMNTL AI Agents sub-account
+    region: 'us-east-1',
   },
   instanceType: 't3.small',
-  alertEmail: 'claude-agent-1@missioncritical.llc',
+  alertEmail: 'david@lmntl.ai',
 });

@@ -7,7 +7,6 @@ set -euo pipefail
 
 REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
 OPENCLAW_HOME="/opt/openclaw"
-OPENCLAW_VERSION="latest"
 
 echo "▶ Installing Docker..."
 dnf install -y docker jq
@@ -21,20 +20,30 @@ curl -fsSL "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE
 chmod +x /usr/local/bin/docker-compose
 
 echo "▶ Creating OpenClaw directories..."
-mkdir -p ${OPENCLAW_HOME}/{config,agents/{scout,trak,kit}/{workspace,skills},data,logs}
+mkdir -p ${OPENCLAW_HOME}/{config,agents/{scout,trak,kit}/{workspace,agent},data,logs}
 
-echo "▶ Fetching secrets from SSM Parameter Store..."
-fetch_param() {
-  aws ssm get-parameter --name "$1" --with-decryption --region "$REGION" --query 'Parameter.Value' --output text 2>/dev/null || echo ""
-}
+echo "▶ Fetching secrets from AWS Secrets Manager..."
+SECRET_JSON=$(aws secretsmanager get-secret-value \
+  --secret-id openclaw/agents \
+  --region "$REGION" \
+  --query 'SecretString' \
+  --output text)
 
-ANTHROPIC_API_KEY=$(fetch_param /openclaw/anthropic-api-key)
-SLACK_BOT_TOKEN_SCOUT=$(fetch_param /openclaw/slack-bot-token-scout)
-SLACK_APP_TOKEN_SCOUT=$(fetch_param /openclaw/slack-app-token-scout)
-SLACK_BOT_TOKEN_TRAK=$(fetch_param /openclaw/slack-bot-token-trak)
-SLACK_APP_TOKEN_TRAK=$(fetch_param /openclaw/slack-app-token-trak)
-SLACK_BOT_TOKEN_KIT=$(fetch_param /openclaw/slack-bot-token-kit)
-SLACK_APP_TOKEN_KIT=$(fetch_param /openclaw/slack-app-token-kit)
+# Parse individual values from the JSON secret
+extract() { echo "$SECRET_JSON" | jq -r ".$1 // empty"; }
+
+ANTHROPIC_API_KEY=$(extract ANTHROPIC_API_KEY)
+SLACK_BOT_TOKEN_SCOUT=$(extract SLACK_BOT_TOKEN_SCOUT)
+SLACK_APP_TOKEN_SCOUT=$(extract SLACK_APP_TOKEN_SCOUT)
+SLACK_BOT_TOKEN_TRAK=$(extract SLACK_BOT_TOKEN_TRAK)
+SLACK_APP_TOKEN_TRAK=$(extract SLACK_APP_TOKEN_TRAK)
+SLACK_BOT_TOKEN_KIT=$(extract SLACK_BOT_TOKEN_KIT)
+SLACK_APP_TOKEN_KIT=$(extract SLACK_APP_TOKEN_KIT)
+ATLASSIAN_SITE_NAME=$(extract ATLASSIAN_SITE_NAME)
+ATLASSIAN_USER_EMAIL=$(extract ATLASSIAN_USER_EMAIL)
+ATLASSIAN_API_TOKEN=$(extract ATLASSIAN_API_TOKEN)
+GITHUB_TOKEN=$(extract GITHUB_TOKEN)
+SLACK_ALLOW_FROM=$(extract SLACK_ALLOW_FROM)
 
 echo "▶ Writing environment file..."
 cat > ${OPENCLAW_HOME}/.env <<EOF
@@ -45,15 +54,17 @@ SLACK_BOT_TOKEN_TRAK=${SLACK_BOT_TOKEN_TRAK}
 SLACK_APP_TOKEN_TRAK=${SLACK_APP_TOKEN_TRAK}
 SLACK_BOT_TOKEN_KIT=${SLACK_BOT_TOKEN_KIT}
 SLACK_APP_TOKEN_KIT=${SLACK_APP_TOKEN_KIT}
+ATLASSIAN_SITE_NAME=${ATLASSIAN_SITE_NAME}
+ATLASSIAN_USER_EMAIL=${ATLASSIAN_USER_EMAIL}
+ATLASSIAN_API_TOKEN=${ATLASSIAN_API_TOKEN}
+GITHUB_TOKEN=${GITHUB_TOKEN}
+SLACK_ALLOW_FROM=${SLACK_ALLOW_FROM}
 EOF
 chmod 600 ${OPENCLAW_HOME}/.env
 
-echo "▶ Copying config files..."
-# These are baked into the AMI or pulled from S3/GitHub at deploy time
-# For now, we use the ones from the repo (copied by deploy script)
-
 echo "▶ Installing CloudWatch agent..."
 dnf install -y amazon-cloudwatch-agent
+
 cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CWEOF'
 {
   "logs": {
@@ -84,6 +95,7 @@ cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CWEOF
   }
 }
 CWEOF
+
 /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
   -a fetch-config -m ec2 \
   -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
@@ -111,9 +123,4 @@ SVCEOF
 systemctl daemon-reload
 systemctl enable openclaw
 
-echo "▶ Starting OpenClaw..."
-cd ${OPENCLAW_HOME}
-# docker-compose will start via systemd once compose file is in place
-# The deploy script copies docker-compose.yml and agent configs, then starts
-
-echo "✅ Bootstrap complete"
+echo "✅ Bootstrap complete — waiting for deploy script to push compose file and start service"
