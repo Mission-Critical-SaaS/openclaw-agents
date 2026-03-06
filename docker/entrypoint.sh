@@ -86,4 +86,4 @@ if command -v openclaw &> /dev/null && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
 fi
 
 echo "▶ Starting OpenClaw gateway (foreground)..."
-exec openclaw start 2>&1 | tee /data/logs/openclaw.log
+exec openclaw gateway --verbose 2>&1 | tee /data/logs/openclaw.log
