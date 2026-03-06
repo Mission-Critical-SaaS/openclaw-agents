@@ -22,8 +22,10 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Install OpenClaw
-RUN curl -fsSL https://install.openclaw.ai | bash
+# Install OpenClaw via npm (curl installer doesn't work reliably in Docker)
+RUN npm install -g openclaw@latest \
+    && which openclaw \
+    && openclaw --version
 
 # Install mcporter (MCP server manager, bundled with OpenClaw)
 # Verify it's available
