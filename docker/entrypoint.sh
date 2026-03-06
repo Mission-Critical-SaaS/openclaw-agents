@@ -85,5 +85,5 @@ if command -v openclaw &> /dev/null && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
     --provider anthropic --profile-id anthropic:default 2>/dev/null || true
 fi
 
-echo "▶ Starting OpenClaw daemon..."
-exec openclaw daemon start --foreground 2>&1 | tee /data/logs/openclaw.log
+echo "▶ Starting OpenClaw gateway (foreground)..."
+exec openclaw start 2>&1 | tee /data/logs/openclaw.log
