@@ -166,6 +166,67 @@ export class OpenclawAgentsStack extends cdk.Stack {
     }).addAlarmAction(new cloudwatch_actions.SnsAction(alarmTopic));
 
     // ──────────────────────────────────────────────
+    // GitHub Actions OIDC — keyless deploys
+    // ──────────────────────────────────────────────
+    const ghOidcProvider = new iam.OpenIdConnectProvider(this, 'GitHubOIDC', {
+      url: 'https://token.actions.githubusercontent.com',
+      clientIds: ['sts.amazonaws.com'],
+      thumbprints: ['ffffffffffffffffffffffffffffffffffffffff'], // GitHub rotates; AWS ignores for known providers
+    });
+
+    const ghDeployRole = new iam.Role(this, 'GitHubActionsDeployRole', {
+      roleName: 'openclaw-github-actions-deploy',
+      assumedBy: new iam.FederatedPrincipal(
+        ghOidcProvider.openIdConnectProviderArn,
+        {
+          StringEquals: {
+            'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+          },
+          StringLike: {
+            'token.actions.githubusercontent.com:sub':
+              'repo:Mission-Critical-SaaS/openclaw-agents:*',
+          },
+        },
+        'sts:AssumeRoleWithWebIdentity'
+      ),
+      description: 'GitHub Actions OIDC role for deploying OpenClaw agents',
+      maxSessionDuration: cdk.Duration.hours(1),
+    });
+
+    // SSM permissions for deploy commands
+    ghDeployRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'SSMRunCommand',
+      actions: [
+        'ssm:SendCommand',
+        'ssm:GetCommandInvocation',
+      ],
+      resources: [
+        `arn:aws:ssm:${this.region}:${this.account}:document/AWS-RunShellScript`,
+        `arn:aws:ec2:${this.region}:${this.account}:instance/${instance.instanceId}`,
+      ],
+    }));
+
+    // SSM waiter needs DescribeInstanceInformation
+    ghDeployRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'SSMDescribe',
+      actions: [
+        'ssm:DescribeInstanceInformation',
+        'ssm:ListCommandInvocations',
+      ],
+      resources: ['*'],
+    }));
+
+    // EC2 describe for health checks
+    ghDeployRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'EC2Describe',
+      actions: [
+        'ec2:DescribeInstances',
+        'ec2:DescribeInstanceStatus',
+      ],
+      resources: ['*'],
+    }));
+
+    // ──────────────────────────────────────────────
     // Outputs
     // ──────────────────────────────────────────────
     new cdk.CfnOutput(this, 'InstanceId', {
@@ -185,6 +246,11 @@ export class OpenclawAgentsStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'SSMConnect', {
       value: `aws ssm start-session --target ${instance.instanceId}`,
       description: 'Connect via SSM Session Manager',
+    });
+
+    new cdk.CfnOutput(this, 'GitHubActionsRoleArn', {
+      value: ghDeployRole.roleArn,
+      description: 'Set this as AWS_DEPLOY_ROLE_ARN in GitHub repo variables',
     });
   }
 }
