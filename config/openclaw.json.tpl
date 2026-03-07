@@ -77,6 +77,7 @@
   "channels": {
     "slack": {
       "enabled": true,
+      "replyToMode": "all",
       "accounts": {
         "scout": {
           "mode": "socket",
