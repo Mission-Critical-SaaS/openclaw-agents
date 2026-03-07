@@ -9,8 +9,12 @@ OPENCLAW_HOME="${OPENCLAW_HOME:-/root/.openclaw}"
 echo "🐾 OpenClaw Multi-Agent Gateway starting..."
 
 # ─── Build openclaw.json from template + env vars ───
+# OpenClaw reads config from $OPENCLAW_HOME/.openclaw/openclaw.json (nested .openclaw dir)
+# We write to both the top-level and nested paths to ensure the gateway finds it.
 echo "▶ Configuring from template..."
+mkdir -p "${OPENCLAW_HOME}/.openclaw"
 envsubst < ${OPENCLAW_HOME}/openclaw.json.tpl > ${OPENCLAW_HOME}/openclaw.json
+cp ${OPENCLAW_HOME}/openclaw.json ${OPENCLAW_HOME}/.openclaw/openclaw.json
 
 # ─── Set up agent auth profiles (Anthropic API key) ───
 echo "▶ Writing auth profiles..."
@@ -84,6 +88,11 @@ if command -v openclaw &> /dev/null && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
   echo "${ANTHROPIC_API_KEY}" | openclaw models auth paste-token \
     --provider anthropic --profile-id anthropic:default 2>/dev/null || true
 fi
+
+# ─── Enable the Slack channel plugin ───
+echo "▶ Enabling Slack plugin..."
+openclaw plugins enable slack 2>/dev/null || true
+echo "  ✓ slack plugin enabled"
 
 echo "▶ Starting OpenClaw gateway (foreground)..."
 exec openclaw gateway --allow-unconfigured --verbose 2>&1 | tee /data/logs/openclaw.log
