@@ -2,6 +2,10 @@
   "meta": {
     "lastTouchedVersion": "2026.3.2"
   },
+  "gateway": {
+    "mode": "local",
+    "port": 18789
+  },
   "auth": {
     "profiles": {
       "anthropic:default": {
