@@ -11,7 +11,7 @@ mkdir -p /root/.mcporter
 python3 -c "
 import json, os
 config = {
-    'servers': {
+    'mcpServers': {
         'jira': {
             'command': 'npx',
             'args': ['-y', '@aashari/mcp-server-atlassian-jira'],
