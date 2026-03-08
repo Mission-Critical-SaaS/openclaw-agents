@@ -29,7 +29,7 @@ config = {
             'env': {
                 'ZENDESK_SUBDOMAIN': os.environ.get('ZENDESK_SUBDOMAIN', ''),
                 'ZENDESK_EMAIL': os.environ.get('ZENDESK_EMAIL', ''),
-                'ZENDESK_API_TOKEN': os.environ.get('ZENDESK_API_TOKEN', '')
+                'ZENDESK_TOKEN': os.environ.get('ZENDESK_TOKEN', '')
             }
         },
         'notion': {
