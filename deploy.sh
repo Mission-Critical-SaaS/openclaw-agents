@@ -1,94 +1,96 @@
 #!/bin/bash
 set -euo pipefail
-
-# OpenClaw Agents - Deployment Script
-# Usage: ./deploy.sh [tag|branch]
-# Examples:
-#   ./deploy.sh              # Deploy latest from main
-#   ./deploy.sh v1.2.0       # Deploy specific tag
-#   ./deploy.sh production   # Deploy production branch
-
 DEPLOY_DIR="/opt/openclaw"
-LOG_FILE="/opt/openclaw/deploy.log"
-COMPOSE_FILE="docker-compose.yml"
-
-log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"; }
-
+CONTAINER_NAME="openclaw-agents"
+LOG_DIR="/opt/openclaw/logs"
+BACKUP_FILE="/opt/openclaw/.last_deploy"
+HEALTH_TIMEOUT=90
+DRY_RUN=false
+ROLLBACK=false
+NO_BACKUP=false
+FORCE=false
+VERSION=""
+for arg in "$@"; do
+    case $arg in
+        --dry-run) DRY_RUN=true ;; --rollback) ROLLBACK=true ;;
+        --no-backup) NO_BACKUP=true ;; --force) FORCE=true ;;
+        -*) echo "Unknown option: $arg"; exit 1 ;; *) VERSION="$arg" ;;
+    esac
+done
+mkdir -p "$LOG_DIR"
+DEPLOY_LOG="$LOG_DIR/deploy-$(date +%Y%m%d-%H%M%S).log"
+exec > >(tee -a "$DEPLOY_LOG") 2>&1
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
+log "OpenClaw Deployment Script v2.0"
 cd "$DEPLOY_DIR"
-
-REF="${1:-main}"
-log "=== Starting deployment: ref=$REF ==="
-
-# 1. Pre-flight checks
-log "Pre-flight: checking Docker..."
-docker info > /dev/null 2>&1 || { log "ERROR: Docker not running"; exit 1; }
-docker-compose version > /dev/null 2>&1 || { log "ERROR: docker-compose not found"; exit 1; }
-
-# 2. Fetch latest from remote
-log "Fetching latest from origin..."
-git fetch origin --tags 2>&1 | tee -a "$LOG_FILE"
-
-# 3. Checkout the target ref
-log "Checking out $REF..."
-if git rev-parse "refs/tags/$REF" >/dev/null 2>&1; then
-    git checkout "tags/$REF" 2>&1 | tee -a "$LOG_FILE"
-    log "Checked out tag: $REF"
-elif git rev-parse "origin/$REF" >/dev/null 2>&1; then
-    git checkout "$REF" 2>&1 | tee -a "$LOG_FILE"
-    git pull origin "$REF" 2>&1 | tee -a "$LOG_FILE"
-    log "Checked out branch: $REF"
-else
-    log "ERROR: ref '$REF' not found as tag or branch"
+if ! command -v docker &>/dev/null; then log "ERROR: Docker not found"; exit 1; fi
+if ! command -v docker-compose &>/dev/null; then log "ERROR: docker-compose not found"; exit 1; fi
+CURRENT_COMMIT=$(git rev-parse HEAD)
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "detached")
+log "Current: commit=$CURRENT_COMMIT branch=$CURRENT_BRANCH"
+if $ROLLBACK; then
+    if [ ! -f "$BACKUP_FILE" ]; then log "ERROR: No backup found"; exit 1; fi
+    PREV_COMMIT=$(head -1 "$BACKUP_FILE")
+    log "Rolling back to $PREV_COMMIT"
+    if ! $FORCE; then read -p "Proceed? [y/N] " c; [[ "$c" != "y" && "$c" != "Y" ]] && exit 0; fi
+    VERSION="$PREV_COMMIT"
+fi
+[ -z "$VERSION" ] && VERSION="main"
+if $DRY_RUN; then
+    log "=== DRY RUN ==="
+    log "Would deploy: $VERSION (current: $CURRENT_COMMIT)"
+    git fetch origin --tags 2>/dev/null
+    if git rev-parse "$VERSION" &>/dev/null; then
+        TC=$(git rev-parse "$VERSION")
+        log "Target commit: $TC"
+        [ "$CURRENT_COMMIT" = "$TC" ] && log "Already at target." || git log --oneline "$CURRENT_COMMIT..$TC" 2>/dev/null || git log --oneline -5 "$TC"
+    else log "Version '$VERSION' not found locally"; fi
+    log "=== DRY RUN COMPLETE ==="; exit 0
+fi
+if ! $NO_BACKUP; then
+    echo "$CURRENT_COMMIT" > "$BACKUP_FILE"
+    echo "$(date -Iseconds)" >> "$BACKUP_FILE"
+    log "Backup saved: $CURRENT_COMMIT"
+fi
+log "Fetching from origin..."
+git fetch origin --tags
+if git tag -l | grep -q "^${VERSION}$"; then
+    log "Deploying tag: $VERSION"; git checkout "$VERSION"
+elif git rev-parse "origin/$VERSION" &>/dev/null; then
+    log "Deploying branch: $VERSION"
+    git checkout "$VERSION" 2>/dev/null || git checkout -b "$VERSION" "origin/$VERSION"
+    git pull origin "$VERSION"
+elif git rev-parse "$VERSION" &>/dev/null; then
+    log "Deploying commit: $VERSION"; git checkout "$VERSION"
+else log "ERROR: Version '$VERSION' not found"; exit 1; fi
+NEW_COMMIT=$(git rev-parse HEAD)
+log "Now at: $NEW_COMMIT"
+log "Building Docker image..."
+docker-compose build --no-cache
+log "Restarting container..."
+docker-compose down && docker-compose up -d
+log "Waiting for health (${HEALTH_TIMEOUT}s)..."
+ELAPSED=0
+while [ $ELAPSED -lt $HEALTH_TIMEOUT ]; do
+    sleep 5; ELAPSED=$((ELAPSED + 5))
+    CS=$(docker inspect -f '{{.State.Status}}' "$CONTAINER_NAME" 2>/dev/null || echo "not_found")
+    if [ "$CS" = "running" ]; then
+        MC=$(docker exec "$CONTAINER_NAME" bash -c 'while IFS= read -r -d "" line; do export "$line"; done < /proc/1/environ 2>/dev/null; mcporter list 2>&1' 2>/dev/null || echo "not_ready")
+        if echo "$MC" | grep -q "tools"; then log "Healthy after ${ELAPSED}s"; break; fi
+    fi
+    [ $((ELAPSED % 15)) -eq 0 ] && log "Waiting... (${ELAPSED}s, status=$CS)"
+done
+if [ $ELAPSED -ge $HEALTH_TIMEOUT ]; then
+    log "ERROR: Health check timed out"
+    [ -f "$BACKUP_FILE" ] && ! $ROLLBACK && log "To rollback: ./deploy.sh --rollback"
     exit 1
 fi
-
-COMMIT=$(git rev-parse --short HEAD)
-log "At commit: $COMMIT ($(git log -1 --format='%s'))"
-
-# 4. Stop existing container
-log "Stopping existing container..."
-docker-compose -f "$COMPOSE_FILE" down 2>&1 | tee -a "$LOG_FILE" || true
-
-# 5. Build if Dockerfile changed
-log "Building image..."
-docker-compose -f "$COMPOSE_FILE" build 2>&1 | tee -a "$LOG_FILE"
-
-# 6. Start container
-log "Starting container..."
-docker-compose -f "$COMPOSE_FILE" up -d 2>&1 | tee -a "$LOG_FILE"
-
-# 7. Wait for startup
-log "Waiting 60s for gateway startup..."
-sleep 60
-
-# 8. Health check
-log "Running health checks..."
-CONTAINER_STATUS=$(docker ps --filter name=openclaw-agents --format "{{.Status}}" 2>/dev/null)
-if [ -z "$CONTAINER_STATUS" ]; then
-    log "ERROR: Container not running!"
-    docker-compose -f "$COMPOSE_FILE" logs --tail 50 2>&1 | tee -a "$LOG_FILE"
-    exit 1
-fi
-log "Container status: $CONTAINER_STATUS"
-
-# Check mcporter
-MCPORTER_OUT=$(docker exec openclaw-agents bash -c '
-  while IFS= read -r -d "" line; do export "$line"; done < /proc/1/environ
-  mcporter list 2>&1
-' 2>&1) || true
-log "mcporter: $MCPORTER_OUT"
-
-# Check Slack connections
-SLACK_CONNS=$(docker exec openclaw-agents tail -50 /data/logs/openclaw.log 2>/dev/null | grep -c "socket mode connected" || echo 0)
-log "Slack connections: $SLACK_CONNS/3"
-
-if echo "$MCPORTER_OUT" | grep -q "3 healthy"; then
-    log "=== DEPLOYMENT SUCCESS: All MCP servers healthy ==="
-elif echo "$MCPORTER_OUT" | grep -q "healthy"; then
-    log "=== DEPLOYMENT PARTIAL: Some MCP servers healthy ==="
-else
-    log "=== DEPLOYMENT WARNING: MCP servers may need attention ==="
-fi
-
-log "Deploy complete. Commit: $COMMIT, Ref: $REF"
-log "Logs: $LOG_FILE"
+log "=== HEALTH REPORT ==="
+log "Container: $(docker inspect -f '{{.State.Status}}' $CONTAINER_NAME)"
+log "MCP Servers:"
+docker exec "$CONTAINER_NAME" bash -c 'while IFS= read -r -d "" line; do export "$line"; done < /proc/1/environ 2>/dev/null; mcporter list 2>&1' 2>/dev/null | while IFS= read -r l; do log "  $l"; done
+log "Slack:"
+docker logs "$CONTAINER_NAME" 2>&1 | grep -i "socket mode" | tail -6 | while IFS= read -r l; do log "  $l"; done
+log "Previous: $CURRENT_COMMIT | Deployed: $NEW_COMMIT"
+log "Log: $DEPLOY_LOG"
+log "SUCCESS: Deployment complete!"
