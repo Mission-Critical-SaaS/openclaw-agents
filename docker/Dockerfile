@@ -7,7 +7,7 @@ ARG TARGETARCH=amd64
 ENV DEBIAN_FRONTEND=noninteractive
 ENV OPENCLAW_HOME=/root/.openclaw
 
-RUN apt-get update && apt-get install -y curl jq ca-certificates awscli gettext-base && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl jq ca-certificates awscli gettext-base git && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js 22 (required for OpenClaw and MCP servers)
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
