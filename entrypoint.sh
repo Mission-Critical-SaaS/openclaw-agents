@@ -13,7 +13,7 @@ export ATLASSIAN_SITE_NAME=$(echo $SECRET | jq -r .ATLASSIAN_SITE_NAME)
 export ATLASSIAN_USER_EMAIL=$(echo $SECRET | jq -r .ATLASSIAN_USER_EMAIL)
 export ATLASSIAN_API_TOKEN=$(echo $SECRET | jq -r .ATLASSIAN_API_TOKEN)
 
-# Derived Jira env vars (mcporter expects these names)
+# Derived Jira env vars (backward compat only)
 export JIRA_BASE_URL="https://${ATLASSIAN_SITE_NAME}.atlassian.net"
 export JIRA_USER_EMAIL="${ATLASSIAN_USER_EMAIL}"
 export JIRA_API_TOKEN="${ATLASSIAN_API_TOKEN}"

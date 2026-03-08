@@ -11,8 +11,8 @@ services:
       - /opt/openclaw/config:/app/config
       - /opt/openclaw/config-src:/app/config-src
       - /opt/openclaw/entrypoint.sh:/app/entrypoint.sh
-      - /opt/openclaw/docker/entrypoint-fixed.sh:/entrypoint-fixed.sh
+      - /opt/openclaw/docker/entrypoint.sh:/entrypoint.sh
     entrypoint: ["/app/entrypoint.sh"]
-    command: ["/entrypoint-fixed.sh"]
+    command: ["/entrypoint.sh"]
     environment:
       - AWS_DEFAULT_REGION=us-east-1
