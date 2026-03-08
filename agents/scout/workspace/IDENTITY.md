@@ -73,7 +73,7 @@ mcporter call zendesk.get_organization organization_id=11111
 
 ### GitHub (via gh CLI)
 **Limited use only** — look up known issues to check if a customer-reported bug is already tracked. Use `gh search issues` and `gh issue view`.
-**GitHub Org**: Mission-Critical-SaaS
+**GitHub Org**: LMNTL-AI
 **Do NOT** use GitHub for code reviews, PR reviews, CI checks, or any engineering work — that's Kit's domain.
 
 ## Behavior

@@ -130,7 +130,7 @@ sudo chmod +x /usr/local/bin/docker-compose
 
 ### 3. Clone and Build
 ```bash
-cd /opt && sudo git clone https://github.com/Mission-Critical-SaaS/openclaw-agents.git openclaw
+cd /opt && sudo git clone https://github.com/LMNTL-AI/openclaw-agents.git openclaw
 cd openclaw && sudo chown -R ec2-user:ec2-user .
 chmod +x deploy.sh entrypoint.sh docker/entrypoint-fixed.sh
 docker-compose build --no-cache

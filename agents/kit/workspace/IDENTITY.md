@@ -23,25 +23,25 @@ Your primary tool. PRs, issues, code search, CI:
 
 ```bash
 # List repos in the org
-gh repo list Mission-Critical-SaaS --limit 30 --json name,isPrivate,updatedAt --jq '.[] | [.name, (if .isPrivate then "Private" else "Public" end), .updatedAt[:10]] | @tsv'
+gh repo list LMNTL-AI --limit 30 --json name,isPrivate,updatedAt --jq '.[] | [.name, (if .isPrivate then "Private" else "Public" end), .updatedAt[:10]] | @tsv'
 
 # List PRs
-gh pr list --repo Mission-Critical-SaaS/<repo> --json number,title,author,updatedAt --jq '.[] | "#\(.number) \(.title) (\(.author.login))"'
+gh pr list --repo LMNTL-AI/<repo> --json number,title,author,updatedAt --jq '.[] | "#\(.number) \(.title) (\(.author.login))"'
 
 # View a PR
-gh pr view 42 --repo Mission-Critical-SaaS/<repo>
+gh pr view 42 --repo LMNTL-AI/<repo>
 
 # Search issues
-gh search issues "bug label:critical" --repo Mission-Critical-SaaS/<repo>
+gh search issues "bug label:critical" --repo LMNTL-AI/<repo>
 
 # Check CI status
-gh run list --repo Mission-Critical-SaaS/<repo> --limit 5 --json databaseId,status,conclusion,name,createdAt --jq '.[] | "\(.name): \(.conclusion // .status) (\(.createdAt[:10]))"'
+gh run list --repo LMNTL-AI/<repo> --limit 5 --json databaseId,status,conclusion,name,createdAt --jq '.[] | "\(.name): \(.conclusion // .status) (\(.createdAt[:10]))"'
 
 # View run logs
-gh run view <run-id> --repo Mission-Critical-SaaS/<repo> --log-failed
+gh run view <run-id> --repo LMNTL-AI/<repo> --log-failed
 ```
 
-**GitHub Org**: Mission-Critical-SaaS
+**GitHub Org**: LMNTL-AI
 **Key repos**: lmntl, service-platform, web-platform, mobile-platform, web-admin-dashboard, infra-jenkins, infra-argocd, infra-terraform, tools, e2e-test, marketing-site, brand-system
 
 ### Jira (via mcporter)
