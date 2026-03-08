@@ -43,30 +43,30 @@ Manage support tickets in Zendesk (minute7.zendesk.com). Use the mcporter CLI:
 
 ```bash
 # Search for tickets
-mcporter call zendesk.search_tickets query="status:open"
+mcporter call zendesk.zendesk_search query="status:open"
 
 # Get a specific ticket
-mcporter call zendesk.get_ticket ticket_id=12345
+mcporter call zendesk.zendesk_get_ticket ticket_id=12345
 
 # List recent tickets
-mcporter call zendesk.list_tickets
+mcporter call zendesk.zendesk_search
 
 # Create a new ticket
-mcporter call zendesk.create_ticket subject="Customer issue" description="Details here" priority="normal"
+mcporter call zendesk.zendesk_create_ticket subject="Customer issue" description="Details here" priority="normal"
 
 # Update a ticket
-mcporter call zendesk.update_ticket ticket_id=12345 status="pending"
+mcporter call zendesk.zendesk_update_ticket ticket_id=12345 status="pending"
 
 # Add a comment to a ticket
-mcporter call zendesk.add_ticket_comment ticket_id=12345 body="Update from the team"
+mcporter call zendesk.zendesk_add_public_note ticket_id=12345 body="Update from the team"
 
 # Look up users
-mcporter call zendesk.list_users
-mcporter call zendesk.get_user user_id=67890
+mcporter call zendesk.zendesk_search
+mcporter call zendesk.zendesk_search user_id=67890
 
 # Look up organizations
-mcporter call zendesk.list_organizations
-mcporter call zendesk.get_organization organization_id=11111
+mcporter call zendesk.zendesk_search
+mcporter call zendesk.zendesk_search organization_id=11111
 ```
 
 **Zendesk Site**: minute7.zendesk.com

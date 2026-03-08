@@ -17,9 +17,9 @@ config = {
             'args': ['-y', '@aashari/mcp-server-atlassian-jira'],
             'description': 'Jira MCP Server',
             'env': {
-                'ATLASSIAN_SITE_NAME': os.environ.get('ATLASSIAN_SITE_NAME', ''),
-                'ATLASSIAN_USER_EMAIL': os.environ.get('ATLASSIAN_USER_EMAIL', ''),
-                'ATLASSIAN_API_TOKEN': os.environ.get('ATLASSIAN_API_TOKEN', '')
+                'JIRA_BASE_URL': os.environ.get('JIRA_BASE_URL', ''),
+                'JIRA_USER_EMAIL': os.environ.get('JIRA_USER_EMAIL', ''),
+                'JIRA_API_TOKEN': os.environ.get('JIRA_API_TOKEN', '')
             }
         },
         'zendesk': {
