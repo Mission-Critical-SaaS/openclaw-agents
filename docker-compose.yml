@@ -1,44 +1,18 @@
-# ──────────────────────────────────────────────────────────
-# OpenClaw Multi-Agent Gateway — Docker Compose
-# ──────────────────────────────────────────────────────────
-# Usage:
-#   cp .env.example .env   # fill in your tokens
-#   docker-compose up -d
-# ──────────────────────────────────────────────────────────
-
 version: "3.8"
-
 services:
   openclaw:
     build:
       context: .
       dockerfile: docker/Dockerfile
+    image: openclaw:latest
     container_name: openclaw-agents
     restart: unless-stopped
-    env_file: .env
-    environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
-      # Persist all OpenClaw state (sessions, agent data, config)
-      - openclaw-data:/root/.openclaw
-      - openclaw-logs:/data/logs
-      # Mount agent configs (override on deploy)
-      - ./config:/root/.openclaw-config:ro
-      - ./agents:/tmp/agents:ro
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "5"
-    healthcheck:
-      test: ["CMD", "openclaw", "status", "--json"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-volumes:
-  openclaw-data:
-    driver: local
-  openclaw-logs:
-    driver: local
+      - /opt/openclaw/config:/app/config
+      - /opt/openclaw/config-src:/app/config-src
+      - /opt/openclaw/entrypoint.sh:/app/entrypoint.sh
+      - /opt/openclaw/docker/entrypoint-fixed.sh:/entrypoint-fixed.sh
+    entrypoint: ["/app/entrypoint.sh"]
+    command: ["/entrypoint-fixed.sh"]
+    environment:
+      - AWS_DEFAULT_REGION=us-east-1
