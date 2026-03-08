@@ -1,0 +1,17 @@
+version: "3.8"
+services:
+  openclaw:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: openclaw:latest
+    container_name: openclaw-agents
+    restart: unless-stopped
+    volumes:
+      - /opt/openclaw/config:/app/config
+      - /opt/openclaw/config-src:/app/config-src
+      - /opt/openclaw/entrypoint.sh:/app/entrypoint.sh
+    entrypoint: ["/app/entrypoint.sh"]
+    command: ["/entrypoint.sh"]
+    environment:
+      - AWS_DEFAULT_REGION=us-east-1
