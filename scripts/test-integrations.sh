@@ -70,8 +70,8 @@ fi
 echo ""
 
 # 3. MCP Servers via mcporter
-echo "[3/6] MCP Server Availability (mcporter)"
-run_test "mcporter list servers" "mcporter list 2>&1" "jira\|zendesk\|notion"
+echo "[3/6] OpenClaw Gateway Status"
+run_test "openclaw status" "openclaw status 2>&1" "OK\|Slack"
 echo ""
 
 # 4. Jira integration

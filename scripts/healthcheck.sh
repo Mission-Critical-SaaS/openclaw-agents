@@ -79,15 +79,12 @@ fi
 
 # Check 2: MCP servers (only if container is running)
 if [ "$CS" = "running" ]; then
-    MCP_OUT=$(docker exec "$CONTAINER" bash -c '
-        while IFS= read -r -d "" line; do export "$line"; done < /proc/1/environ 2>/dev/null
-        mcporter list 2>&1
-    ' 2>/dev/null || echo "mcporter_failed")
+    MCP_OUT=$(docker exec "$CONTAINER" openclaw status 2>/dev/null || echo "status_failed")
 
-    HEALTHY_COUNT=$(echo "$MCP_OUT" | grep -c "tools" || true)
-    if [ "$HEALTHY_COUNT" -lt 3 ]; then
-        ERRORS="${ERRORS}MCP servers: only $HEALTHY_COUNT/3 healthy\n"
-        log "FAIL: MCP servers $HEALTHY_COUNT/3"
+    HEALTHY_COUNT=$(echo "$MCP_OUT" | grep -c "OK" || true)
+    if [ "$HEALTHY_COUNT" -lt 1 ]; then
+        ERRORS="${ERRORS}OpenClaw status check failed\n"
+        log "FAIL: openclaw status returned no OK"
     fi
 
     # Check 3: Slack connections

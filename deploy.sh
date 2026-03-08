@@ -75,7 +75,7 @@ while [ $ELAPSED -lt $HEALTH_TIMEOUT ]; do
     sleep 5; ELAPSED=$((ELAPSED + 5))
     CS=$(docker inspect -f '{{.State.Status}}' "$CONTAINER_NAME" 2>/dev/null || echo "not_found")
     if [ "$CS" = "running" ]; then
-        MC=$(docker exec "$CONTAINER_NAME" bash -c 'while IFS= read -r -d "" line; do export "$line"; done < /proc/1/environ 2>/dev/null; mcporter list 2>&1' 2>/dev/null || echo "not_ready")
+        MC=$(docker exec "$CONTAINER_NAME" openclaw status 2>/dev/null || echo "not_ready")
         if echo "$MC" | grep -q "tools"; then log "Healthy after ${ELAPSED}s"; break; fi
     fi
     [ $((ELAPSED % 15)) -eq 0 ] && log "Waiting... (${ELAPSED}s, status=$CS)"
@@ -88,7 +88,7 @@ fi
 log "=== HEALTH REPORT ==="
 log "Container: $(docker inspect -f '{{.State.Status}}' $CONTAINER_NAME)"
 log "MCP Servers:"
-docker exec "$CONTAINER_NAME" bash -c 'while IFS= read -r -d "" line; do export "$line"; done < /proc/1/environ 2>/dev/null; mcporter list 2>&1' 2>/dev/null | while IFS= read -r l; do log "  $l"; done
+docker exec "$CONTAINER_NAME" openclaw status 2>/dev/null | while IFS= read -r l; do log "  $l"; done
 log "Slack:"
 docker logs "$CONTAINER_NAME" 2>&1 | grep -i "socket mode" | tail -6 | while IFS= read -r l; do log "  $l"; done
 log "Previous: $CURRENT_COMMIT | Deployed: $NEW_COMMIT"

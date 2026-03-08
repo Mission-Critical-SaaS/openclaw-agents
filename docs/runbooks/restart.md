@@ -25,7 +25,7 @@ docker-compose down && docker-compose up -d
 ```bash
 ssh ec2-user@3.237.5.79
 
-docker logs --tail 50 openclaw-gateway
+docker logs --tail 50 openclaw-agents
 
 sudo systemctl restart openclaw
 
@@ -53,6 +53,6 @@ If the instance is unrecoverable, follow the Fresh Deployment procedure.
 ## Verification After Any Restart
 
 1. Check container is running: docker ps
-2. Check logs for connection messages: docker logs openclaw-gateway
+2. Check logs for connection messages: docker logs openclaw-agents
 3. Test each agent in Slack #leads
 4. Confirm response time is under 10 seconds

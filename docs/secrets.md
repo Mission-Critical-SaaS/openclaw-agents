@@ -22,7 +22,8 @@ The secret is a JSON object with these keys:
 | `ATLASSIAN_USER_EMAIL` | Atlassian service account email | Atlassian admin |
 | `ATLASSIAN_API_TOKEN` | Atlassian API token | [id.atlassian.com](https://id.atlassian.com/manage-profile/security/api-tokens) |
 | `GITHUB_TOKEN` | GitHub personal access token | [github.com/settings/tokens](https://github.com/settings/tokens) |
-| `@ENDESK_SUBDOMAIN` | Zendesk subdomain (e.g., `minute7`) | Zendesk admin |
+| `NOTION_API_TOKEN` | Notion integration API token | [notion.so/my-integrations](https://www.notion.so/my-integrations) |
+| `ZENDESK_SUBDOMAIN` | Zendesk subdomain (e.g., `minute7`) | Zendesk admin |
 | `ZENDESK_EMAIL` | Zendesk agent email | Zendesk admin |
 | `ZENDESK_API_TOKEN` | Zendesk API token | [Zendesk Admin Center](https://minute7.zendesk.com/admin/apps-integrations/apis/api-tokens) |
 
@@ -79,6 +80,15 @@ docker-compose restart
 4. Update `ZENDESK_API_TOKEN` in Secrets Manager
 5. Restart the container
 6. Delete the old token in Zendesk Admin Center
+
+## Rotating the Notion API Token
+
+1. Go to [notion.so/my-integrations](https://www.notion.so/my-integrations)
+2. Select the OpenClaw integration
+3. Under "Internal Integration Secret", click "Show" then "Regenerate"
+4. Copy the new token (starts with `ntn_`)
+5. Update `NOTION_API_TOKEN` in Secrets Manager
+6. Restart the container
 
 ## Rotating the Anthropic API Key
 

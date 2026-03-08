@@ -5,7 +5,7 @@
 ```bash
 docker exec openclaw-agents bash -c '
     while IFS= read -r -d "" line; do export "$line"; done < /proc/1/environ
-    mcporter list 2>&1
+    openclaw status
 '
 ```
 
@@ -43,10 +43,10 @@ mcporter config file is missing or has wrong key.
 
 ```bash
 # Check config exists and has correct structure
-docker exec openclaw-agents cat /root/.mcporter/mcporter.json | python3 -m json.tool
+docker exec openclaw-agents cat /root/.openclaw/mcporter.json | python3 -m json.tool
 ```
 
-The top-level key MUST be `mcpServers` (not `servers`). This is a mcporter 0.7.3 requirement. If wrong, fix in `docker/entrypoint-fixed.sh` and redeploy.
+The top-level key MUST be `mcpServers` (not `servers`). This is a mcporter 0.7.3 requirement. If wrong, fix in `docker/entrypoint.sh` and redeploy.
 
 ## Env Vars Not Available via docker exec
 
@@ -69,7 +69,7 @@ The outer entrypoint (`entrypoint.sh`) derives env vars from AWS Secrets Manager
 | ATLASSIAN_API_TOKEN | JIRA_API_TOKEN | Jira MCP |
 | ZENDESK_API_TOKEN | ZENDESK_TOKEN | Zendesk MCP |
 
-The inner entrypoint (`docker/entrypoint-fixed.sh`) reads these derived vars and writes them into `/root/.mcporter/mcporter.json`.
+The inner entrypoint (`docker/entrypoint.sh`) reads these derived vars and writes them into `/root/.openclaw/mcporter.json`.
 
 ## Full Credential Verification
 ```bash
@@ -85,7 +85,7 @@ docker exec openclaw-agents bash -c '
 '
 
 # 3. mcporter config
-docker exec openclaw-agents cat /root/.mcporter/mcporter.json | jq '.mcpServers | keys'
+docker exec openclaw-agents cat /root/.openclaw/mcporter.json | jq '.mcpServers | keys'
 ```
 
 ## Recovery

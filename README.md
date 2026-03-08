@@ -12,7 +12,7 @@ The container uses a two-stage entrypoint:
 
 1. **Outer entrypoint** (`entrypoint.sh` → mounted as `/app/entrypoint.sh`): Fetches secrets from AWS Secrets Manager (`openclaw/agents`), exports env vars, starts the gateway, waits for config, injects Slack channels, then restarts.
 
-2. **Inner entrypoint** (`docker/entrypoint-fixed.sh` → mounted as `/entrypoint-fixed.sh`): Configures mcporter MCP servers (Jira, Zendesk, Notion), sets up agent auth profiles, registers API key, and starts the gateway.
+2. **Inner entrypoint** (`docker/entrypoint.sh` → mounted as `/entrypoint.sh`): Configures mcporter MCP servers (Jira, Zendesk, Notion), sets up agent auth profiles, registers API key, and starts the gateway.
 
 ### MCP Integrations (via mcporter)
 
@@ -54,10 +54,7 @@ cd /opt/openclaw
 git fetch origin && git pull origin main
 docker-compose down && docker-compose up -d
 # Wait ~60s for startup, then verify:
-docker exec openclaw-agents bash -c '
-  while IFS= read -r -d "" line; do export "$line"; done < /proc/1/environ
-  mcporter list
-'
+docker exec openclaw-agents openclaw status
 ```
 
 ### Prerequisites
@@ -98,7 +95,7 @@ deploy.sh                  Repeatable deployment script
 docker-compose.yml         Docker Compose configuration
 docker/
   Dockerfile               Container image definition
-  entrypoint-fixed.sh      Inner entrypoint (mcporter + gateway)
+  entrypoint.sh      Inner entrypoint (mcporter + gateway)
 config/                    OpenClaw gateway config (generated)
 config-src/                Source config templates
 agents/                    Agent workspace files
@@ -132,9 +129,9 @@ docker exec openclaw-agents cat /data/logs/openclaw.log
 ### MCP servers offline
 ```bash
 # Check env vars are set
-docker exec openclaw-agents bash -c 'cat /proc/1/environ | tr "\0" "\n" | grep -E "JIRA_|ZENDESK_|NOTION_"'
+docker exec openclaw-agents bash -c 'cat /proc/1/environ | tr "\0" "\n" | grep -E "ATLASSIAN_|ZENDESK_|NOTION_"'
 # Check mcporter config
-docker exec openclaw-agents cat /root/.mcporter/mcporter.json | python3 -m json.tool
+docker exec openclaw-agents cat /root/.openclaw/mcporter.json | python3 -m json.tool
 # Restart container
 cd /opt/openclaw && docker-compose down && docker-compose up -d
 ```

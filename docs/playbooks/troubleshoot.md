@@ -10,7 +10,7 @@ docker ps
 
 ### Check container logs
 ```bash
-docker logs --tail 100 openclaw-gateway
+docker logs --tail 100 openclaw-agents
 ```
 
 **Common log errors:**
@@ -25,12 +25,12 @@ docker logs --tail 100 openclaw-gateway
 
 ### Check if agent is connected to Slack
 ```bash
-docker logs openclaw-gateway 2>&1 | grep -i connected
+docker logs openclaw-agents 2>&1 | grep -i connected
 ```
 
 ### Check if secrets are loaded
 ```bash
-docker exec openclaw-gateway env | grep -c SLACK
+docker exec openclaw-agents env | grep -c SLACK
 ```
 
 ## Container Won't Start
@@ -54,7 +54,7 @@ docker-compose build --no-cache 2>&1 | tail -20
 
 ### Check openclaw package
 ```bash
-docker exec openclaw-gateway openclaw --version
+docker exec openclaw-agents openclaw --version
 ```
 
 ## Agent Responds But Gives Errors
@@ -101,5 +101,5 @@ Edit config/openclaw.json.tpl, update the allowChannels array, commit, push, and
 ### View real-time logs
 ```bash
 ssh ec2-user@3.237.5.79
-docker logs -f --tail 50 openclaw-gateway
+docker logs -f --tail 50 openclaw-agents
 ```

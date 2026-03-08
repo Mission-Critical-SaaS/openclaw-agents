@@ -28,12 +28,20 @@ OpenClaw is a multi-channel AI agent gateway. It:
 EC2 boot
   └─> systemd starts docker-compose
        └─> Docker builds image (if needed)
-            └─> entrypoint.sh runs:
+            └─> Outer entrypoint (entrypoint.sh → /app/entrypoint.sh):
                  1. Fetches secrets from AWS Secrets Manager
-                 2. Exports environment variables
-                 3. Substitutes env vars into openclaw.json.tpl → openclaw.json
-                 4. Runs: openclaw gateway run --allow-unconfigured
-                 5. OpenClaw connects all three agents to Slack via Socket Mode
+                 2. Exports env vars (ANTHROPIC_API_KEY, SLACK_*, ATLASSIAN_*, etc.)
+                 3. Derives backward-compat vars (JIRA_BASE_URL, JIRA_API_TOKEN, etc.)
+                 4. Starts inner entrypoint in background
+                 5. Waits for gateway config to appear
+                 6. Injects Slack channel IDs via configure_channels.py
+                 7. Restarts gateway to pick up channel config
+                 └─> Inner entrypoint (docker/entrypoint.sh → /entrypoint.sh):
+                      1. Generates mcporter config (Jira, Zendesk, Notion servers)
+                      2. Creates agent auth profiles (scout, trak, kit)
+                      3. Registers Anthropic API key
+                      4. Runs: openclaw gateway run --allow-unconfigured
+                      5. OpenClaw connects all three agents to Slack via Socket Mode
 ```
 
 ## Network Architecture
@@ -65,6 +73,6 @@ User @mentions Scout in #leads
 
 ## Monitoring
 
-- **Docker logs**: `docker logs openclaw-gateway` on the EC2 instance
+- **Docker logs**: `docker logs openclaw-agents` on the EC2 instance
 - **System journal**: `journalctl -u openclaw` for systemd service logs
 - **Health check**: Message any agent in #leads and verify response

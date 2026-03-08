@@ -57,11 +57,8 @@ docker-compose down && docker-compose up -d
 ### 3. Verify
 ```bash
 # Wait ~60-90s, then:
-docker exec openclaw-agents bash -c '
-    while IFS= read -r -d "" line; do export "$line"; done < /proc/1/environ
-    mcporter list 2>&1
-'
-# Expected: jira (5 tools), zendesk (8 tools), notion (22 tools)
+docker exec openclaw-agents openclaw status
+# Expected: Slack ON/OK, all 3 agents connected
 docker logs openclaw-agents 2>&1 | grep -i "socket mode" | tail -6
 # Expected: 3 agents connected
 ```
@@ -75,7 +72,7 @@ git push origin main
 ./deploy.sh main
 ```
 
-Key files: `entrypoint.sh` (secrets/env), `docker/entrypoint-fixed.sh` (mcporter/agents), `docker-compose.yml`
+Key files: `entrypoint.sh` (secrets/env), `docker/entrypoint.sh` (mcporter/agents), `docker-compose.yml`
 
 ## Secret Changes
 
@@ -132,7 +129,7 @@ sudo chmod +x /usr/local/bin/docker-compose
 ```bash
 cd /opt && sudo git clone https://github.com/LMNTL-AI/openclaw-agents.git openclaw
 cd openclaw && sudo chown -R ec2-user:ec2-user .
-chmod +x deploy.sh entrypoint.sh docker/entrypoint-fixed.sh
+chmod +x deploy.sh entrypoint.sh docker/entrypoint.sh
 docker-compose build --no-cache
 ```
 
