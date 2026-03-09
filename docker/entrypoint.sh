@@ -68,7 +68,7 @@ for agent in scout trak kit; do
 AUTHEOF
 done
 
-# Copy agent workspace files
+# Copy agent workspace files (IDENTITY.md, KNOWLEDGE.md, etc.)
 for agent in scout trak kit; do
   if [ -d "/tmp/agents/${agent}/workspace" ]; then
     cp -r /tmp/agents/${agent}/workspace/* "${OPENCLAW_HOME}/agents/${agent}/workspace/" 2>/dev/null || true
@@ -82,7 +82,29 @@ if command -v openclaw &> /dev/null && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
     --provider anthropic --profile-id anthropic:default 2>/dev/null || true
 fi
 
-# SKIP openclaw channels add - channels are managed by outer entrypoint injection
+# Install mcporter globally
+if ! command -v mcporter &> /dev/null; then
+  npm install -g mcporter 2>/dev/null
+  echo "mcporter installed"
+fi
+
+# Install gh CLI if missing
+if ! command -v gh &> /dev/null; then
+  echo "Installing gh CLI..."
+  curl -sSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli.gpg 2>/dev/null
+  echo "deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list
+  apt-get update -qq && apt-get install -y -qq gh 2>/dev/null
+  echo "gh CLI installed"
+fi
+
+# Auth gh with token
+if command -v gh &> /dev/null && [ -n "${GITHUB_TOKEN:-}" ]; then
+  echo "${GITHUB_TOKEN}" | gh auth login --with-token 2>/dev/null || true
+  echo "gh authenticated"
+fi
+
+# NOTE: MCP warmup moved to outer entrypoint (/app/entrypoint.sh)
+# so it runs AFTER the gateway is live and MCP servers are reachable.
 
 echo "Starting OpenClaw gateway..."
 exec openclaw gateway run --allow-unconfigured 2>&1 | tee /data/logs/openclaw.log
