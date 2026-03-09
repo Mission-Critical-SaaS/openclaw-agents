@@ -19,8 +19,14 @@ for arg in "$@"; do
 done
 mkdir -p "$LOG_DIR"
 DEPLOY_LOG="$LOG_DIR/deploy-$(date +%Y%m%d-%H%M%S).log"
-exec > >(tee -a "$DEPLOY_LOG") 2>&1
-log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
+# NOTE: Do NOT use `exec > >(tee ...)` here. The process substitution
+# creates a child process that SSM waits on, causing the SSM command to
+# hang even after the script exits. Instead, log explicitly.
+log() {
+    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+    echo "$msg"
+    echo "$msg" >> "$DEPLOY_LOG"
+}
 log "OpenClaw Deployment Script v2.0"
 cd "$DEPLOY_DIR"
 if ! command -v docker &>/dev/null; then log "ERROR: Docker not found"; exit 1; fi
@@ -94,8 +100,8 @@ if [ $ELAPSED -ge $HEALTH_TIMEOUT ]; then
 fi
 log "=== HEALTH REPORT ==="
 log "Container: $(docker inspect -f '{{.State.Status}}' $CONTAINER_NAME)"
-log "MCP Servers:"
-docker exec "$CONTAINER_NAME" openclaw status 2>/dev/null | while IFS= read -r l; do log "  $l"; done
+log "Status:"
+timeout 15 docker exec "$CONTAINER_NAME" openclaw status 2>/dev/null | head -20 | while IFS= read -r l; do log "  $l"; done || log "  (status check timed out)"
 log "Slack:"
 docker logs "$CONTAINER_NAME" 2>&1 | grep -i "socket mode" | tail -6 | while IFS= read -r l; do log "  $l"; done
 log "Previous: $CURRENT_COMMIT | Deployed: $NEW_COMMIT"
