@@ -20,10 +20,10 @@ EXPECTED_AGENTS=("scout" "trak" "kit")
 mkdir -p /opt/openclaw/logs
 
 # ─── Logging ───
-log()  { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG"; }
-logw() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARN  $*" | tee -a "$LOG"; }
-loge() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR $*" | tee -a "$LOG"; }
-logi() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] INFO  $*" | tee -a "$LOG"; }
+log()  { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG" >&2; }
+logw() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARN  $*" | tee -a "$LOG" >&2; }
+loge() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR $*" | tee -a "$LOG" >&2; }
+logi() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] INFO  $*" | tee -a "$LOG" >&2; }
 
 # ─── State management ───
 init_state() {
@@ -168,7 +168,7 @@ run_health_checks() {
 repair_soft_restart() {
     log "REPAIR [Tier 1]: Soft restart — docker restart $CONTAINER"
     send_alert "repair" "Tier 1: Soft-restarting container due to health check failures."
-    docker restart "$CONTAINER" 2>&1 | tee -a "$LOG"
+    docker restart "$CONTAINER" 2>&1 | tee -a "$LOG" >&2
     increment_state "soft_restarts"
     set_state "last_repair_ts" "$(date +%s)"
     set_state "last_repair_tier" '"soft"'
@@ -179,8 +179,8 @@ repair_hard_restart() {
     log "REPAIR [Tier 2]: Hard restart — docker-compose down/up"
     send_alert "repair" "Tier 2: Hard-restarting (compose down/up) due to persistent failures."
     cd "$COMPOSE_DIR"
-    docker-compose down 2>&1 | tee -a "$LOG"
-    docker-compose up -d 2>&1 | tee -a "$LOG"
+    docker-compose down 2>&1 | tee -a "$LOG" >&2
+    docker-compose up -d 2>&1 | tee -a "$LOG" >&2
     increment_state "hard_restarts"
     set_state "last_repair_ts" "$(date +%s)"
     set_state "last_repair_tier" '"hard"'
@@ -191,16 +191,16 @@ repair_full_rebuild() {
     log "REPAIR [Tier 3]: Full rebuild — docker-compose build --no-cache && up"
     send_alert "repair" "Tier 3: Full rebuild triggered. This will take several minutes."
     cd "$COMPOSE_DIR"
-    docker-compose down 2>&1 | tee -a "$LOG"
-    docker system prune -f 2>&1 | tee -a "$LOG"
-    docker-compose build --no-cache 2>&1 | tee -a "$LOG"
+    docker-compose down 2>&1 | tee -a "$LOG" >&2
+    docker system prune -f 2>&1 | tee -a "$LOG" >&2
+    docker-compose build --no-cache 2>&1 | tee -a "$LOG" >&2
     local build_rc=$?
     if [ $build_rc -ne 0 ]; then
         loge "REBUILD FAILED with exit code $build_rc"
         send_alert "error" "Tier 3 rebuild FAILED. Human intervention required.\nExit code: $build_rc"
         return 1
     fi
-    docker-compose up -d 2>&1 | tee -a "$LOG"
+    docker-compose up -d 2>&1 | tee -a "$LOG" >&2
     increment_state "rebuilds"
     set_state "last_repair_ts" "$(date +%s)"
     set_state "last_repair_tier" '"rebuild"'
