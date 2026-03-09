@@ -134,12 +134,35 @@ INJECT_PYEOF
   fi
 
   # ============================================================
-  # MCP TOOLS: Jira, Zendesk, and Notion MCP servers are managed
-  # by the gateway and start ON-DEMAND when an agent first
-  # requests tools. The npx packages are pre-installed in the
-  # Docker image so there is no cold-start download penalty.
-  # No warmup loop needed.
+  # AGENT BOOTSTRAP
+  # MCP tools load on-demand when an agent first requests them.
+  # We trigger a lightweight agent turn so that tools (Jira,
+  # Zendesk, Notion, GitHub) are warmed up BEFORE any real user
+  # message arrives. This eliminates cold-start latency for the
+  # first human interaction.
   # ============================================================
+  echo "Bootstrapping agents (warming MCP tools)..."
+
+  # Give Slack socket-mode connections time to establish
+  sleep 10
+
+  # Fire a bootstrap turn through the gateway. The agent will
+  # enumerate its tools during the turn, forcing the gateway to
+  # start all configured MCP servers.
+  BOOTSTRAP_RESP=$(openclaw agent --agent main \
+    --message "Bootstrap health check. List every MCP tool name you have access to, one per line. Then say BOOTSTRAP_OK." \
+    --timeout 90 2>&1) || true
+
+  if echo "$BOOTSTRAP_RESP" | grep -q "BOOTSTRAP_OK"; then
+    echo "Agent bootstrap succeeded — MCP tools are warm."
+    # Count tools mentioned in response (rough heuristic)
+    TOOL_COUNT=$(echo "$BOOTSTRAP_RESP" | grep -c "name" 2>/dev/null || echo "?")
+    echo "  Tools loaded: ~${TOOL_COUNT}"
+  else
+    # Non-fatal: agents will still work, just with cold-start on first message
+    echo "WARNING: Agent bootstrap did not confirm. Tools may load on first user message."
+    echo "  Response (last 200 chars): $(echo "$BOOTSTRAP_RESP" | tail -c 200)"
+  fi
 
   echo "OpenClaw gateway is live."
   wait $GATEWAY_PID

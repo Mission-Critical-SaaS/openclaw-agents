@@ -118,26 +118,59 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(afterLiveness).toContain('exit 1');
   });
 
-  // --- MCP tools: on-demand loading (no warmup loop) ---
+  // --- MCP tools: no broken mcporter warmup ---
   test('does NOT contain broken mcporter warmup loop', () => {
     expect(script).not.toContain('Pre-warming MCP servers');
     expect(script).not.toContain('mcporter list --json');
     expect(script).not.toMatch(/seq 1 12/);
   });
 
-  test('documents that MCP tools load on-demand', () => {
-    expect(script).toContain('ON-DEMAND');
-    expect(script).toContain('No warmup loop needed');
+  // --- Agent bootstrap (warms MCP tools automatically) ---
+  test('bootstraps agent to warm MCP tools after gateway starts', () => {
+    expect(script).toContain('Bootstrapping agents');
+    expect(script).toContain('openclaw agent --agent main');
+    expect(script).toContain('BOOTSTRAP_OK');
+  });
+
+  test('bootstrap runs AFTER gateway liveness check', () => {
+    const livenessIdx = script.indexOf('kill -0 $GATEWAY_PID');
+    const bootstrapIdx = script.indexOf('openclaw agent --agent main');
+    expect(bootstrapIdx).toBeGreaterThan(livenessIdx);
+  });
+
+  test('bootstrap is non-fatal (does not exit 1 on failure)', () => {
+    // The bootstrap command block must have || true so a failed bootstrap
+    // doesn't kill the container. The command spans multiple lines via \
+    const bootstrapIdx = script.indexOf('openclaw agent --agent main');
+    expect(bootstrapIdx).toBeGreaterThan(-1);
+    // Get a window around the bootstrap command (covers continuation lines)
+    const bootstrapBlock = script.substring(bootstrapIdx, bootstrapIdx + 300);
+    expect(bootstrapBlock).toContain('|| true');
+  });
+
+  test('bootstrap has a reasonable timeout', () => {
+    expect(script).toMatch(/--timeout\s+\d+/);
+    const match = script.match(/--timeout\s+(\d+)/);
+    expect(match).toBeTruthy();
+    const timeout = parseInt(match![1], 10);
+    expect(timeout).toBeGreaterThanOrEqual(30);
+    expect(timeout).toBeLessThanOrEqual(120);
+  });
+
+  test('documents that MCP tools load on-demand via bootstrap', () => {
+    expect(script).toContain('on-demand');
+    expect(script).toContain('cold-start');
   });
 
   // --- Startup ordering (the full critical path) ---
-  test('correct overall startup order: secrets → config wait → inject → doctor → restart → verify', () => {
+  test('correct overall startup order: secrets → config wait → inject → doctor → restart → verify → bootstrap', () => {
     const secretsIdx = script.indexOf('aws secretsmanager');
     const configWaitIdx = script.indexOf('Waiting for gateway config');
     const injectIdx = script.indexOf('injecting Slack channels');
     const doctorIdx = script.indexOf('openclaw doctor --fix');
     const restartIdx = script.indexOf('openclaw gateway run');
     const verifyIdx = script.indexOf('kill -0 $GATEWAY_PID');
+    const bootstrapIdx = script.indexOf('openclaw agent --agent main');
 
     expect(secretsIdx).toBeGreaterThan(-1);
     expect(configWaitIdx).toBeGreaterThan(secretsIdx);
@@ -145,6 +178,7 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(doctorIdx).toBeGreaterThan(injectIdx);
     expect(restartIdx).toBeGreaterThan(doctorIdx);
     expect(verifyIdx).toBeGreaterThan(restartIdx);
+    expect(bootstrapIdx).toBeGreaterThan(verifyIdx);
   });
 });
 
