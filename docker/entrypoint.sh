@@ -75,12 +75,9 @@ for agent in scout trak kit; do
   fi
 done
 
-# Register API key
-if command -v openclaw &> /dev/null && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  echo "Registering API key..."
-  echo "${ANTHROPIC_API_KEY}" | openclaw models auth paste-token \
-    --provider anthropic --profile-id anthropic:default 2>/dev/null || true
-fi
+# NOTE: API key auth is handled via auth-profiles.json written above.
+# Do NOT use the interactive "paste-token" CLI auth method — it blocks
+# the entrypoint and leaks the key character-by-character into docker logs.
 
 # Install mcporter globally
 if ! command -v mcporter &> /dev/null; then

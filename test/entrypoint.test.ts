@@ -175,6 +175,12 @@ describe('Inner entrypoint (docker/entrypoint.sh)', () => {
     expect(script).toContain('MCP warmup moved to outer entrypoint');
   });
 
+  test('does NOT use interactive paste-token command (blocks entrypoint, leaks key)', () => {
+    // The command "openclaw models auth paste-token" must not appear as executable code
+    // (comments warning against it are fine)
+    expect(script).not.toMatch(/openclaw models auth paste-token/);
+  });
+
   test('starts gateway with exec and tee to log file', () => {
     expect(script).toMatch(/exec openclaw gateway run.*tee.*openclaw\.log/);
   });
