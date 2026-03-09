@@ -71,12 +71,13 @@ jobs:
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ env.INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --parameters "commands=[\"cd /opt/openclaw && docker ps --filter name=openclaw-agents --format '{{.Status}}' && docker exec openclaw-agents mcporter health 2>/dev/null | head -5\"]" \
+            --parameters "commands=[\"cd /opt/openclaw && docker ps --filter name=openclaw-agents --format '{{.Names}} {{.Status}}' && docker logs openclaw-agents 2>&1 | grep -E '(BOOTSTRAP_OK|gateway is live|socket mode connected|ERROR)' | tail -10\"]" \
+            --timeout-seconds 30 \
             --query "Command.CommandId" \
             --output text)
-          
-          sleep 10
-          
+
+          sleep 15
+
           aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "${{ env.INSTANCE_ID }}" \

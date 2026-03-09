@@ -6,9 +6,12 @@ const app = new cdk.App();
 
 new OpenclawAgentsStack(app, 'OpenclawAgentsStack', {
   env: {
-    account: '669308278244', // LMNTL AI Agents sub-account
+    account: '122015479852',
     region: 'us-east-1',
   },
-  instanceType: 't3.small',
+  instanceType: 't3.xlarge',
+  diskSizeGb: 50,
   alertEmail: 'david@lmntl.ai',
+  githubOrg: 'LMNTL-AI',
+  githubRepo: 'openclaw-agents',
 });

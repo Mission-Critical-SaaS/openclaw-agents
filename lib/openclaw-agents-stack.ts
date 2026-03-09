@@ -2,7 +2,6 @@ import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
-import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as cloudwatch_actions from 'aws-cdk-lib/aws-cloudwatch-actions';
@@ -11,18 +10,27 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 export interface OpenClawAgentsStackProps extends cdk.StackProps {
-  /** EC2 instance type */
+  /** EC2 instance type (default: t3.xlarge) */
   instanceType?: string;
+  /** Root EBS volume size in GB (default: 50) */
+  diskSizeGb?: number;
   /** Alert email for CloudWatch alarms */
   alertEmail?: string;
+  /** GitHub organization for OIDC deploy role */
+  githubOrg?: string;
+  /** GitHub repository name for OIDC deploy role */
+  githubRepo?: string;
 }
 
 export class OpenclawAgentsStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: OpenClawAgentsStackProps) {
     super(scope, id, props);
 
-    const instanceType = props?.instanceType ?? 't3.small';
+    const instanceType = props?.instanceType ?? 't3.xlarge';
+    const diskSizeGb = props?.diskSizeGb ?? 50;
     const alertEmail = props?.alertEmail ?? 'david@lmntl.ai';
+    const githubOrg = props?.githubOrg ?? 'LMNTL-AI';
+    const githubRepo = props?.githubRepo ?? 'openclaw-agents';
 
     // ──────────────────────────────────────────────
     // VPC — single public subnet to keep costs down
@@ -51,27 +59,20 @@ export class OpenclawAgentsStack extends cdk.Stack {
     });
 
     // ──────────────────────────────────────────────
-    // IAM Role
+    // IAM Role — EC2 instance profile
     // ──────────────────────────────────────────────
     const role = new iam.Role(this, 'OpenClawRole', {
       assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
-      description: 'OpenClaw agent host - LMNTL AI Agents account',
+      description: 'OpenClaw agent host',
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
         iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchAgentServerPolicy'),
       ],
     });
 
-    // ──────────────────────────────────────────────
-    // Secrets Manager — single JSON secret for all credentials
-    // Populated out-of-band via CLI before first deploy
-    // ──────────────────────────────────────────────
-    const secret = secretsmanager.Secret.fromSecretNameV2(
-      this, 'OpenClawSecret', 'openclaw/agents'
-    );
-
     // Grant EC2 read access to the secret
     role.addToPolicy(new iam.PolicyStatement({
+      sid: 'SecretsRead',
       actions: ['secretsmanager:GetSecretValue'],
       resources: [
         `arn:aws:secretsmanager:${this.region}:${this.account}:secret:openclaw/agents-*`,
@@ -98,20 +99,23 @@ export class OpenclawAgentsStack extends cdk.Stack {
     userData.addCommands(bootstrapScript);
 
     // ──────────────────────────────────────────────
-    // EC2 Instance
+    // EC2 Instance — Ubuntu 22.04 LTS
     // ──────────────────────────────────────────────
     const instance = new ec2.Instance(this, 'OpenClawHost', {
       vpc,
       instanceType: new ec2.InstanceType(instanceType),
-      machineImage: ec2.MachineImage.latestAmazonLinux2023(),
+      machineImage: ec2.MachineImage.fromSsmParameter(
+        '/aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id',
+        { os: ec2.OperatingSystemType.LINUX }
+      ),
       securityGroup: sg,
       role,
       userData,
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
       blockDevices: [
         {
-          deviceName: '/dev/xvda',
-          volume: ec2.BlockDeviceVolume.ebs(30, {
+          deviceName: '/dev/sda1',
+          volume: ec2.BlockDeviceVolume.ebs(diskSizeGb, {
             volumeType: ec2.EbsDeviceVolumeType.GP3,
             encrypted: true,
           }),
@@ -122,7 +126,54 @@ export class OpenclawAgentsStack extends cdk.Stack {
     cdk.Tags.of(instance).add('Name', 'openclaw-agents');
     cdk.Tags.of(instance).add('Project', 'openclaw');
     cdk.Tags.of(instance).add('Environment', 'production');
-    cdk.Tags.of(instance).add('Account', 'lmntl-ai-agents');
+
+    // ──────────────────────────────────────────────
+    // GitHub OIDC Provider + Deploy Role
+    // Allows GitHub Actions to deploy via SSM
+    // ──────────────────────────────────────────────
+    const oidcProvider = new iam.OpenIdConnectProvider(this, 'GitHubOidc', {
+      url: 'https://token.actions.githubusercontent.com',
+      clientIds: ['sts.amazonaws.com'],
+    });
+
+    const deployRole = new iam.Role(this, 'GitHubDeployRole', {
+      roleName: 'openclaw-github-deploy',
+      assumedBy: new iam.WebIdentityPrincipal(
+        oidcProvider.openIdConnectProviderArn,
+        {
+          StringEquals: {
+            'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+          },
+          StringLike: {
+            'token.actions.githubusercontent.com:sub': `repo:${githubOrg}/${githubRepo}:*`,
+          },
+        }
+      ),
+      description: 'GitHub Actions deploy role for OpenClaw agents',
+      maxSessionDuration: cdk.Duration.hours(1),
+    });
+
+    // SSM permissions — scoped to this instance only
+    deployRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'SSMDeploy',
+      actions: [
+        'ssm:SendCommand',
+        'ssm:GetCommandInvocation',
+      ],
+      resources: [
+        `arn:aws:ssm:${this.region}::document/AWS-RunShellScript`,
+        `arn:aws:ec2:${this.region}:${this.account}:instance/${instance.instanceId}`,
+      ],
+    }));
+
+    // Secrets read — for Slack failure notifications in deploy pipeline
+    deployRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'SecretsRead',
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [
+        `arn:aws:secretsmanager:${this.region}:${this.account}:secret:openclaw/agents-*`,
+      ],
+    }));
 
     // ──────────────────────────────────────────────
     // Monitoring & Alerts
@@ -170,16 +221,20 @@ export class OpenclawAgentsStack extends cdk.Stack {
     // ──────────────────────────────────────────────
     new cdk.CfnOutput(this, 'InstanceId', {
       value: instance.instanceId,
-      description: 'EC2 Instance ID',
+      description: 'EC2 Instance ID — update .github/workflows/deploy.yml and test/e2e/e2e.test.ts',
     });
 
-    new cdk.CfnOutput(this, 'PublicIp', {
-      value: instance.instancePublicIp,
-      description: 'Public IP (no inbound ports open)',
+    new cdk.CfnOutput(this, 'SecurityGroupId', {
+      value: sg.securityGroupId,
     });
 
     new cdk.CfnOutput(this, 'LogGroup', {
       value: logGroup.logGroupName,
+    });
+
+    new cdk.CfnOutput(this, 'DeployRoleArn', {
+      value: deployRole.roleArn,
+      description: 'Set as AWS_DEPLOY_ROLE_ARN secret in GitHub repo settings',
     });
 
     new cdk.CfnOutput(this, 'SSMConnect', {
