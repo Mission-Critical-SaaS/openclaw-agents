@@ -81,7 +81,7 @@ An independent systemd service that runs **outside** the Docker container, monit
 | 2 — Hard | `docker-compose down && up -d` | Soft restart failed, or container stopped |
 | 3 — Rebuild | `docker-compose build --no-cache && up -d` | Hard restart failed within 10 minutes |
 
-Tiers reset after 10 minutes of stability. Two consecutive failures are required before any repair action (prevents false positives). Alerts go to Slack (#leads) and AWS SNS on every repair, recovery, and exhaustion event.
+Tiers reset after 10 minutes of stability. Two consecutive failures are required before any repair action (prevents false positives). Alerts go to Slack (#openclaw-watchdog) and AWS SNS on every repair, recovery, and exhaustion event.
 
 ```bash
 # Check probe status

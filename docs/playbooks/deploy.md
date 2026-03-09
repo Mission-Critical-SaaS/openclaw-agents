@@ -13,6 +13,7 @@
 | Docker Path | /opt/openclaw |
 | Container Name | openclaw-agents |
 | Watchdog Service | openclaw-watchdog.service |
+| Alert Channel | #openclaw-watchdog (C0AL58T8QMN) |
 
 ## Quick Deploy (Recommended)
 
