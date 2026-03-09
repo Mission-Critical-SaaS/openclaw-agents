@@ -76,7 +76,7 @@ send_alert() {
         curl -s -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $token" \
             -H "Content-Type: application/json" \
-            -d "{\"channel\":\"leads\",\"text\":\"${full_msg}\"}" > /dev/null 2>&1
+            -d "{\"channel\":\"C0AL58T8QMN\",\"text\":\"${full_msg}\"}" > /dev/null 2>&1
         logi "Slack alert sent: $severity"
     fi
 
