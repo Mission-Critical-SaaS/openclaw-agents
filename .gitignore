@@ -20,5 +20,5 @@ Thumbs.db
 openclaw-data/
 logs/
 
-# Watchdog runtime
-/tmp/watchdog_state.json
+# Runtime state
+.last_deploy

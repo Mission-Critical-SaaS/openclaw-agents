@@ -56,11 +56,14 @@ print(json.dumps(d))
 ")"
 ```
 
-After updating secrets, restart the container to pick up changes:
+After updating secrets, restart the container to pick up changes. Use CI/CD (push a new tag) or via SSM:
+
 ```bash
-ssh ec2-user@3.237.5.79
-cd /opt/openclaw
-docker-compose restart
+aws ssm send-command \
+  --instance-ids i-0acd7169101e93388 \
+  --document-name AWS-RunShellScript \
+  --parameters 'commands=["cd /opt/openclaw && docker-compose restart"]' \
+  --output json
 ```
 
 ## Rotating Slack Tokens

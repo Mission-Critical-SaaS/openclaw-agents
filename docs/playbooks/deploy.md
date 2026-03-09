@@ -6,203 +6,129 @@
 |------|-------|
 | AWS Account | LMNTL Agent Automation (122015479852) |
 | Region | us-east-1 |
-| EC2 Instance | i-0c6a99a3e95cd52d6 |
-| Public IP | 3.237.5.79 |
-| Instance Type | t3.medium |
-| OS | Amazon Linux 2023 |
+| EC2 Instance | i-0acd7169101e93388 |
+| Instance Type | t3.xlarge |
+| Disk | 50GB gp3 |
+| OS | Ubuntu 22.04 LTS |
 | Docker Path | /opt/openclaw |
 | Container Name | openclaw-agents |
-| Watchdog Service | openclaw-watchdog.service |
-| Alert Channel | #openclaw-watchdog (C0AL58T8QMN) |
+| CI/CD | GitHub Actions (`.github/workflows/deploy.yml`) |
+| IAM Deploy Role | openclaw-github-deploy (GitHub OIDC) |
 
-## Quick Deploy (Recommended)
+## Standard Deploy (CI/CD)
 
-Use `deploy.sh` for all deployments. It handles git operations, Docker rebuild, health checks, and rollback support.
+All deployments go through GitHub Actions. Tag a release and push:
 
 ```bash
-cd /opt/openclaw
-./deploy.sh main          # Deploy latest main
-./deploy.sh v1.2.0        # Deploy a tag
-./deploy.sh --dry-run v1.3.0  # Preview changes
-./deploy.sh --rollback    # Roll back to previous
+git tag -a v1.x.x -m "description"
+git push origin v1.x.x
 ```
 
-### Options
-- `--dry-run` — Show what would change, no action taken
-- `--rollback` — Restore previous deployment (commit saved in `.last_deploy`)
-- `--no-backup` — Skip saving rollback point (not recommended)
-- `--force` — Skip confirmation prompts
+The pipeline:
+1. **Test** — runs `npx jest` (unit + CDK tests must pass)
+2. **Deploy via SSM** — sends `deploy.sh <tag>` to the EC2 instance
+3. **Verify** — checks docker logs for BOOTSTRAP_OK, gateway is live, socket mode connected
+4. **Notify** — posts to Slack #leads on failure only
 
-Deploy logs: `/opt/openclaw/logs/deploy-YYYYMMDD-HHMMSS.log`
+Deploy logs on the instance: `/opt/openclaw/logs/deploy-YYYYMMDD-HHMMSS.log`
 
-**Note:** The watchdog will detect the container going down during deployment and may try to repair it. This is normal — the watchdog's repair will be superseded by the deploy script bringing the container back up. If you want a clean deploy without watchdog interference, you can temporarily stop it:
-```bash
-sudo systemctl stop openclaw-watchdog
-# ... deploy ...
-sudo systemctl start openclaw-watchdog
-```
+### What deploy.sh does on the instance
+
+1. Fetches from origin, checks out the tag
+2. Builds Docker image (cached layers make this fast)
+3. Stops and removes the old container
+4. Starts the new container via docker-compose
+5. Waits for health check (gateway liveness)
+6. Prints health report with status, Slack connections, and deploy info
 
 ## Manual Deployment
 
-If deploy.sh is unavailable:
+Manual deploys should only be used in emergencies when CI/CD is unavailable.
 
 ### 1. Connect to EC2
 ```bash
-# SSM (preferred)
-aws ssm start-session --target i-0c6a99a3e95cd52d6 --profile openclaw
-# SSH
-ssh -i ~/.ssh/openclaw-key.pem ec2-user@3.237.5.79
+aws ssm start-session --target i-0acd7169101e93388 --profile openclaw
 ```
 
 ### 2. Pull and Rebuild
 ```bash
 cd /opt/openclaw
 git fetch origin --tags
-git checkout main && git pull origin main
+git checkout v1.x.x
 docker-compose build --no-cache
 docker-compose down && docker-compose up -d
 ```
 
 ### 3. Verify
 ```bash
-# Wait ~60-90s, then:
+# Wait ~90s for startup + bootstrap, then:
 docker exec openclaw-agents openclaw status
-# Expected: Slack ON/OK, all 3 agents connected
-
 docker logs openclaw-agents 2>&1 | grep -i "socket mode" | tail -6
-# Expected: 3 agents connected
-
-/opt/openclaw/scripts/watchdog.sh --test-probes
-# Expected: All 5 PASS, bitmask 0
-
-systemctl is-active openclaw-watchdog
-# Expected: active
+docker logs openclaw-agents 2>&1 | grep "BOOTSTRAP_OK"
 ```
 
 ## Deployment Decision Tree
 
-Follow [SDLC Playbook Section 4](sdlc.md#4-deploy) for the full decision tree. Summary:
-
-| Change type | Action after git push |
-|-------------|----------------------|
-| Docs only | Done (no restart) |
-| Scripts (non-watchdog) | Done (no restart) |
-| Watchdog script | `systemctl restart openclaw-watchdog` |
-| Agent config/identity | `docker-compose restart` |
-| Entrypoint or Dockerfile | `docker-compose build && down && up -d` |
-| Secrets (AWS) | `docker-compose down && up -d` |
+| Change type | Action |
+|-------------|--------|
+| Docs only | No deploy needed |
+| Agent IDENTITY/KNOWLEDGE | Tag + push (container restarts with new files) |
+| Entrypoint or Dockerfile | Tag + push |
+| Config template | Tag + push |
+| Secrets (AWS) | Update in Secrets Manager, then tag + push |
 
 ## Config Changes
 
-Config files are in the repo. Edit, commit, push, then deploy:
+Config files are in the repo. Edit, commit, push, then tag:
 ```bash
 git add -A && git commit -m "config: description"
-git push origin main
-./deploy.sh main
+git tag v1.x.x && git push origin main v1.x.x
 ```
 
-Key files: `entrypoint.sh` (secrets/env), `docker/entrypoint.sh` (mcporter/agents), `docker-compose.yml`
+Key files: `entrypoint.sh` (secrets/env), `docker/entrypoint.sh` (MCP config/auth/gateway), `docker-compose.yml`
 
 ## Secret Changes
 
-Secrets live in AWS Secrets Manager (`openclaw/agents`). Update via AWS CLI or Console, then restart:
+Secrets live in AWS Secrets Manager (`openclaw/agents`). Update via AWS CLI or Console, then redeploy:
 ```bash
-docker-compose down && docker-compose up -d
+git tag v1.x.x -m "secret rotation" && git push origin v1.x.x
 ```
 
-See [secrets.md](../secrets.md) for the full list of secrets, rotation procedures, and credential mapping.
+See [secrets.md](../secrets.md) for the full list.
 
 ## Rollback
 
-### Automated
+### Via CI/CD (preferred)
 ```bash
-./deploy.sh --rollback        # Uses saved commit from .last_deploy
-./deploy.sh --rollback --force  # Skip confirmation
+git checkout v1.x.x      # known good tag
+git tag v1.x.y -m "rollback to v1.x.x"
+git push origin v1.x.y
 ```
 
-### Manual
+### Manual (emergency)
 ```bash
-git log --oneline -10         # Find good commit
-git checkout <commit>
-docker-compose build --no-cache && docker-compose down && docker-compose up -d
-```
-
-### Emergency: Known Good Tag
-```bash
+# On EC2 via SSM:
+cd /opt/openclaw
 git fetch origin --tags
-git checkout v1.2.0
+git checkout v1.x.x
 docker-compose build --no-cache && docker-compose down && docker-compose up -d
 ```
 
 ## Fresh Deployment (New EC2)
 
-### 1. Launch Instance
-- AMI: Amazon Linux 2023, Type: t3.medium, 30GB gp3
-- IAM role with `secretsmanager:GetSecretValue` and SSM access
-- Security group: outbound all, inbound SSH optional
+For a completely new instance, use the CDK stack or the bootstrap script:
 
-### 2. Install Docker
+### Option A: CDK (recommended)
 ```bash
-sudo yum update -y && sudo yum install -y docker git jq
-sudo systemctl enable docker && sudo systemctl start docker
-sudo usermod -aG docker ec2-user
-sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
+npx cdk deploy
 ```
+This creates the full infrastructure: VPC, SG, EC2, IAM roles, CloudWatch, SNS.
 
-### 3. Clone and Build
-```bash
-cd /opt && sudo git clone https://github.com/LMNTL-AI/openclaw-agents.git openclaw
-cd openclaw && sudo chown -R ec2-user:ec2-user .
-chmod +x deploy.sh entrypoint.sh docker/entrypoint.sh
-docker-compose build --no-cache
-```
-
-### 4. Systemd Services
-
-**OpenClaw container service:**
-```bash
-sudo tee /etc/systemd/system/openclaw.service << 'EOF'
-[Unit]
-Description=OpenClaw Agent Gateway
-After=docker.service
-Requires=docker.service
-[Service]
-Type=simple
-WorkingDirectory=/opt/openclaw
-ExecStart=/usr/local/bin/docker-compose up
-ExecStop=/usr/local/bin/docker-compose down
-Restart=always
-RestartSec=10
-User=ec2-user
-[Install]
-WantedBy=multi-user.target
-EOF
-sudo systemctl daemon-reload && sudo systemctl enable openclaw && sudo systemctl start openclaw
-```
-
-**Watchdog service:**
-```bash
-sudo tee /etc/systemd/system/openclaw-watchdog.service << 'EOF'
-[Unit]
-Description=OpenClaw Watchdog Agent
-After=docker.service openclaw.service
-Requires=docker.service
-[Service]
-Type=simple
-ExecStart=/bin/bash /opt/openclaw/scripts/watchdog.sh
-Restart=always
-RestartSec=5
-StandardOutput=append:/opt/openclaw/logs/watchdog.log
-StandardError=append:/opt/openclaw/logs/watchdog.log
-[Install]
-WantedBy=multi-user.target
-EOF
-sudo systemctl daemon-reload && sudo systemctl enable openclaw-watchdog && sudo systemctl start openclaw-watchdog
-```
-
-### 5. Verify
-Wait ~90s, then run the full verification checklist from [SDLC Playbook Section 5](sdlc.md#5-verify).
+### Option B: Manual Bootstrap
+See `scripts/bootstrap.sh` for the Ubuntu 22.04 setup steps:
+1. Install Docker + Docker Compose
+2. Clone the repo to /opt/openclaw
+3. Build and start the container
 
 ## Troubleshooting
 

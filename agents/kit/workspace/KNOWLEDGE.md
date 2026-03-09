@@ -8,5 +8,5 @@
 - **Repos with CI/CD**: 14 of 15 have GitHub Actions configured
 - **Key repos**: lmntl (core), service-platform, web-platform, mobile-platform, web-admin-dashboard, openclaw-agents
 - **Infrastructure repos**: infra-jenkins, infra-argocd, infra-terraform
-- **openclaw-agents repo**: Contains this agent platform's source code, including entrypoints, docker config, watchdog, CDK
+- **openclaw-agents repo**: Contains this agent platform's source code, including entrypoints, docker config, CDK infrastructure
 - **Token scopes**: repo, read:org, workflow, read:project

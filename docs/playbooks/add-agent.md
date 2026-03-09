@@ -7,8 +7,8 @@ To add a new agent to the OpenClaw gateway, you need to:
 2. Add the agent configuration to the gateway config
 3. Create the agent workspace (identity + skills)
 4. Store the tokens in Secrets Manager
-5. Update the watchdog to expect the new agent
-6. Deploy and verify
+5. Update documentation
+6. Deploy and verify via CI/CD
 
 ## Step-by-Step
 
@@ -56,58 +56,31 @@ Update AWS Secrets Manager (`openclaw/agents`) with:
 
 If the outer entrypoint (`entrypoint.sh`) explicitly lists environment variables for each agent, add the new agent's tokens.
 
-### 6. Update the Watchdog
-
-The watchdog has an `EXPECTED_AGENTS` array that defines which agents must have started their providers. Add the new agent:
-
-Edit `scripts/watchdog.sh` and find:
-```bash
-EXPECTED_AGENTS=("scout" "trak" "kit")
-```
-
-Change to:
-```bash
-EXPECTED_AGENTS=("scout" "trak" "kit" "newagent")
-```
-
-Also update the Slack connection count check in `probe_slack_connections` — it currently expects 3 connections. Change `3` to `4` (or however many agents you now have).
-
-After editing, restart the watchdog:
-```bash
-sudo systemctl restart openclaw-watchdog
-```
-
-### 7. Update Documentation
+### 6. Update Documentation
 
 Following the [SDLC playbook](sdlc.md#6-document):
 - **README.md** — Add the new agent to the Agents table
-- **architecture.md** — Update the Watchdog health probes section (agent count)
+- **architecture.md** — Update the MCP Tool Access section (agent count)
 - **secrets.md** — Add the new token entries
+- **agent-capability-matrix.md** — Add the new agent's tool access
 
-### 8. Deploy
+### 7. Deploy
+
+Commit all changes, push, tag, and let CI/CD handle it:
 
 ```bash
 git add -A && git commit -m "feat: add newagent to platform"
 git push origin main
+git tag v1.x.x && git push origin v1.x.x
 ```
 
-On EC2:
-```bash
-cd /opt/openclaw
-git pull
-docker-compose build --no-cache
-docker-compose down && docker-compose up -d
-```
+The GitHub Actions pipeline will run tests, deploy to EC2, and verify.
 
-### 9. Verify
+### 8. Verify
 
-```bash
-# Wait ~90s for startup, then:
-docker exec openclaw-agents openclaw status
-# Expected: All agents connected, new agent shows up
+After the CI/CD pipeline completes:
 
-/opt/openclaw/scripts/watchdog.sh --test-probes
-# Expected: All 5 PASS (including the new agent in probe 5)
-
-# In Slack #leads, @mention the new agent and verify it responds
-```
+1. Check the GHA run passed: `gh run list -L 1`
+2. DM the new agent in Slack and verify it responds
+3. Test each MCP tool the agent should have access to
+4. Verify existing agents still work (no regressions)

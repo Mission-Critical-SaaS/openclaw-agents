@@ -8,9 +8,9 @@ DEPLOY_DIR="/opt/openclaw"
 if [ -z "$INSTANCE_ID" ]; then
   echo "Usage: $0 <instance-id> [git-ref]"
   echo "Examples:"
-  echo "  $0 i-0c6a99a3e95cd52d6           # previous commit"
-  echo "  $0 i-0c6a99a3e95cd52d6 v1.0.0    # specific tag"
-  echo "  $0 i-0c6a99a3e95cd52d6 abc1234   # specific SHA"
+  echo "  $0 i-0acd7169101e93388           # previous commit"
+  echo "  $0 i-0acd7169101e93388 v1.0.0    # specific tag"
+  echo "  $0 i-0acd7169101e93388 abc1234   # specific SHA"
   exit 1
 fi
 echo "Rolling back to ${GIT_REF} on ${INSTANCE_ID}..."
