@@ -79,16 +79,16 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
   });
 
   // --- Gateway restart (critical fix) ---
-  test('uses openclaw gateway stop before kill for clean restart', () => {
-    const stopIdx = script.indexOf('openclaw gateway stop');
-    const killIdx = script.indexOf('kill $GATEWAY_PID', stopIdx);
-    expect(stopIdx).toBeGreaterThan(-1);
-    expect(killIdx).toBeGreaterThan(stopIdx);
+  test('kills gateway process group for clean restart (not openclaw gateway stop)', () => {
+    // Must NOT use "openclaw gateway stop" as an actual command — it disables the service manager
+    // (comments mentioning it are fine)
+    expect(script).not.toMatch(/^\s+openclaw gateway stop/m);
+    expect(script).toMatch(/kill.*GATEWAY_PID/);
   });
 
   // --- MCP warm-up (critical fix: must come AFTER gateway restart) ---
   test('MCP warmup runs AFTER gateway restart, not before', () => {
-    const restartIdx = script.indexOf('openclaw gateway stop');
+    const restartIdx = script.indexOf('Restarting gateway to apply channel config');
     const warmupIdx = script.indexOf('Pre-warming MCP servers');
     expect(restartIdx).toBeGreaterThan(-1);
     expect(warmupIdx).toBeGreaterThan(-1);

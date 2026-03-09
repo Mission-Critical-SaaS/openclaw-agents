@@ -104,8 +104,8 @@ INJECT_PYEOF
 
   # Restart gateway to pick up new config
   echo "Restarting gateway to apply channel config..."
-  openclaw gateway stop 2>/dev/null || true
-  kill $GATEWAY_PID 2>/dev/null || true
+  # Kill the gateway process group (do NOT use "openclaw gateway stop" — it disables the service manager)
+  kill -- -$GATEWAY_PID 2>/dev/null || kill $GATEWAY_PID 2>/dev/null || true
   sleep 3
   "$@" &
   GATEWAY_PID=$!
