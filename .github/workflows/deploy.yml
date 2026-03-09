@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 env:
-  INSTANCE_ID: i-0c6a99a3e95cd52d6
+  INSTANCE_ID: i-0acd7169101e93388
   AWS_REGION: us-east-1
 
 jobs:

@@ -6,7 +6,7 @@
 
 import { execSync } from 'child_process';
 
-const EC2_INSTANCE_ID = 'i-0c6a99a3e95cd52d6';
+const EC2_INSTANCE_ID = 'i-0acd7169101e93388';
 const LEADS_CHANNEL = 'C089JBLCFLL';
 const EXPECTED_AGENTS = ['scout', 'trak', 'kit'];
 const AGENT_BOT_IDS = {
