@@ -1,7 +1,0 @@
-[2026-03-08 17:17:06] OpenClaw Deployment Script v2.0
-[2026-03-08 17:17:06] Current: commit=f7f2f2d222984d0bceda382f745278e04f48a640 branch=main
-[2026-03-08 17:17:06] === DRY RUN ===
-[2026-03-08 17:17:06] Would deploy: main (current: f7f2f2d222984d0bceda382f745278e04f48a640)
-[2026-03-08 17:17:06] Target commit: f7f2f2d222984d0bceda382f745278e04f48a640
-[2026-03-08 17:17:06] Already at target.
-[2026-03-08 17:17:06] === DRY RUN COMPLETE ===
