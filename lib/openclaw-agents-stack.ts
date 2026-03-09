@@ -153,17 +153,21 @@ export class OpenclawAgentsStack extends cdk.Stack {
       maxSessionDuration: cdk.Duration.hours(1),
     });
 
-    // SSM permissions — scoped to this instance only
+    // SSM SendCommand — scoped to this instance + RunShellScript doc
     deployRole.addToPolicy(new iam.PolicyStatement({
-      sid: 'SSMDeploy',
-      actions: [
-        'ssm:SendCommand',
-        'ssm:GetCommandInvocation',
-      ],
+      sid: 'SSMSendCommand',
+      actions: ['ssm:SendCommand'],
       resources: [
         `arn:aws:ssm:${this.region}::document/AWS-RunShellScript`,
         `arn:aws:ec2:${this.region}:${this.account}:instance/${instance.instanceId}`,
       ],
+    }));
+
+    // SSM GetCommandInvocation — does NOT support resource-level permissions
+    deployRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'SSMGetInvocation',
+      actions: ['ssm:GetCommandInvocation'],
+      resources: ['*'],
     }));
 
     // Secrets read — for Slack failure notifications in deploy pipeline

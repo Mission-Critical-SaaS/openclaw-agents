@@ -126,16 +126,27 @@ describe('GitHub OIDC Deploy', () => {
     });
   });
 
-  test('deploy role has SSM SendCommand and GetCommandInvocation permissions', () => {
+  test('deploy role has SSM SendCommand scoped to instance', () => {
     template.hasResourceProperties('AWS::IAM::Policy', {
       PolicyDocument: Match.objectLike({
         Statement: Match.arrayWith([
           Match.objectLike({
-            Action: Match.arrayWith([
-              'ssm:SendCommand',
-              'ssm:GetCommandInvocation',
-            ]),
+            Action: 'ssm:SendCommand',
             Effect: 'Allow',
+          }),
+        ]),
+      }),
+    });
+  });
+
+  test('deploy role has SSM GetCommandInvocation on wildcard resource', () => {
+    template.hasResourceProperties('AWS::IAM::Policy', {
+      PolicyDocument: Match.objectLike({
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Action: 'ssm:GetCommandInvocation',
+            Effect: 'Allow',
+            Resource: '*',
           }),
         ]),
       }),
