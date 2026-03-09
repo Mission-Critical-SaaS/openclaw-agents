@@ -58,6 +58,11 @@ if ! $NO_BACKUP; then
     echo "$(date -Iseconds)" >> "$BACKUP_FILE"
     log "Backup saved: $CURRENT_COMMIT"
 fi
+# Safety: discard local changes to tracked files before checkout.
+# deploy.sh writes .last_deploy (above) which may still be tracked in older
+# commits, causing git checkout to fail with "local changes would be overwritten".
+# This targeted cleanup prevents that without touching unrelated files.
+git checkout -- .last_deploy 2>/dev/null || true
 log "Fetching from origin..."
 git fetch origin --tags
 if git tag -l | grep -q "^${VERSION}$"; then

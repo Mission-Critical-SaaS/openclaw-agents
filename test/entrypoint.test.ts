@@ -314,6 +314,42 @@ describe('deploy.sh', () => {
     expect(script).toMatch(/for agent in scout trak kit/);
     expect(script).toContain('openclaw-persist/agents/${agent}/workspace');
   });
+
+  test('discards .last_deploy changes before git checkout (prevents tracked-file conflict)', () => {
+    const backupIdx = script.indexOf('Backup saved');
+    const checkoutCleanIdx = script.indexOf('git checkout -- .last_deploy');
+    // Safety cleanup must exist and come after the backup write
+    expect(checkoutCleanIdx).toBeGreaterThan(-1);
+    expect(checkoutCleanIdx).toBeGreaterThan(backupIdx);
+    // Must come before the actual "Fetching from origin" log line (not the dry-run fetch)
+    const fetchLogIdx = script.indexOf('Fetching from origin');
+    expect(checkoutCleanIdx).toBeLessThan(fetchLogIdx);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deploy.yml (GHA workflow)
+// ---------------------------------------------------------------------------
+describe('deploy.yml', () => {
+  let workflow: string;
+
+  beforeAll(() => {
+    workflow = readScript('.github/workflows/deploy.yml');
+  });
+
+  test('extracts deploy.sh from the tag before running it (avoids chicken-and-egg)', () => {
+    // The SSM command must fetch the tag's deploy.sh to /tmp and run that,
+    // not the on-disk copy which may be an older version
+    expect(workflow).toContain('git show $TAG:deploy.sh');
+    expect(workflow).toContain('/tmp/deploy-$TAG.sh');
+  });
+
+  test('fetches tags before extracting deploy.sh', () => {
+    const fetchIdx = workflow.indexOf('git fetch origin --tags');
+    const showIdx = workflow.indexOf('git show $TAG:deploy.sh');
+    expect(fetchIdx).toBeGreaterThan(-1);
+    expect(showIdx).toBeGreaterThan(fetchIdx);
+  });
 });
 
 // ---------------------------------------------------------------------------

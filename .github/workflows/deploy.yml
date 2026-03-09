@@ -46,10 +46,14 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           echo "Deploying tag: $TAG"
 
+          # Fetch the tag's deploy.sh and run it from /tmp to avoid chicken-and-egg:
+          # the on-disk deploy.sh may be an older version that writes tracked files
+          # (e.g., .last_deploy) before git checkout, causing checkout to fail.
+          # Running the new deploy.sh ensures the safety cleanup is always present.
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ env.INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --parameters "commands=[\"cd /opt/openclaw && ./deploy.sh $TAG 2>&1\"]" \
+            --parameters "commands=[\"cd /opt/openclaw && git fetch origin --tags && git show $TAG:deploy.sh > /tmp/deploy-$TAG.sh && chmod +x /tmp/deploy-$TAG.sh && /tmp/deploy-$TAG.sh $TAG 2>&1\"]" \
             --timeout-seconds 600 \
             --query "Command.CommandId" \
             --output text)
