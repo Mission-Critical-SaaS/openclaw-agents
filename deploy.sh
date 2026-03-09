@@ -65,8 +65,15 @@ elif git rev-parse "$VERSION" &>/dev/null; then
 else log "ERROR: Version '$VERSION' not found"; exit 1; fi
 NEW_COMMIT=$(git rev-parse HEAD)
 log "Now at: $NEW_COMMIT"
-log "Building Docker image..."
-docker-compose build --no-cache
+if $FORCE; then
+    log "Force rebuild (no cache)..."
+    docker-compose build --no-cache
+else
+    log "Building Docker image (cached)..."
+    docker-compose build
+fi
+# Clean up dangling images to prevent disk fill
+docker image prune -f 2>/dev/null || true
 log "Restarting container..."
 docker-compose down && docker-compose up -d
 log "Waiting for health (${HEALTH_TIMEOUT}s)..."

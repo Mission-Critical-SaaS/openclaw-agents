@@ -86,46 +86,65 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(script).toMatch(/kill.*GATEWAY_PID/);
   });
 
-  // --- MCP warm-up (critical fix: must come AFTER gateway restart) ---
-  test('MCP warmup runs AFTER gateway restart, not before', () => {
+  // --- Gateway restart method (critical fix: must NOT re-run inner entrypoint) ---
+  test('restart starts gateway directly, not via "$@" re-execution', () => {
+    // After the initial "$@" & to start the inner entrypoint, the restart
+    // section must use "openclaw gateway run" directly — NOT "$@" which
+    // would re-run the full inner entrypoint (re-installing mcporter, gh, etc.)
     const restartIdx = script.indexOf('Restarting gateway to apply channel config');
-    const warmupIdx = script.indexOf('Pre-warming MCP servers');
     expect(restartIdx).toBeGreaterThan(-1);
-    expect(warmupIdx).toBeGreaterThan(-1);
-    expect(warmupIdx).toBeGreaterThan(restartIdx);
+    // The restart section should contain a direct gateway run command
+    const afterRestart = script.substring(restartIdx);
+    expect(afterRestart).toContain('openclaw gateway run');
+    // There should be exactly ONE "$@" in the entire script (the initial start)
+    const dollarAtMatches = script.match(/"\$@"/g) || [];
+    expect(dollarAtMatches.length).toBe(1);
   });
 
-  test('MCP warmup checks jira, zendesk, and notion tools', () => {
-    expect(script).toContain("d.get('jira'");
-    expect(script).toContain("d.get('zendesk'");
-    expect(script).toContain("d.get('notion'");
+  // --- Config normalization (fixes schema drift after channel injection) ---
+  test('runs openclaw doctor --fix after channel injection', () => {
+    const injectIdx = script.indexOf('injecting Slack channels');
+    const doctorIdx = script.indexOf('openclaw doctor --fix');
+    expect(doctorIdx).toBeGreaterThan(-1);
+    expect(doctorIdx).toBeGreaterThan(injectIdx);
   });
 
-  test('MCP warmup retries up to 12 times with 5s sleep', () => {
-    expect(script).toMatch(/seq 1 12/);
-    expect(script).toMatch(/sleep 5/);
+  // --- Liveness check (verify gateway actually started) ---
+  test('verifies gateway process is alive after restart', () => {
+    expect(script).toContain('kill -0 $GATEWAY_PID');
+    // Must exit 1 if gateway dies
+    const livenessIdx = script.indexOf('kill -0 $GATEWAY_PID');
+    const afterLiveness = script.substring(livenessIdx);
+    expect(afterLiveness).toContain('exit 1');
   });
 
-  test('waits 10s for gateway to initialize before warmup', () => {
-    const warmupStartIdx = script.indexOf('Waiting 10s for gateway to initialize');
-    const sleep10Idx = script.indexOf('sleep 10', warmupStartIdx);
-    expect(warmupStartIdx).toBeGreaterThan(-1);
-    expect(sleep10Idx).toBeGreaterThan(-1);
+  // --- MCP tools: on-demand loading (no warmup loop) ---
+  test('does NOT contain broken mcporter warmup loop', () => {
+    expect(script).not.toContain('Pre-warming MCP servers');
+    expect(script).not.toContain('mcporter list --json');
+    expect(script).not.toMatch(/seq 1 12/);
+  });
+
+  test('documents that MCP tools load on-demand', () => {
+    expect(script).toContain('ON-DEMAND');
+    expect(script).toContain('No warmup loop needed');
   });
 
   // --- Startup ordering (the full critical path) ---
-  test('correct overall startup order: secrets → config wait → inject → restart → warmup', () => {
+  test('correct overall startup order: secrets → config wait → inject → doctor → restart → verify', () => {
     const secretsIdx = script.indexOf('aws secretsmanager');
     const configWaitIdx = script.indexOf('Waiting for gateway config');
     const injectIdx = script.indexOf('injecting Slack channels');
-    const restartIdx = script.indexOf('Restarting gateway to apply channel config');
-    const warmupIdx = script.indexOf('Pre-warming MCP servers');
+    const doctorIdx = script.indexOf('openclaw doctor --fix');
+    const restartIdx = script.indexOf('openclaw gateway run');
+    const verifyIdx = script.indexOf('kill -0 $GATEWAY_PID');
 
     expect(secretsIdx).toBeGreaterThan(-1);
     expect(configWaitIdx).toBeGreaterThan(secretsIdx);
     expect(injectIdx).toBeGreaterThan(configWaitIdx);
-    expect(restartIdx).toBeGreaterThan(injectIdx);
-    expect(warmupIdx).toBeGreaterThan(restartIdx);
+    expect(doctorIdx).toBeGreaterThan(injectIdx);
+    expect(restartIdx).toBeGreaterThan(doctorIdx);
+    expect(verifyIdx).toBeGreaterThan(restartIdx);
   });
 });
 
@@ -171,7 +190,7 @@ describe('Inner entrypoint (docker/entrypoint.sh)', () => {
     expect(script).not.toContain('mcporter list --json');
   });
 
-  test('contains a comment noting warmup was moved', () => {
+  test('contains a comment noting warmup was moved to outer entrypoint', () => {
     expect(script).toContain('MCP warmup moved to outer entrypoint');
   });
 
