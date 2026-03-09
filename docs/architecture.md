@@ -76,3 +76,55 @@ User @mentions Scout in #leads
 - **Docker logs**: `docker logs openclaw-agents` on the EC2 instance
 - **System journal**: `journalctl -u openclaw` for systemd service logs
 - **Health check**: Message any agent in #leads and verify response
+
+
+## Watchdog
+
+A separate systemd service (`openclaw-watchdog.service`) runs outside the Docker container and continuously monitors all three agents. It operates independently so it can detect and repair container-level failures.
+
+### Health Probes (every 30s)
+
+| # | Probe | What it checks |
+|---|-------|---------------|
+| 1 | Container running | `docker inspect` state |
+| 2 | OpenClaw status | `openclaw status` shows OK |
+| 3 | Slack connections | 3/3 socket mode connections in logs |
+| 4 | No crash loop | Restart count < 5 |
+| 5 | Agent providers | All 3 agents (Scout, Trak, Kit) started |
+
+### Repair Tiers
+
+| Tier | Action | When |
+|------|--------|------|
+| 1 (Soft) | `docker restart` | First 2 failures |
+| 2 (Hard) | `docker-compose down/up` | Soft retries exhausted, or container stopped |
+| 3 (Rebuild) | `docker-compose build --no-cache && up` | Hard restart failed within 10min |
+
+After the escalation window (10min), the tier resets to soft.
+
+### Alerting
+
+Alerts go to Slack (#leads) and AWS SNS on repair, recovery, and exhaustion events.
+
+### Management Commands
+
+```bash
+# Check all probes
+/opt/openclaw/scripts/watchdog.sh --test-probes
+
+# View state and recent log
+/opt/openclaw/scripts/watchdog.sh --status
+
+# Service control
+systemctl status openclaw-watchdog
+systemctl restart openclaw-watchdog
+journalctl -u openclaw-watchdog --since "1 hour ago"
+```
+
+### E2E Test Suite
+
+```bash
+bash /opt/openclaw/scripts/test-watchdog-e2e.sh
+```
+
+7 tests, 21 assertions covering probe validation, failure detection, auto-recovery, escalation logic, state management, and full recovery cycles.

@@ -56,3 +56,32 @@ If the instance is unrecoverable, follow the Fresh Deployment procedure.
 2. Check logs for connection messages: docker logs openclaw-agents
 3. Test each agent in Slack #leads
 4. Confirm response time is under 10 seconds
+
+
+## Watchdog Automatic Recovery
+
+The watchdog service (`openclaw-watchdog.service`) automatically detects and repairs most failures. Before manually restarting, check if the watchdog is already handling it:
+
+```bash
+# Check watchdog status
+systemctl status openclaw-watchdog
+/opt/openclaw/scripts/watchdog.sh --status
+
+# Check watchdog log for recent repair activity
+tail -30 /opt/openclaw/logs/watchdog.log
+```
+
+If the watchdog is active and attempting repairs, wait for it to complete (up to 5 minutes per tier). Only intervene manually if:
+- The watchdog service itself is down
+- All repair tiers have been exhausted (check log for "ALL REPAIR TIERS EXHAUSTED")
+- The issue requires a code change, not just a restart
+
+## Restarting the Watchdog
+
+```bash
+# Restart watchdog service (after editing watchdog.sh)
+sudo systemctl restart openclaw-watchdog
+
+# Check it's running
+systemctl is-active openclaw-watchdog
+```
