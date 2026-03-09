@@ -41,6 +41,8 @@ docker logs --tail 100 openclaw-agents
 | connection_refused | Network issue | Check security group outbound rules |
 | rate_limited | Too many API calls | Wait and retry; consider adding delays |
 | ANTHROPIC_API_KEY invalid | API key expired | Rotate key in Secrets Manager, restart |
+| Cannot find module 'ajv' | Corrupted npx cache | See [MCP Troubleshooting](mcp-troubleshooting.md) |
+| MCP error -32000 | MCP server connection failed | Check mcporter: `docker exec openclaw-agents bash -c "HOME=/root mcporter list"` |
 
 ### Check if agent is connected to Slack
 ```bash
@@ -51,6 +53,50 @@ docker logs openclaw-agents 2>&1 | grep -i connected
 ```bash
 docker exec openclaw-agents env | grep -c SLACK
 ```
+
+## Agent Responds in DMs But Ignores Channel @mentions
+
+This is a different issue from the agent not responding at all. If agents work fine in DMs but completely ignore @mentions in channels (with no error in logs):
+
+### Check groupPolicy setting
+```bash
+docker exec openclaw-agents bash -c '
+    while IFS= read -r -d "" line; do export "$line"; done < /proc/1/environ
+    openclaw config get
+' | grep -A5 groupPolicy
+```
+
+If groupPolicy is `"allowlist"` with an empty or missing `allowChannels`, ALL channel messages are silently dropped.
+
+**Fix:** Change groupPolicy to `"open"` in the outer entrypoint (`/opt/openclaw/entrypoint.sh` on the host):
+
+1. Find the line that sets groupPolicy
+2. Change `'allowlist'` to `'open'`
+3. Restart the container: `docker restart openclaw-agents`
+
+If groupPolicy is `"allowlist"` with channels listed, verify the channel IDs are correct (channel IDs change if channels are recreated).
+
+## Agent Can't Find MCP Tools
+
+If an agent says "No Zendesk MCP server is configured" (or similar) but you know the server should be available:
+
+### Step 1: Check mcporter health
+```bash
+docker exec openclaw-agents bash -c "HOME=/root mcporter list --json"
+```
+
+If the server shows "offline": see [MCP Troubleshooting](mcp-troubleshooting.md).
+
+If all servers show "ok" but the agent can't see them: this is the **agent session caching** issue. The agent cached its tool list at startup when the server was offline.
+
+### Fix: Restart the container
+```bash
+docker restart openclaw-agents
+```
+
+Wait 60-90 seconds, then DM the agent to verify it can now access the tools.
+
+**Important**: Don't trust `docker exec` + `mcporter list` as proof of what the agent can see. The agent's runtime environment differs from docker exec. Always verify by DMing the agent directly.
 
 ## Container Won't Start
 
@@ -173,6 +219,7 @@ bash /opt/openclaw/scripts/test-watchdog-e2e.sh
 
 ## See Also
 
+- [Agent Capability Matrix](agent-capability-matrix.md) — Which tools each agent has, testing procedures
 - [MCP Troubleshooting](mcp-troubleshooting.md) — Jira, Zendesk, Notion MCP server issues
 - [Restart Procedures](../runbooks/restart.md) — Safe restart including watchdog guidance
 - [Deployment Playbook](deploy.md) — Full deploy, rollback, and fresh setup
