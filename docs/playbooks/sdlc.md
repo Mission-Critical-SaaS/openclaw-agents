@@ -35,7 +35,113 @@ Plan → Develop → Test → Deploy → Verify → Document
 | Watchdog | `scripts/watchdog.sh` | Yes (watchdog service) |
 | Watchdog tests | `scripts/test-watchdog-e2e.sh` | No |
 | Docs/playbooks | `docs/**` | No |
-`
+
+## 2. Develop
+
+### Branch strategy
+
+All work happens on `main`. The `production` branch tracks what is deployed on EC2. After verifying a change on `main`, push to `production`:
+
+```bash
+git push origin main:production
+```
+
+For larger features, use a feature branch and merge to `main` before deploying.
+
+### Commit conventions
+
+Follow conventional commit format:
+
+```
+feat: add new MCP server integration
+fix: correct SIGPIPE in watchdog probe
+docs: update architecture with watchdog section
+chore: update .gitignore for logs directory
+refactor: simplify entrypoint secret loading
+test: add E2E test for crash loop detection
+```
+
+Prefix map:
+| Prefix | Use for |
+|--------|---------|
+| `feat` | New functionality |
+| `fix` | Bug fixes |
+| `docs` | Documentation only |
+| `chore` | Build, config, tooling |
+| `refactor` | Code restructuring (no behavior change) |
+| `test` | Adding or updating tests |
+
+### Code standards
+
+- **Bash scripts**: Use `set -euo pipefail`. Log functions must write to stderr (`>&2`) when their output could be captured by `$()`. Use `(cmd || true) | grep` to prevent SIGPIPE failures under pipefail.
+- **Entrypoints**: Keep idempotent — safe to re-run on restart without side effects.
+- **Watchdog probes**: Must return 0 for pass, non-zero for fail. Never write to stdout inside `run_health_checks` (captured as bitmask).
+
+## 3. Test
+
+### Test tiers
+
+| Tier | What | When | How |
+|------|------|------|-----|
+| 1 — Local review | Read the diff, check for obvious issues | Every change | `git diff` |
+| 2 — Watchdog probes | Run all 5 health probes | After container restarts | `/opt/openclaw/scripts/watchdog.sh --test-probes` |
+| 3 — Watchdog E2E | Full 21-assertion test suite | After watchdog changes | `bash /opt/openclaw/scripts/test-watchdog-e2e.sh` |
+| 4 — Slack smoke test | @mention each agent in #leads | After agent/config changes | Manual |
+| 5 — MCP integration | Verify Jira/Zendesk/Notion tool calls | After MCP or entrypoint changes | `bash /opt/openclaw/scripts/test-integrations.sh` |
+
+### Running the E2E test suite
+
+```bash
+# On EC2:
+bash /opt/openclaw/scripts/test-watchdog-e2e.sh
+```
+
+This runs 7 tests with 21 assertions covering probe validation, failure detection, auto-recovery, escalation logic, state management, and full recovery cycles. All 21 must pass before merging watchdog changes.
+
+### What to test per change type
+
+| Change | Required tests |
+|--------|---------------|
+| Agent identity/config | Tiers 1, 2, 4 |
+| Entrypoint or Dockerfile | Tiers 1, 2, 4, 5 |
+| Watchdog script | Tiers 1, 2, 3 |
+| MCP servers | Tiers 1, 2, 5 |
+| Docs only | Tier 1 (review for accuracy) |
+| Secrets rotation | Tiers 2, 4, 5 |
+
+## 4. Deploy
+
+### Deployment decision tree
+
+```
+Change type?
+├─ Docs only → commit, push, done (no restart needed)
+├─ Scripts (non-watchdog) → commit, push, done
+├─ Watchdog script → commit, push, systemctl restart openclaw-watchdog
+├─ Agent config/identity → commit, push, docker-compose restart
+├─ Entrypoint or Dockerfile → commit, push, docker-compose build && down && up -d
+└─ Secrets → update in AWS Secrets Manager, then docker-compose down && up -d
+```
+
+### Standard deployment
+
+```bash
+cd /opt/openclaw
+
+# 1. Pull changes
+git fetch origin && git pull origin main
+
+# 2. Rebuild if needed (Dockerfile or entrypoint changes)
+docker-compose build --no-cache
+
+# 3. Restart
+docker-compose down && docker-compose up -d
+
+# 4. Wait for startup
+sleep 90
+
+# 5. Verify (see next section)
+```
 
 ### Push to production branch
 
@@ -44,16 +150,14 @@ After verifying on main:
 git push origin main:production
 ```
 
-### Deployment decision tree
+### Watchdog-specific deployment
 
-```
-Change type?
-├─ Docs only → commit, push, done
-├─ Scripts (non-watchdog) → commit, push, done
-├─ Watchdog script → commit, push, systemctl restart openclaw-watchdog
-├─ Agent config → commit, push, docker-compose restart
-├─ Entrypoint/Dockerfile → commit, push, docker-compose build && down && up -d
-└─ Secrets → update in AWS Secrets Manager, then docker-compose down && up -d
+After changing `scripts/watchdog.sh`:
+```bash
+cd /opt/openclaw
+git pull origin main
+sudo systemctl restart openclaw-watchdog
+systemctl is-active openclaw-watchdog
 ```
 
 ## 5. Verify
@@ -92,28 +196,28 @@ systemctl is-active openclaw-watchdog  # active
 
 | Change | Docs to update |
 |--------|---------------|
-| New agent added | README.md, architecture.md, add-agent.md |
+| New agent added | README.md, architecture.md, add-agent.md, watchdog `EXPECTED_AGENTS` |
 | New MCP server | README.md, architecture.md, mcp-troubleshooting.md |
 | Config format change | Relevant playbooks, secrets.md |
-| New watchdog probe | architecture.md (Watchdog section) |
-| New infra (EC2, security group, etc.) | aws-access.md, architecture.md |
-| New script | README.md (if user-facing) |
+| New watchdog probe | architecture.md (Watchdog section), test-watchdog-e2e.sh |
+| New infra (EC2, security group, etc.) | aws-access.md, architecture.md, README.md |
+| New script | README.md (Project Structure), relevant playbooks |
 
 ### Documentation lives in
 
 ```
 docs/
-├── architecture.md          # System design and component overview
-├── secrets.md               # Secret rotation and management
+├── architecture.md              # System design and component overview
+├── secrets.md                   # Secret rotation and management
 ├── playbooks/
-│   ├── add-agent.md         # How to add a new agent
-│   ├── aws-access.md        # AWS account structure and access
-│   ├── deploy.md            # Deployment procedures
-│   ├── mcp-troubleshooting.md  # MCP server issues
-│   ├── sdlc.md              # ← THIS FILE
-│   └── troubleshoot.md      # General troubleshooting
+│   ├── add-agent.md             # How to add a new agent
+│   ├── aws-access.md            # AWS account structure and access
+│   ├── deploy.md                # Deployment procedures
+│   ├── mcp-troubleshooting.md   # MCP server issues
+│   ├── sdlc.md                  # ← THIS FILE
+│   └── troubleshoot.md          # General troubleshooting
 └── runbooks/
-    └── restart.md           # Restart procedures
+    └── restart.md               # Restart procedures
 ```
 
 ## Emergency Procedures

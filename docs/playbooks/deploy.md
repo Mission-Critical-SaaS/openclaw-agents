@@ -12,6 +12,7 @@
 | OS | Amazon Linux 2023 |
 | Docker Path | /opt/openclaw |
 | Container Name | openclaw-agents |
+| Watchdog Service | openclaw-watchdog.service |
 
 ## Quick Deploy (Recommended)
 
@@ -33,6 +34,13 @@ cd /opt/openclaw
 
 Deploy logs: `/opt/openclaw/logs/deploy-YYYYMMDD-HHMMSS.log`
 
+**Note:** The watchdog will detect the container going down during deployment and may try to repair it. This is normal — the watchdog's repair will be superseded by the deploy script bringing the container back up. If you want a clean deploy without watchdog interference, you can temporarily stop it:
+```bash
+sudo systemctl stop openclaw-watchdog
+# ... deploy ...
+sudo systemctl start openclaw-watchdog
+```
+
 ## Manual Deployment
 
 If deploy.sh is unavailable:
@@ -40,7 +48,7 @@ If deploy.sh is unavailable:
 ### 1. Connect to EC2
 ```bash
 # SSM (preferred)
-aws ssm start-session --target i-0c6a99a3e95cd52d6
+aws ssm start-session --target i-0c6a99a3e95cd52d6 --profile openclaw
 # SSH
 ssh -i ~/.ssh/openclaw-key.pem ec2-user@3.237.5.79
 ```
@@ -59,9 +67,29 @@ docker-compose down && docker-compose up -d
 # Wait ~60-90s, then:
 docker exec openclaw-agents openclaw status
 # Expected: Slack ON/OK, all 3 agents connected
+
 docker logs openclaw-agents 2>&1 | grep -i "socket mode" | tail -6
 # Expected: 3 agents connected
+
+/opt/openclaw/scripts/watchdog.sh --test-probes
+# Expected: All 5 PASS, bitmask 0
+
+systemctl is-active openclaw-watchdog
+# Expected: active
 ```
+
+## Deployment Decision Tree
+
+Follow [SDLC Playbook Section 4](sdlc.md#4-deploy) for the full decision tree. Summary:
+
+| Change type | Action after git push |
+|-------------|----------------------|
+| Docs only | Done (no restart) |
+| Scripts (non-watchdog) | Done (no restart) |
+| Watchdog script | `systemctl restart openclaw-watchdog` |
+| Agent config/identity | `docker-compose restart` |
+| Entrypoint or Dockerfile | `docker-compose build && down && up -d` |
+| Secrets (AWS) | `docker-compose down && up -d` |
 
 ## Config Changes
 
@@ -81,11 +109,7 @@ Secrets live in AWS Secrets Manager (`openclaw/agents`). Update via AWS CLI or C
 docker-compose down && docker-compose up -d
 ```
 
-The outer entrypoint derives these env vars from secrets:
-- `JIRA_BASE_URL` ← `https://${ATLASSIAN_SITE_NAME}.atlassian.net`
-- `JIRA_USER_EMAIL` ← `ATLASSIAN_USER_EMAIL`
-- `JIRA_API_TOKEN` ← `ATLASSIAN_API_TOKEN`
-- `ZENDESK_TOKEN` ← `ZENDESK_API_TOKEN`
+See [secrets.md](../secrets.md) for the full list of secrets, rotation procedures, and credential mapping.
 
 ## Rollback
 
@@ -133,7 +157,9 @@ chmod +x deploy.sh entrypoint.sh docker/entrypoint.sh
 docker-compose build --no-cache
 ```
 
-### 4. Systemd Service
+### 4. Systemd Services
+
+**OpenClaw container service:**
 ```bash
 sudo tee /etc/systemd/system/openclaw.service << 'EOF'
 [Unit]
@@ -154,12 +180,32 @@ EOF
 sudo systemctl daemon-reload && sudo systemctl enable openclaw && sudo systemctl start openclaw
 ```
 
+**Watchdog service:**
+```bash
+sudo tee /etc/systemd/system/openclaw-watchdog.service << 'EOF'
+[Unit]
+Description=OpenClaw Watchdog Agent
+After=docker.service openclaw.service
+Requires=docker.service
+[Service]
+Type=simple
+ExecStart=/bin/bash /opt/openclaw/scripts/watchdog.sh
+Restart=always
+RestartSec=5
+StandardOutput=append:/opt/openclaw/logs/watchdog.log
+StandardError=append:/opt/openclaw/logs/watchdog.log
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload && sudo systemctl enable openclaw-watchdog && sudo systemctl start openclaw-watchdog
+```
+
 ### 5. Verify
-Wait ~90s, then run health checks from Manual Deployment > Verify above.
+Wait ~90s, then run the full verification checklist from [SDLC Playbook Section 5](sdlc.md#5-verify).
 
 ## Troubleshooting
 
-See [MCP Troubleshooting Runbook](mcp-troubleshooting.md) for MCP server issues.
+See [Troubleshooting Guide](troubleshoot.md) for general issues and [MCP Troubleshooting](mcp-troubleshooting.md) for MCP server issues.
 
 ### Container Won't Start
 ```bash
