@@ -11,10 +11,14 @@ services:
       - /opt/openclaw/config:/app/config
       - /opt/openclaw/entrypoint.sh:/app/entrypoint.sh
       - /opt/openclaw/docker/entrypoint.sh:/entrypoint.sh
-      # Agent workspace bind mounts — persist IDENTITY.md, KNOWLEDGE.md across restarts
+      # Git-managed workspace (source for IDENTITY.md updates on deploy)
       - /opt/openclaw/agents/scout/workspace:/tmp/agents/scout/workspace
       - /opt/openclaw/agents/trak/workspace:/tmp/agents/trak/workspace
       - /opt/openclaw/agents/kit/workspace:/tmp/agents/kit/workspace
+      # Persistent workspace (survives deploys — agent memories + bootstrap state)
+      - /opt/openclaw-persist/agents/scout/workspace:/root/.openclaw/agents/scout/workspace
+      - /opt/openclaw-persist/agents/trak/workspace:/root/.openclaw/agents/trak/workspace
+      - /opt/openclaw-persist/agents/kit/workspace:/root/.openclaw/agents/kit/workspace
     entrypoint: ["/app/entrypoint.sh"]
     command: ["/entrypoint.sh"]
     environment:

@@ -68,10 +68,23 @@ for agent in scout trak kit; do
 AUTHEOF
 done
 
-# Copy agent workspace files (IDENTITY.md, KNOWLEDGE.md, etc.)
+# Sync agent workspace files from git-managed source to persistent workspace.
+# IDENTITY.md is always updated from git (contains agent instructions/tools).
+# KNOWLEDGE.md and BOOTSTRAP.md are only seeded if they don't already exist,
+# preserving runtime edits (agent memories) and bootstrap completion state.
 for agent in scout trak kit; do
-  if [ -d "/tmp/agents/${agent}/workspace" ]; then
-    cp -r /tmp/agents/${agent}/workspace/* "${OPENCLAW_HOME}/agents/${agent}/workspace/" 2>/dev/null || true
+  SRC="/tmp/agents/${agent}/workspace"
+  DST="${OPENCLAW_HOME}/agents/${agent}/workspace"
+  mkdir -p "$DST"
+  if [ -d "$SRC" ]; then
+    # Always update IDENTITY.md from git (deploy may change agent instructions)
+    cp "$SRC/IDENTITY.md" "$DST/IDENTITY.md" 2>/dev/null || true
+    # Seed KNOWLEDGE.md and BOOTSTRAP.md only if they don't already exist
+    for f in KNOWLEDGE.md BOOTSTRAP.md; do
+      if [ ! -f "$DST/$f" ] && [ -f "$SRC/$f" ]; then
+        cp "$SRC/$f" "$DST/$f"
+      fi
+    done
   fi
 done
 

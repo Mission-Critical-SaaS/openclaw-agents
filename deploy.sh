@@ -71,6 +71,10 @@ elif git rev-parse "$VERSION" &>/dev/null; then
 else log "ERROR: Version '$VERSION' not found"; exit 1; fi
 NEW_COMMIT=$(git rev-parse HEAD)
 log "Now at: $NEW_COMMIT"
+# Ensure persistent workspace dirs exist (outside git repo, survives checkouts)
+for agent in scout trak kit; do
+  mkdir -p "/opt/openclaw-persist/agents/${agent}/workspace"
+done
 if $FORCE; then
     log "Force rebuild (no cache)..."
     docker-compose build --no-cache

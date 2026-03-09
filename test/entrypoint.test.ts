@@ -215,8 +215,18 @@ describe('Inner entrypoint (docker/entrypoint.sh)', () => {
     expect(script).toMatch(/gh auth login --with-token/);
   });
 
-  test('copies agent workspace files from bind mounts', () => {
-    expect(script).toMatch(/cp -r \/tmp\/agents/);
+  test('always updates IDENTITY.md from git-managed source', () => {
+    expect(script).toMatch(/cp.*IDENTITY\.md.*IDENTITY\.md/);
+  });
+
+  test('seeds KNOWLEDGE.md and BOOTSTRAP.md only if they do not already exist', () => {
+    // The loop iterates over both files with a [ ! -f ] guard
+    expect(script).toContain('for f in KNOWLEDGE.md BOOTSTRAP.md');
+    expect(script).toMatch(/! -f.*\$DST\/\$f/);
+  });
+
+  test('creates destination workspace dir before copying', () => {
+    expect(script).toMatch(/mkdir -p.*\$DST/);
   });
 
   test('does NOT contain MCP warmup (moved to outer entrypoint)', () => {
@@ -262,9 +272,17 @@ describe('docker-compose.yml', () => {
     expect(compose).toContain('/opt/openclaw/docker/entrypoint.sh:/entrypoint.sh');
   });
 
-  test('has agent workspace bind mounts for all three agents', () => {
+  test('has git-managed workspace bind mounts for all three agents', () => {
     for (const agent of ['scout', 'trak', 'kit']) {
       expect(compose).toContain(`/opt/openclaw/agents/${agent}/workspace:/tmp/agents/${agent}/workspace`);
+    }
+  });
+
+  test('has persistent workspace bind mounts for all three agents', () => {
+    for (const agent of ['scout', 'trak', 'kit']) {
+      expect(compose).toContain(
+        `/opt/openclaw-persist/agents/${agent}/workspace:/root/.openclaw/agents/${agent}/workspace`
+      );
     }
   });
 
@@ -274,6 +292,27 @@ describe('docker-compose.yml', () => {
 
   test('uses /entrypoint.sh as the command', () => {
     expect(compose).toContain('/entrypoint.sh');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deploy.sh
+// ---------------------------------------------------------------------------
+describe('deploy.sh', () => {
+  let script: string;
+
+  beforeAll(() => {
+    script = readScript('deploy.sh');
+  });
+
+  test('creates persistent workspace dirs outside git repo', () => {
+    expect(script).toContain('/opt/openclaw-persist/agents/');
+    expect(script).toMatch(/mkdir -p.*openclaw-persist/);
+  });
+
+  test('creates persist dirs for all three agents', () => {
+    expect(script).toMatch(/for agent in scout trak kit/);
+    expect(script).toContain('openclaw-persist/agents/${agent}/workspace');
   });
 });
 
