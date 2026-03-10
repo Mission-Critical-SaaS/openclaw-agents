@@ -325,6 +325,15 @@ describe('docker-compose.yml', () => {
     }
   });
 
+  test('has memory database bind mount for virtual FS persistence', () => {
+    // Without this mount, agent file edits (KNOWLEDGE.md updates) are lost
+    // on container restart because the virtual FS stores modifications in
+    // SQLite, not on the real filesystem.
+    expect(compose).toContain(
+      '/opt/openclaw-persist/memory:/root/.openclaw/.openclaw/memory'
+    );
+  });
+
   test('uses /app/entrypoint.sh as the container entrypoint', () => {
     expect(compose).toContain('/app/entrypoint.sh');
   });
@@ -352,6 +361,10 @@ describe('deploy.sh', () => {
   test('creates persist dirs for all three agents', () => {
     expect(script).toMatch(/for agent in scout trak kit/);
     expect(script).toContain('openclaw-persist/workspace-${agent}');
+  });
+
+  test('creates persistent memory directory', () => {
+    expect(script).toContain('openclaw-persist/memory');
   });
 
   test('discards .last_deploy changes before git checkout (prevents tracked-file conflict)', () => {

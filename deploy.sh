@@ -81,6 +81,7 @@ log "Now at: $NEW_COMMIT"
 for agent in scout trak kit; do
   mkdir -p "/opt/openclaw-persist/workspace-${agent}"
 done
+mkdir -p "/opt/openclaw-persist/memory"
 if $FORCE; then
     log "Force rebuild (no cache)..."
     docker-compose build --no-cache

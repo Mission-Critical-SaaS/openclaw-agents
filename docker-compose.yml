@@ -22,6 +22,11 @@ services:
       - /opt/openclaw-persist/workspace-scout:/root/.openclaw/.openclaw/workspace-scout
       - /opt/openclaw-persist/workspace-trak:/root/.openclaw/.openclaw/workspace-trak
       - /opt/openclaw-persist/workspace-kit:/root/.openclaw/.openclaw/workspace-kit
+      # Memory database (agent knowledge, virtual FS state).
+      # Without this mount, agent file edits (e.g. KNOWLEDGE.md updates)
+      # are lost on container restart because the virtual FS stores
+      # modifications in SQLite, not on the real filesystem.
+      - /opt/openclaw-persist/memory:/root/.openclaw/.openclaw/memory
     entrypoint: ["/app/entrypoint.sh"]
     command: ["/entrypoint.sh"]
     environment:
