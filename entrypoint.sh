@@ -142,9 +142,12 @@ INJECT_PYEOF
     mkdir -p "$CFG" "$PERSIST"
 
     # IDENTITY.md: always overwrite from git (instructions may change per deploy)
+    # Must copy to BOTH paths — OpenClaw reads from PERSIST (runtime workspace),
+    # not CFG (configured workspace). CFG copy is kept for consistency.
     if [ -f "$SRC/IDENTITY.md" ]; then
       cp "$SRC/IDENTITY.md" "$CFG/IDENTITY.md"
-      echo "  ${agent}: IDENTITY.md updated"
+      cp "$SRC/IDENTITY.md" "$PERSIST/IDENTITY.md"
+      echo "  ${agent}: IDENTITY.md updated (cfg + persist)"
     fi
 
     # KNOWLEDGE.md: seed persist dir from git if it doesn't exist yet

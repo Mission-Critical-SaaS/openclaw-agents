@@ -163,9 +163,12 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
   });
 
   // --- Workspace file injection (after gateway creates workspaces) ---
-  test('injects IDENTITY.md into configured workspaces after gateway is up', () => {
+  test('injects IDENTITY.md into BOTH cfg and persist workspaces after gateway is up', () => {
     expect(script).toContain('Injecting workspace files');
-    expect(script).toMatch(/cp.*IDENTITY\.md.*IDENTITY\.md/);
+    // Must copy to CFG (configured workspace) AND PERSIST (runtime workspace)
+    // OpenClaw reads from PERSIST, so both must be updated
+    expect(script).toContain('cp "$SRC/IDENTITY.md" "$CFG/IDENTITY.md"');
+    expect(script).toContain('cp "$SRC/IDENTITY.md" "$PERSIST/IDENTITY.md"');
   });
 
   test('uses both configured and persist workspace paths', () => {
