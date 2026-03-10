@@ -121,6 +121,10 @@ VF="$HOME/.openclaw/agents/scout/workspace/KNOWLEDGE.md"
 # Use persistent path if available (Docker), else fall back to virtual FS path
 if [ -d "/root/.openclaw/.openclaw/workspace-scout" ]; then
   KF="$PF"
+elif [ "$(uname)" = "Darwin" ]; then
+  # macOS: write outside virtual FS to real disk
+  mkdir -p "$HOME/.openclaw-persist/workspace-scout"
+  KF="$HOME/.openclaw-persist/workspace-scout/KNOWLEDGE.md"
 else
   KF="$VF"
 fi
@@ -146,6 +150,11 @@ This file contains patterns, customer profiles, and resolution playbooks you've 
 PF="/root/.openclaw/.openclaw/workspace-scout/KNOWLEDGE.md"
 VF="$HOME/.openclaw/agents/scout/workspace/KNOWLEDGE.md"
 KF="$PF"; [ -f "$KF" ] || KF="$VF"
+# macOS fallback: persist outside virtual FS
+if [ ! -f "$KF" ] && [ "$(uname)" = "Darwin" ]; then
+  mkdir -p "$HOME/.openclaw-persist/workspace-scout"
+  KF="$HOME/.openclaw-persist/workspace-scout/KNOWLEDGE.md"
+fi
 cat >> "$KF" << 'EOF'
 
 ## YYYY-MM-DD — Topic

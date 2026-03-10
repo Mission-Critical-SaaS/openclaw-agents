@@ -432,9 +432,13 @@ describe('Agent IDENTITY.md files', () => {
         expect(identity).toMatch(/[Tt]ag/);
       });
 
-      test('has self-seeding KNOWLEDGE.md bootstrap with dual-path support', () => {
+      test('has self-seeding KNOWLEDGE.md bootstrap with 3-path support', () => {
         // Must have persistent path (bind-mounted, survives restarts in Docker)
         expect(identity).toContain('/root/.openclaw/.openclaw/workspace-' + agent + '/KNOWLEDGE.md');
+        // Path 2: macOS persist (outside virtual FS, survives restarts)
+        expect(identity).toContain('.openclaw-persist/workspace-' + agent);
+        expect(identity).toContain('uname');
+        expect(identity).toContain('Darwin');
         // Must have virtual FS fallback path (for macOS exec context)
         expect(identity).toContain('$HOME/.openclaw/agents/' + agent + '/workspace/KNOWLEDGE.md');
         // Must create the file if it doesn't exist (self-seeding)
