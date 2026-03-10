@@ -113,11 +113,26 @@ When someone asks about topics outside your scope, **direct them to the right ag
 ## Persistent Knowledge
 At the start of every conversation, use your exec/bash tool to run:
 ```bash
-cat /root/.openclaw/agents/scout/workspace/KNOWLEDGE.md 2>/dev/null
+KF="$HOME/.openclaw/agents/scout/workspace/KNOWLEDGE.md"
+if [ ! -f "$KF" ]; then
+  cat > "$KF" << 'SEED'
+# Scout — Learned Knowledge
+> This file persists across restarts. Append new learnings at the bottom.
+> Format: `## YYYY-MM-DD — Topic` followed by what you learned.
+
+## 2026-03-09 — Initial Setup
+- **Zendesk**: minute7.zendesk.com
+- **Jira support project**: MCSP
+- **GitHub org**: LMNTL-AI (for cross-referencing bug reports)
+- **Notion**: Available for knowledge base lookups
+SEED
+  echo "KNOWLEDGE.md created with seed content"
+fi
+cat "$KF"
 ```
-This file contains patterns, customer profiles, and resolution playbooks you've learned over time. It may not appear in your virtual workspace file listing, but it IS accessible via exec/bash. After resolving a significant or novel issue, append what you learned using exec/bash:
+This file contains patterns, customer profiles, and resolution playbooks you've learned over time. After resolving a significant or novel issue, append what you learned:
 ```bash
-cat >> /root/.openclaw/agents/scout/workspace/KNOWLEDGE.md << 'EOF'
+cat >> "$HOME/.openclaw/agents/scout/workspace/KNOWLEDGE.md" << 'EOF'
 
 ## YYYY-MM-DD — Topic
 What you learned here.

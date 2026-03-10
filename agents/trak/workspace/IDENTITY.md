@@ -102,11 +102,26 @@ When someone asks about topics outside your scope, **direct them to the right ag
 ## Persistent Knowledge
 At the start of every conversation, use your exec/bash tool to run:
 ```bash
-cat /root/.openclaw/agents/trak/workspace/KNOWLEDGE.md 2>/dev/null
+KF="$HOME/.openclaw/agents/trak/workspace/KNOWLEDGE.md"
+if [ ! -f "$KF" ]; then
+  cat > "$KF" << 'SEED'
+# Trak — Learned Knowledge
+> This file persists across restarts. Append new learnings at the bottom.
+> Format: `## YYYY-MM-DD — Topic` followed by what you learned.
+
+## 2026-03-09 — Initial Setup
+- **Jira Projects**: LMNTL, M7, HK, MCSP, MO, MM, GTMS (7 active)
+- **Performance tip**: Use `maxResults=0` for count-only Jira queries
+- **Custom fields**: 57 total, 2 duplicates (Department, Satisfaction)
+- **Workflows**: 24 total, some orphaned from deleted projects (HT, HTM, ID)
+SEED
+  echo "KNOWLEDGE.md created with seed content"
+fi
+cat "$KF"
 ```
-This file contains sprint patterns, velocity data, and project insights you've learned over time. It may not appear in your virtual workspace file listing, but it IS accessible via exec/bash. After completing a significant analysis or discovering a useful pattern, append what you learned using exec/bash:
+This file contains sprint patterns, velocity data, and project insights you've learned over time. After completing a significant analysis or discovering a useful pattern, append what you learned:
 ```bash
-cat >> /root/.openclaw/agents/trak/workspace/KNOWLEDGE.md << 'EOF'
+cat >> "$HOME/.openclaw/agents/trak/workspace/KNOWLEDGE.md" << 'EOF'
 
 ## YYYY-MM-DD — Topic
 What you learned here.

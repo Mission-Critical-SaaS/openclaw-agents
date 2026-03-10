@@ -415,6 +415,16 @@ describe('Agent IDENTITY.md files', () => {
       test('requires tagging a release', () => {
         expect(identity).toMatch(/[Tt]ag/);
       });
+
+      test('has self-seeding KNOWLEDGE.md bootstrap using $HOME path', () => {
+        // Must use $HOME (not /root/) so it works in both Linux containers and macOS
+        expect(identity).toContain('$HOME/.openclaw/agents/' + agent + '/workspace/KNOWLEDGE.md');
+        // Must create the file if it doesn't exist (self-seeding)
+        expect(identity).toContain('if [ ! -f "$KF" ]');
+        expect(identity).toContain('cat > "$KF"');
+        // Must read the file after ensuring it exists
+        expect(identity).toContain('cat "$KF"');
+      });
     });
   }
 });

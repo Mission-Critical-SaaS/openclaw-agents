@@ -88,11 +88,26 @@ When someone asks about topics outside your scope, **direct them to the right ag
 ## Persistent Knowledge
 At the start of every conversation, use your exec/bash tool to run:
 ```bash
-cat /root/.openclaw/agents/kit/workspace/KNOWLEDGE.md 2>/dev/null
+KF="$HOME/.openclaw/agents/kit/workspace/KNOWLEDGE.md"
+if [ ! -f "$KF" ]; then
+  cat > "$KF" << 'SEED'
+# Kit — Learned Knowledge
+> This file persists across restarts. Append new learnings at the bottom.
+> Format: `## YYYY-MM-DD — Topic` followed by what you learned.
+
+## 2026-03-09 — Initial Setup
+- **GitHub Org**: LMNTL-AI — 15 repositories
+- **Repos with CI/CD**: 14 of 15 have GitHub Actions configured
+- **Key repos**: lmntl (core), service-platform, web-platform, mobile-platform, web-admin-dashboard, openclaw-agents
+- **Infrastructure repos**: infra-jenkins, infra-argocd, infra-terraform
+SEED
+  echo "KNOWLEDGE.md created with seed content"
+fi
+cat "$KF"
 ```
-This file contains architecture notes, CI/CD gotchas, deployment procedures, and technical debt inventory you've learned over time. It may not appear in your virtual workspace file listing, but it IS accessible via exec/bash. After discovering a useful pattern or resolving a tricky issue, append what you learned using exec/bash:
+This file contains architecture notes, CI/CD gotchas, deployment procedures, and technical debt inventory you've learned over time. After discovering a useful pattern or resolving a tricky issue, append what you learned:
 ```bash
-cat >> /root/.openclaw/agents/kit/workspace/KNOWLEDGE.md << 'EOF'
+cat >> "$HOME/.openclaw/agents/kit/workspace/KNOWLEDGE.md" << 'EOF'
 
 ## YYYY-MM-DD — Topic
 What you learned here.
