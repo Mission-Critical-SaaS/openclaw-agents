@@ -163,20 +163,26 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
   });
 
   // --- Workspace file injection (after gateway creates workspaces) ---
-  test('injects IDENTITY.md into runtime workspaces after gateway is up', () => {
+  test('injects IDENTITY.md into configured workspaces after gateway is up', () => {
     expect(script).toContain('Injecting workspace files');
     expect(script).toMatch(/cp.*IDENTITY\.md.*IDENTITY\.md/);
   });
 
-  test('uses correct runtime workspace path for injection', () => {
-    // Must target /root/.openclaw/.openclaw/workspace-{agent}, NOT agents/{agent}/workspace
-    expect(script).toContain('/root/.openclaw/.openclaw/workspace-');
-    expect(script).not.toMatch(/DST=.*agents\/\$\{?agent\}?\/workspace/);
+  test('uses both configured and persist workspace paths', () => {
+    // CFG = agents/{agent}/workspace (where agent reads/writes)
+    expect(script).toContain('/root/.openclaw/agents/${agent}/workspace');
+    // PERSIST = .openclaw/workspace-{agent} (bind-mounted, survives restarts)
+    expect(script).toContain('/root/.openclaw/.openclaw/workspace-${agent}');
   });
 
-  test('seeds KNOWLEDGE.md only if it does not already exist', () => {
-    expect(script).toMatch(/! -f.*KNOWLEDGE\.md/);
+  test('seeds KNOWLEDGE.md to persist dir only if it does not already exist', () => {
+    expect(script).toMatch(/! -f.*PERSIST.*KNOWLEDGE\.md/);
     expect(script).toContain('KNOWLEDGE.md seeded');
+  });
+
+  test('symlinks KNOWLEDGE.md from configured workspace to persist dir', () => {
+    expect(script).toMatch(/ln -sf.*PERSIST.*KNOWLEDGE\.md.*CFG.*KNOWLEDGE\.md/);
+    expect(script).toContain('KNOWLEDGE.md symlinked');
   });
 
   test('workspace injection runs AFTER gateway liveness check and BEFORE bootstrap', () => {

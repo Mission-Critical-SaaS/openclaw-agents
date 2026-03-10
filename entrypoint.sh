@@ -135,27 +135,39 @@ INJECT_PYEOF
 
   # ============================================================
   # WORKSPACE FILE INJECTION
-  # Now that the gateway has created runtime workspaces, inject
-  # agent identity and seed knowledge files from the git-managed
-  # workspace source. IDENTITY.md is always updated (may change
-  # per deploy). KNOWLEDGE.md is only seeded if it doesn't exist
-  # (preserves agent's learned knowledge across restarts).
-  # Runtime workspace path: /root/.openclaw/.openclaw/workspace-{agent}
+  # OpenClaw has two workspace paths per agent:
+  #   CFG  = /root/.openclaw/agents/{agent}/workspace  (configured — agent reads/writes here)
+  #   PERSIST = /root/.openclaw/.openclaw/workspace-{agent}  (bind-mounted — survives restarts)
+  # Strategy:
+  #   IDENTITY.md  → always copy from git to CFG (deploy may update instructions)
+  #   KNOWLEDGE.md → seed PERSIST from git if missing, then symlink CFG → PERSIST
+  #                   so agent reads/writes go through to the persisted bind mount.
   # ============================================================
-  echo "Injecting workspace files into runtime workspaces..."
+  echo "Injecting workspace files into agent workspaces..."
   for agent in scout trak kit; do
     SRC="/tmp/agents/${agent}/workspace"
-    DST="/root/.openclaw/.openclaw/workspace-${agent}"
-    if [ -d "$SRC" ] && [ -d "$DST" ]; then
-      # Always update IDENTITY.md from git (deploy may change agent instructions)
-      cp "$SRC/IDENTITY.md" "$DST/IDENTITY.md" 2>/dev/null && echo "  ${agent}: IDENTITY.md updated" || true
-      # Seed KNOWLEDGE.md only if it doesn't already exist
-      if [ ! -f "$DST/KNOWLEDGE.md" ] && [ -f "$SRC/KNOWLEDGE.md" ]; then
-        cp "$SRC/KNOWLEDGE.md" "$DST/KNOWLEDGE.md"
-        echo "  ${agent}: KNOWLEDGE.md seeded"
-      fi
-    else
-      echo "  WARNING: ${agent} workspace not ready (SRC=$SRC exists=$([ -d "$SRC" ] && echo y || echo n), DST=$DST exists=$([ -d "$DST" ] && echo y || echo n))"
+    CFG="/root/.openclaw/agents/${agent}/workspace"
+    PERSIST="/root/.openclaw/.openclaw/workspace-${agent}"
+
+    mkdir -p "$CFG" "$PERSIST"
+
+    # IDENTITY.md: always overwrite from git (instructions may change per deploy)
+    if [ -f "$SRC/IDENTITY.md" ]; then
+      cp "$SRC/IDENTITY.md" "$CFG/IDENTITY.md"
+      echo "  ${agent}: IDENTITY.md updated"
+    fi
+
+    # KNOWLEDGE.md: seed persist dir from git if it doesn't exist yet
+    if [ ! -f "$PERSIST/KNOWLEDGE.md" ] && [ -f "$SRC/KNOWLEDGE.md" ]; then
+      cp "$SRC/KNOWLEDGE.md" "$PERSIST/KNOWLEDGE.md"
+      echo "  ${agent}: KNOWLEDGE.md seeded to persist"
+    fi
+
+    # Symlink KNOWLEDGE.md in configured workspace → persist dir
+    # Agent reads/writes follow the symlink to the bind-mounted path
+    if [ -f "$PERSIST/KNOWLEDGE.md" ]; then
+      ln -sf "$PERSIST/KNOWLEDGE.md" "$CFG/KNOWLEDGE.md"
+      echo "  ${agent}: KNOWLEDGE.md symlinked (persist → cfg)"
     fi
   done
 
