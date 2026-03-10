@@ -82,6 +82,9 @@ for agent in scout trak kit; do
   mkdir -p "/opt/openclaw-persist/workspace-${agent}"
 done
 mkdir -p "/opt/openclaw-persist/memory"
+
+# Ensure scripts are executable
+chmod +x /opt/openclaw/scripts/*.sh 2>/dev/null || true
 if $FORCE; then
     log "Force rebuild (no cache)..."
     docker-compose build --no-cache

@@ -54,8 +54,16 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(script).toContain('NOTION_API_KEY');
   });
 
-  test('exports GitHub token', () => {
-    expect(script).toContain('GITHUB_TOKEN');
+  test('generates GitHub App token from SSM parameters', () => {
+    expect(script).toContain('GH_APP_ID');
+    expect(script).toContain('GH_APP_INSTALLATION_ID');
+    expect(script).toContain('GH_APP_PRIVATE_KEY_FILE');
+    expect(script).toContain('github-app-token.sh');
+    // GITHUB_TOKEN is exported inside the sourced github-app-token.sh script
+  });
+
+  test('starts background token refresh loop', () => {
+    expect(script).toContain('github-token-refresh.sh');
   });
 
   // --- Config wait ---
@@ -461,4 +469,37 @@ describe('Agent KNOWLEDGE.md files', () => {
       expect(knowledge.length).toBeGreaterThan(50);
     });
   }
+});
+
+
+// ---------------------------------------------------------------------------
+// GitHub App token scripts
+// ---------------------------------------------------------------------------
+describe('GitHub App token scripts', () => {
+  let tokenScript: string;
+  let refreshScript: string;
+
+  beforeAll(() => {
+    tokenScript = readScript('scripts/github-app-token.sh');
+    refreshScript = readScript('scripts/github-token-refresh.sh');
+  });
+
+  test('token script generates JWT and exchanges for installation token', () => {
+    expect(tokenScript).toContain('RS256');
+    expect(tokenScript).toContain('openssl dgst -sha256 -sign');
+    expect(tokenScript).toContain('api.github.com/app/installations');
+    expect(tokenScript).toContain('export GITHUB_TOKEN');
+  });
+
+  test('token script validates required env vars', () => {
+    expect(tokenScript).toContain('GH_APP_ID');
+    expect(tokenScript).toContain('GH_APP_INSTALLATION_ID');
+    expect(tokenScript).toContain('GH_APP_PRIVATE_KEY_FILE');
+  });
+
+  test('refresh script runs every 50 minutes', () => {
+    expect(refreshScript).toContain('3000');
+    expect(refreshScript).toContain('github-app-token.sh');
+    expect(refreshScript).toContain('gh auth login');
+  });
 });

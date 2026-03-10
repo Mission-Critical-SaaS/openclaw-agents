@@ -17,7 +17,14 @@ export ATLASSIAN_API_TOKEN=$(echo $SECRET | jq -r .ATLASSIAN_API_TOKEN)
 export JIRA_BASE_URL="https://${ATLASSIAN_SITE_NAME}.atlassian.net"
 export JIRA_USER_EMAIL="${ATLASSIAN_USER_EMAIL}"
 export JIRA_API_TOKEN="${ATLASSIAN_API_TOKEN}"
-export GITHUB_TOKEN=$(echo $SECRET | jq -r .GITHUB_TOKEN)
+# GitHub App token (replaces static PAT)
+export GH_APP_ID=$(aws ssm get-parameter --name /openclaw/github-app/app-id --region us-east-1 --query Parameter.Value --output text)
+export GH_APP_INSTALLATION_ID=$(aws ssm get-parameter --name /openclaw/github-app/installation-id --region us-east-1 --query Parameter.Value --output text)
+GH_APP_PRIVATE_KEY=$(aws ssm get-parameter --name /openclaw/github-app/private-key --region us-east-1 --with-decryption --query Parameter.Value --output text)
+export GH_APP_PRIVATE_KEY_FILE=/tmp/.github-app-key.pem
+echo "$GH_APP_PRIVATE_KEY" > "$GH_APP_PRIVATE_KEY_FILE"
+chmod 600 "$GH_APP_PRIVATE_KEY_FILE"
+source /app/scripts/github-app-token.sh
 export ZENDESK_SUBDOMAIN=$(echo $SECRET | jq -r .ZENDESK_SUBDOMAIN)
 export ZENDESK_EMAIL=$(echo $SECRET | jq -r .ZENDESK_EMAIL)
 export ZENDESK_API_TOKEN=$(echo $SECRET | jq -r .ZENDESK_API_TOKEN)
@@ -174,6 +181,10 @@ INJECT_PYEOF
   sleep 5
   if kill -0 $GATEWAY_PID 2>/dev/null; then
     echo "Gateway is running (PID $GATEWAY_PID)."
+
+    # Start background GitHub App token refresh (tokens expire after 1hr)
+    /app/scripts/github-token-refresh.sh &
+    echo "GitHub token refresh loop started in background."
   else
     echo "ERROR: Gateway process died. Check /data/logs/openclaw.log"
     exit 1
