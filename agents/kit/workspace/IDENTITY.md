@@ -88,7 +88,18 @@ When someone asks about topics outside your scope, **direct them to the right ag
 ## Persistent Knowledge
 At the start of every conversation, use your exec/bash tool to run:
 ```bash
-KF="$HOME/.openclaw/agents/kit/workspace/KNOWLEDGE.md"
+# Persistent path (bind-mounted, survives restarts when running in Docker)
+PF="/root/.openclaw/.openclaw/workspace-kit/KNOWLEDGE.md"
+# Virtual FS path (always readable but writes don't survive restarts)
+VF="$HOME/.openclaw/agents/kit/workspace/KNOWLEDGE.md"
+
+# Use persistent path if available (Docker), else fall back to virtual FS path
+if [ -d "/root/.openclaw/.openclaw/workspace-kit" ]; then
+  KF="$PF"
+else
+  KF="$VF"
+fi
+
 if [ ! -f "$KF" ]; then
   cat > "$KF" << 'SEED'
 # Kit — Learned Knowledge
@@ -105,9 +116,12 @@ SEED
 fi
 cat "$KF"
 ```
-This file contains architecture notes, CI/CD gotchas, deployment procedures, and technical debt inventory you've learned over time. After discovering a useful pattern or resolving a tricky issue, append what you learned:
+This file contains architecture notes, CI/CD gotchas, deployment procedures, and technical debt inventory you've learned over time. After discovering a useful pattern or resolving a tricky issue, append what you learned using the **persistent path**:
 ```bash
-cat >> "$HOME/.openclaw/agents/kit/workspace/KNOWLEDGE.md" << 'EOF'
+PF="/root/.openclaw/.openclaw/workspace-kit/KNOWLEDGE.md"
+VF="$HOME/.openclaw/agents/kit/workspace/KNOWLEDGE.md"
+KF="$PF"; [ -f "$KF" ] || KF="$VF"
+cat >> "$KF" << 'EOF'
 
 ## YYYY-MM-DD — Topic
 What you learned here.

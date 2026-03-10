@@ -113,7 +113,18 @@ When someone asks about topics outside your scope, **direct them to the right ag
 ## Persistent Knowledge
 At the start of every conversation, use your exec/bash tool to run:
 ```bash
-KF="$HOME/.openclaw/agents/scout/workspace/KNOWLEDGE.md"
+# Persistent path (bind-mounted, survives restarts when running in Docker)
+PF="/root/.openclaw/.openclaw/workspace-scout/KNOWLEDGE.md"
+# Virtual FS path (always readable but writes don't survive restarts)
+VF="$HOME/.openclaw/agents/scout/workspace/KNOWLEDGE.md"
+
+# Use persistent path if available (Docker), else fall back to virtual FS path
+if [ -d "/root/.openclaw/.openclaw/workspace-scout" ]; then
+  KF="$PF"
+else
+  KF="$VF"
+fi
+
 if [ ! -f "$KF" ]; then
   cat > "$KF" << 'SEED'
 # Scout — Learned Knowledge
@@ -130,9 +141,12 @@ SEED
 fi
 cat "$KF"
 ```
-This file contains patterns, customer profiles, and resolution playbooks you've learned over time. After resolving a significant or novel issue, append what you learned:
+This file contains patterns, customer profiles, and resolution playbooks you've learned over time. After resolving a significant or novel issue, append what you learned using the **persistent path**:
 ```bash
-cat >> "$HOME/.openclaw/agents/scout/workspace/KNOWLEDGE.md" << 'EOF'
+PF="/root/.openclaw/.openclaw/workspace-scout/KNOWLEDGE.md"
+VF="$HOME/.openclaw/agents/scout/workspace/KNOWLEDGE.md"
+KF="$PF"; [ -f "$KF" ] || KF="$VF"
+cat >> "$KF" << 'EOF'
 
 ## YYYY-MM-DD — Topic
 What you learned here.
