@@ -180,9 +180,12 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(script).toContain('KNOWLEDGE.md seeded');
   });
 
-  test('symlinks KNOWLEDGE.md from configured workspace to persist dir', () => {
-    expect(script).toMatch(/ln -sf.*PERSIST.*KNOWLEDGE\.md.*CFG.*KNOWLEDGE\.md/);
-    expect(script).toContain('KNOWLEDGE.md symlinked');
+  test('copies KNOWLEDGE.md from persist dir to configured workspace (not symlink)', () => {
+    // Symlinks don't work — OpenClaw virtual FS doesn't resolve them.
+    // Must be a real copy so the agent can read it.
+    expect(script).not.toContain('ln -sf');
+    expect(script).toMatch(/cp.*PERSIST.*KNOWLEDGE\.md.*CFG.*KNOWLEDGE\.md/);
+    expect(script).toContain('KNOWLEDGE.md copied from persist to cfg');
   });
 
   test('workspace injection runs AFTER gateway liveness check and BEFORE bootstrap', () => {

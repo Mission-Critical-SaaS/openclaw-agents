@@ -140,8 +140,11 @@ INJECT_PYEOF
   #   PERSIST = /root/.openclaw/.openclaw/workspace-{agent}  (bind-mounted — survives restarts)
   # Strategy:
   #   IDENTITY.md  → always copy from git to CFG (deploy may update instructions)
-  #   KNOWLEDGE.md → seed PERSIST from git if missing, then symlink CFG → PERSIST
-  #                   so agent reads/writes go through to the persisted bind mount.
+  #   KNOWLEDGE.md → seed PERSIST from git if missing, then copy PERSIST → CFG
+  # Note: symlinks don't work here — OpenClaw's virtual FS doesn't follow them.
+  # Agent writes to KNOWLEDGE.md go to CFG (not persisted). On restart, the
+  # persisted copy in PERSIST is restored to CFG. To persist agent edits
+  # long-term, agents should be instructed to use the persist path directly.
   # ============================================================
   echo "Injecting workspace files into agent workspaces..."
   for agent in scout trak kit; do
@@ -163,11 +166,11 @@ INJECT_PYEOF
       echo "  ${agent}: KNOWLEDGE.md seeded to persist"
     fi
 
-    # Symlink KNOWLEDGE.md in configured workspace → persist dir
-    # Agent reads/writes follow the symlink to the bind-mounted path
+    # Copy KNOWLEDGE.md from persist dir to configured workspace
+    # (symlinks don't work — OpenClaw virtual FS doesn't resolve them)
     if [ -f "$PERSIST/KNOWLEDGE.md" ]; then
-      ln -sf "$PERSIST/KNOWLEDGE.md" "$CFG/KNOWLEDGE.md"
-      echo "  ${agent}: KNOWLEDGE.md symlinked (persist → cfg)"
+      cp "$PERSIST/KNOWLEDGE.md" "$CFG/KNOWLEDGE.md"
+      echo "  ${agent}: KNOWLEDGE.md copied from persist to cfg"
     fi
   done
 
