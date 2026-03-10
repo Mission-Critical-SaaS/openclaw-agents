@@ -538,6 +538,14 @@ describe('GitHub App token scripts', () => {
     expect(refreshScript).not.toMatch(/^set -euo pipefail/m);
     expect(refreshScript).toContain('WARNING: Token refresh failed');
   });
+
+  test('refresh script runs token generation in subshell to survive exit/set-e', () => {
+    // The token script uses set -e and exit 1 on failure.
+    // If sourced directly, those kill the refresh loop.
+    // Must use bash -c (subshell) instead of source.
+    expect(refreshScript).toContain('bash -c');
+    expect(refreshScript).not.toMatch(/^\s+if source .*github-app-token/m);
+  });
 });
 
 // ---------------------------------------------------------------------------
