@@ -188,33 +188,37 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(script).toContain('KNOWLEDGE.md copied from persist to cfg');
   });
 
-  test('workspace injection runs AFTER gateway liveness check and BEFORE bootstrap', () => {
-    const livenessIdx = script.indexOf('kill -0 $GATEWAY_PID');
+  test('workspace injection runs BEFORE gateway restart and BEFORE bootstrap', () => {
+    // OpenClaw virtual FS snapshots workspace at gateway startup, so files
+    // must be in place BEFORE the gateway restarts.
+    const doctorIdx = script.indexOf('openclaw doctor --fix');
     const injectionIdx = script.indexOf('Injecting workspace files');
+    const restartIdx = script.indexOf('openclaw gateway run');
     const bootstrapIdx = script.indexOf('openclaw agent --agent main');
-    expect(injectionIdx).toBeGreaterThan(livenessIdx);
+    expect(injectionIdx).toBeGreaterThan(doctorIdx);
+    expect(injectionIdx).toBeLessThan(restartIdx);
     expect(injectionIdx).toBeLessThan(bootstrapIdx);
   });
 
   // --- Startup ordering (the full critical path) ---
-  test('correct overall startup order: secrets → config wait → inject → doctor → restart → verify → workspace inject → bootstrap', () => {
+  test('correct overall startup order: secrets → config wait → inject → doctor → workspace inject → restart → verify → bootstrap', () => {
     const secretsIdx = script.indexOf('aws secretsmanager');
     const configWaitIdx = script.indexOf('Waiting for gateway config');
     const injectIdx = script.indexOf('injecting Slack channels');
     const doctorIdx = script.indexOf('openclaw doctor --fix');
+    const wsInjectIdx = script.indexOf('Injecting workspace files');
     const restartIdx = script.indexOf('openclaw gateway run');
     const verifyIdx = script.indexOf('kill -0 $GATEWAY_PID');
-    const wsInjectIdx = script.indexOf('Injecting workspace files');
     const bootstrapIdx = script.indexOf('openclaw agent --agent main');
 
     expect(secretsIdx).toBeGreaterThan(-1);
     expect(configWaitIdx).toBeGreaterThan(secretsIdx);
     expect(injectIdx).toBeGreaterThan(configWaitIdx);
     expect(doctorIdx).toBeGreaterThan(injectIdx);
-    expect(restartIdx).toBeGreaterThan(doctorIdx);
+    expect(wsInjectIdx).toBeGreaterThan(doctorIdx);
+    expect(restartIdx).toBeGreaterThan(wsInjectIdx);
     expect(verifyIdx).toBeGreaterThan(restartIdx);
-    expect(wsInjectIdx).toBeGreaterThan(verifyIdx);
-    expect(bootstrapIdx).toBeGreaterThan(wsInjectIdx);
+    expect(bootstrapIdx).toBeGreaterThan(verifyIdx);
   });
 });
 

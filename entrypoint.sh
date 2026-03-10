@@ -119,32 +119,19 @@ INJECT_PYEOF
   echo "Running openclaw doctor --fix to normalize config..."
   openclaw doctor --fix 2>/dev/null || true
 
-  # Start gateway DIRECTLY — one-time setup is already done
-  echo "Starting gateway with injected channel config..."
-  openclaw gateway run --allow-unconfigured 2>&1 | tee -a /data/logs/openclaw.log &
-  GATEWAY_PID=$!
-
-  # Verify gateway started (lightweight liveness check)
-  sleep 5
-  if kill -0 $GATEWAY_PID 2>/dev/null; then
-    echo "Gateway is running (PID $GATEWAY_PID)."
-  else
-    echo "ERROR: Gateway process died. Check /data/logs/openclaw.log"
-    exit 1
-  fi
-
   # ============================================================
-  # WORKSPACE FILE INJECTION
-  # OpenClaw has two workspace paths per agent:
+  # WORKSPACE FILE INJECTION (must happen BEFORE gateway restart)
+  # OpenClaw's virtual FS snapshots workspace contents at gateway
+  # startup. Files placed after the gateway starts may not appear
+  # in the agent's virtual workspace view.
+  #
+  # Two workspace paths per agent:
   #   CFG  = /root/.openclaw/agents/{agent}/workspace  (configured — agent reads/writes here)
   #   PERSIST = /root/.openclaw/.openclaw/workspace-{agent}  (bind-mounted — survives restarts)
   # Strategy:
   #   IDENTITY.md  → always copy from git to CFG (deploy may update instructions)
   #   KNOWLEDGE.md → seed PERSIST from git if missing, then copy PERSIST → CFG
-  # Note: symlinks don't work here — OpenClaw's virtual FS doesn't follow them.
-  # Agent writes to KNOWLEDGE.md go to CFG (not persisted). On restart, the
-  # persisted copy in PERSIST is restored to CFG. To persist agent edits
-  # long-term, agents should be instructed to use the persist path directly.
+  # Note: symlinks don't work — OpenClaw virtual FS doesn't resolve them.
   # ============================================================
   echo "Injecting workspace files into agent workspaces..."
   for agent in scout trak kit; do
@@ -173,6 +160,21 @@ INJECT_PYEOF
       echo "  ${agent}: KNOWLEDGE.md copied from persist to cfg"
     fi
   done
+
+  # Start gateway DIRECTLY — one-time setup is already done
+  # Workspace files are in place so the gateway discovers them on scan
+  echo "Starting gateway with injected channel config..."
+  openclaw gateway run --allow-unconfigured 2>&1 | tee -a /data/logs/openclaw.log &
+  GATEWAY_PID=$!
+
+  # Verify gateway started (lightweight liveness check)
+  sleep 5
+  if kill -0 $GATEWAY_PID 2>/dev/null; then
+    echo "Gateway is running (PID $GATEWAY_PID)."
+  else
+    echo "ERROR: Gateway process died. Check /data/logs/openclaw.log"
+    exit 1
+  fi
 
   # ============================================================
   # AGENT BOOTSTRAP
