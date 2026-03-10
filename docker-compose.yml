@@ -15,10 +15,13 @@ services:
       - /opt/openclaw/agents/scout/workspace:/tmp/agents/scout/workspace
       - /opt/openclaw/agents/trak/workspace:/tmp/agents/trak/workspace
       - /opt/openclaw/agents/kit/workspace:/tmp/agents/kit/workspace
-      # Persistent workspace (survives deploys — agent memories + bootstrap state)
-      - /opt/openclaw-persist/agents/scout/workspace:/root/.openclaw/agents/scout/workspace
-      - /opt/openclaw-persist/agents/trak/workspace:/root/.openclaw/agents/trak/workspace
-      - /opt/openclaw-persist/agents/kit/workspace:/root/.openclaw/agents/kit/workspace
+      # Persistent runtime workspace (survives deploys + restarts).
+      # OpenClaw creates workspace files here on first boot; bind mount
+      # ensures they persist. Path matches OpenClaw's actual runtime
+      # workspace: /root/.openclaw/.openclaw/workspace-{agent}
+      - /opt/openclaw-persist/workspace-scout:/root/.openclaw/.openclaw/workspace-scout
+      - /opt/openclaw-persist/workspace-trak:/root/.openclaw/.openclaw/workspace-trak
+      - /opt/openclaw-persist/workspace-kit:/root/.openclaw/.openclaw/workspace-kit
     entrypoint: ["/app/entrypoint.sh"]
     command: ["/entrypoint.sh"]
     environment:

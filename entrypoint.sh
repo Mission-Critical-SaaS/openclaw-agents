@@ -134,6 +134,32 @@ INJECT_PYEOF
   fi
 
   # ============================================================
+  # WORKSPACE FILE INJECTION
+  # Now that the gateway has created runtime workspaces, inject
+  # agent identity and seed knowledge files from the git-managed
+  # workspace source. IDENTITY.md is always updated (may change
+  # per deploy). KNOWLEDGE.md is only seeded if it doesn't exist
+  # (preserves agent's learned knowledge across restarts).
+  # Runtime workspace path: /root/.openclaw/.openclaw/workspace-{agent}
+  # ============================================================
+  echo "Injecting workspace files into runtime workspaces..."
+  for agent in scout trak kit; do
+    SRC="/tmp/agents/${agent}/workspace"
+    DST="/root/.openclaw/.openclaw/workspace-${agent}"
+    if [ -d "$SRC" ] && [ -d "$DST" ]; then
+      # Always update IDENTITY.md from git (deploy may change agent instructions)
+      cp "$SRC/IDENTITY.md" "$DST/IDENTITY.md" 2>/dev/null && echo "  ${agent}: IDENTITY.md updated" || true
+      # Seed KNOWLEDGE.md only if it doesn't already exist
+      if [ ! -f "$DST/KNOWLEDGE.md" ] && [ -f "$SRC/KNOWLEDGE.md" ]; then
+        cp "$SRC/KNOWLEDGE.md" "$DST/KNOWLEDGE.md"
+        echo "  ${agent}: KNOWLEDGE.md seeded"
+      fi
+    else
+      echo "  WARNING: ${agent} workspace not ready (SRC=$SRC exists=$([ -d "$SRC" ] && echo y || echo n), DST=$DST exists=$([ -d "$DST" ] && echo y || echo n))"
+    fi
+  done
+
+  # ============================================================
   # AGENT BOOTSTRAP
   # MCP tools load on-demand when an agent first requests them.
   # We trigger a lightweight agent turn so that tools (Jira,

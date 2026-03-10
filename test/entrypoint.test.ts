@@ -162,14 +162,40 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(script).toContain('cold-start');
   });
 
+  // --- Workspace file injection (after gateway creates workspaces) ---
+  test('injects IDENTITY.md into runtime workspaces after gateway is up', () => {
+    expect(script).toContain('Injecting workspace files');
+    expect(script).toMatch(/cp.*IDENTITY\.md.*IDENTITY\.md/);
+  });
+
+  test('uses correct runtime workspace path for injection', () => {
+    // Must target /root/.openclaw/.openclaw/workspace-{agent}, NOT agents/{agent}/workspace
+    expect(script).toContain('/root/.openclaw/.openclaw/workspace-');
+    expect(script).not.toMatch(/DST=.*agents\/\$\{?agent\}?\/workspace/);
+  });
+
+  test('seeds KNOWLEDGE.md only if it does not already exist', () => {
+    expect(script).toMatch(/! -f.*KNOWLEDGE\.md/);
+    expect(script).toContain('KNOWLEDGE.md seeded');
+  });
+
+  test('workspace injection runs AFTER gateway liveness check and BEFORE bootstrap', () => {
+    const livenessIdx = script.indexOf('kill -0 $GATEWAY_PID');
+    const injectionIdx = script.indexOf('Injecting workspace files');
+    const bootstrapIdx = script.indexOf('openclaw agent --agent main');
+    expect(injectionIdx).toBeGreaterThan(livenessIdx);
+    expect(injectionIdx).toBeLessThan(bootstrapIdx);
+  });
+
   // --- Startup ordering (the full critical path) ---
-  test('correct overall startup order: secrets → config wait → inject → doctor → restart → verify → bootstrap', () => {
+  test('correct overall startup order: secrets → config wait → inject → doctor → restart → verify → workspace inject → bootstrap', () => {
     const secretsIdx = script.indexOf('aws secretsmanager');
     const configWaitIdx = script.indexOf('Waiting for gateway config');
     const injectIdx = script.indexOf('injecting Slack channels');
     const doctorIdx = script.indexOf('openclaw doctor --fix');
     const restartIdx = script.indexOf('openclaw gateway run');
     const verifyIdx = script.indexOf('kill -0 $GATEWAY_PID');
+    const wsInjectIdx = script.indexOf('Injecting workspace files');
     const bootstrapIdx = script.indexOf('openclaw agent --agent main');
 
     expect(secretsIdx).toBeGreaterThan(-1);
@@ -178,7 +204,8 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(doctorIdx).toBeGreaterThan(injectIdx);
     expect(restartIdx).toBeGreaterThan(doctorIdx);
     expect(verifyIdx).toBeGreaterThan(restartIdx);
-    expect(bootstrapIdx).toBeGreaterThan(verifyIdx);
+    expect(wsInjectIdx).toBeGreaterThan(verifyIdx);
+    expect(bootstrapIdx).toBeGreaterThan(wsInjectIdx);
   });
 });
 
@@ -215,18 +242,12 @@ describe('Inner entrypoint (docker/entrypoint.sh)', () => {
     expect(script).toMatch(/gh auth login --with-token/);
   });
 
-  test('always updates IDENTITY.md from git-managed source', () => {
-    expect(script).toMatch(/cp.*IDENTITY\.md.*IDENTITY\.md/);
-  });
-
-  test('seeds KNOWLEDGE.md and BOOTSTRAP.md only if they do not already exist', () => {
-    // The loop iterates over both files with a [ ! -f ] guard
-    expect(script).toContain('for f in KNOWLEDGE.md BOOTSTRAP.md');
-    expect(script).toMatch(/! -f.*\$DST\/\$f/);
-  });
-
-  test('creates destination workspace dir before copying', () => {
-    expect(script).toMatch(/mkdir -p.*\$DST/);
+  test('does NOT do workspace file injection (moved to outer entrypoint)', () => {
+    // Workspace file injection must happen in the outer entrypoint AFTER
+    // the gateway creates runtime workspaces. The inner entrypoint runs
+    // before those directories exist.
+    expect(script).not.toMatch(/cp.*IDENTITY\.md.*IDENTITY\.md/);
+    expect(script).toContain('outer entrypoint');
   });
 
   test('does NOT contain MCP warmup (moved to outer entrypoint)', () => {
@@ -278,10 +299,12 @@ describe('docker-compose.yml', () => {
     }
   });
 
-  test('has persistent workspace bind mounts for all three agents', () => {
+  test('has persistent runtime workspace bind mounts for all three agents', () => {
+    // Must target OpenClaw's actual runtime workspace path:
+    // /root/.openclaw/.openclaw/workspace-{agent}
     for (const agent of ['scout', 'trak', 'kit']) {
       expect(compose).toContain(
-        `/opt/openclaw-persist/agents/${agent}/workspace:/root/.openclaw/agents/${agent}/workspace`
+        `/opt/openclaw-persist/workspace-${agent}:/root/.openclaw/.openclaw/workspace-${agent}`
       );
     }
   });
@@ -306,13 +329,13 @@ describe('deploy.sh', () => {
   });
 
   test('creates persistent workspace dirs outside git repo', () => {
-    expect(script).toContain('/opt/openclaw-persist/agents/');
+    expect(script).toContain('/opt/openclaw-persist/workspace-');
     expect(script).toMatch(/mkdir -p.*openclaw-persist/);
   });
 
   test('creates persist dirs for all three agents', () => {
     expect(script).toMatch(/for agent in scout trak kit/);
-    expect(script).toContain('openclaw-persist/agents/${agent}/workspace');
+    expect(script).toContain('openclaw-persist/workspace-${agent}');
   });
 
   test('discards .last_deploy changes before git checkout (prevents tracked-file conflict)', () => {

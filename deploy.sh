@@ -76,9 +76,10 @@ elif git rev-parse "$VERSION" &>/dev/null; then
 else log "ERROR: Version '$VERSION' not found"; exit 1; fi
 NEW_COMMIT=$(git rev-parse HEAD)
 log "Now at: $NEW_COMMIT"
-# Ensure persistent workspace dirs exist (outside git repo, survives checkouts)
+# Ensure persistent runtime workspace dirs exist (outside git repo, survives checkouts).
+# Path matches OpenClaw's runtime workspace: /root/.openclaw/.openclaw/workspace-{agent}
 for agent in scout trak kit; do
-  mkdir -p "/opt/openclaw-persist/agents/${agent}/workspace"
+  mkdir -p "/opt/openclaw-persist/workspace-${agent}"
 done
 if $FORCE; then
     log "Force rebuild (no cache)..."
