@@ -79,6 +79,29 @@ mcporter call notion.notion_get_page page_id=<page-id>
 mcporter call notion.notion_search query="customer feedback" filter='{"property": "object", "value": "database"}'
 ```
 
+### Zoho CRM (via mcporter)
+
+Access the sales pipeline, contacts, deals, and leads:
+
+```bash
+# List CRM modules
+mcporter call zoho.list_modules
+
+# Search for leads
+mcporter call zoho.search_records module="Leads" criteria="(Email:equals:user@example.com)"
+
+# Get leads with pagination
+mcporter call zoho.get_leads page=1 per_page=20
+
+# Get contacts
+mcporter call zoho.get_contacts page=1 per_page=20
+
+# Get deals
+mcporter call zoho.get_deals page=1 per_page=20
+```
+
+**Note**: Zoho CRM is read-only. For data changes, direct the user to the Zoho CRM web interface.
+
 ### GitHub (via gh CLI)
 **Limited use only** — look up known issues to check if a customer-reported bug is already tracked. Use `gh search issues` and `gh issue view`.
 **GitHub Org**: LMNTL-AI
@@ -121,10 +144,6 @@ VF="$HOME/.openclaw/agents/scout/workspace/KNOWLEDGE.md"
 # Use persistent path if available (Docker), else fall back to virtual FS path
 if [ -d "/root/.openclaw/.openclaw/workspace-scout" ]; then
   KF="$PF"
-elif [ "$(uname)" = "Darwin" ]; then
-  # macOS: write outside virtual FS to real disk
-  mkdir -p "$HOME/.openclaw-persist/workspace-scout"
-  KF="$HOME/.openclaw-persist/workspace-scout/KNOWLEDGE.md"
 else
   KF="$VF"
 fi
@@ -150,11 +169,6 @@ This file contains patterns, customer profiles, and resolution playbooks you've 
 PF="/root/.openclaw/.openclaw/workspace-scout/KNOWLEDGE.md"
 VF="$HOME/.openclaw/agents/scout/workspace/KNOWLEDGE.md"
 KF="$PF"; [ -f "$KF" ] || KF="$VF"
-# macOS fallback: persist outside virtual FS
-if [ ! -f "$KF" ] && [ "$(uname)" = "Darwin" ]; then
-  mkdir -p "$HOME/.openclaw-persist/workspace-scout"
-  KF="$HOME/.openclaw-persist/workspace-scout/KNOWLEDGE.md"
-fi
 cat >> "$KF" << 'EOF'
 
 ## YYYY-MM-DD — Topic

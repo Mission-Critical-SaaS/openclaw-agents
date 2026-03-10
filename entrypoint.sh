@@ -31,6 +31,10 @@ export ZENDESK_API_TOKEN=$(echo $SECRET | jq -r .ZENDESK_API_TOKEN)
 export ZENDESK_TOKEN="${ZENDESK_API_TOKEN}"
 export NOTION_API_TOKEN=$(echo $SECRET | jq -r .NOTION_API_TOKEN)
 export NOTION_API_KEY=${NOTION_API_TOKEN}
+export ZOHO_CLIENT_ID=$(echo $SECRET | jq -r '.ZOHO_CLIENT_ID // empty')
+export ZOHO_CLIENT_SECRET=$(echo $SECRET | jq -r '.ZOHO_CLIENT_SECRET // empty')
+export ZOHO_REFRESH_TOKEN=$(echo $SECRET | jq -r '.ZOHO_REFRESH_TOKEN // empty')
+export ZOHO_API_DOMAIN=$(echo $SECRET | jq -r '.ZOHO_API_DOMAIN // "https://www.zohoapis.com"')
 export SLACK_ALLOW_FROM=$(echo $SECRET | jq -r .SLACK_ALLOW_FROM)
 export ANTHROPIC_API_KEY=$(echo $SECRET | jq -r .ANTHROPIC_API_KEY)
 

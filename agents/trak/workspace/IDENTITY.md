@@ -68,6 +68,59 @@ mcporter call jira.jira_post path=/rest/api/3/issue/LMNTL-42/transitions 'body={
 - **MM** — MCS Marketing
 - **GTMS** — Go to market sample
 
+### Notion (via mcporter)
+
+Access project docs, roadmaps, and the internal wiki — used alongside Jira for project tracking:
+
+```bash
+# Search for pages
+mcporter call notion.API-post-search query="sprint planning"
+
+# Get a page by ID
+mcporter call notion.API-retrieve-a-page page_id=<page-id>
+
+# Query a database (e.g., roadmap tracker)
+mcporter call notion.API-query-data-source database_id=<db-id>
+
+# Create a page
+mcporter call notion.API-post-page parent='{"database_id": "<db-id>"}' properties='{"Name": {"title": [{"text": {"content": "New item"}}]}}'
+
+# Update a page
+mcporter call notion.API-patch-page page_id=<page-id> properties='{"Status": {"select": {"name": "In Progress"}}}'
+```
+
+### Zendesk (via mcporter)
+
+View support ticket status to track customer-reported issues that affect project timelines:
+
+```bash
+# Search for open tickets
+mcporter call zendesk.zendesk_search query="status:open"
+
+# Get a specific ticket
+mcporter call zendesk.zendesk_get_ticket ticket_id=12345
+```
+
+**Zendesk Site**: minute7.zendesk.com
+
+### Zoho CRM (via mcporter)
+
+View the sales pipeline to understand deal status and customer context for project planning:
+
+```bash
+# List CRM modules
+mcporter call zoho.list_modules
+
+# Search for leads or contacts
+mcporter call zoho.search_records module="Leads" criteria="(Company:equals:Acme)"
+
+# Get deals
+mcporter call zoho.get_deals page=1 per_page=20
+
+# Get contacts
+mcporter call zoho.get_contacts page=1 per_page=20
+```
+
 ### GitHub (via gh CLI)
 Track PRs, releases, CI status. Use `gh pr list`, `gh pr view`, `gh release list`, etc.
 
@@ -110,10 +163,6 @@ VF="$HOME/.openclaw/agents/trak/workspace/KNOWLEDGE.md"
 # Use persistent path if available (Docker), else fall back to virtual FS path
 if [ -d "/root/.openclaw/.openclaw/workspace-trak" ]; then
   KF="$PF"
-elif [ "$(uname)" = "Darwin" ]; then
-  # macOS: write outside virtual FS to real disk
-  mkdir -p "$HOME/.openclaw-persist/workspace-trak"
-  KF="$HOME/.openclaw-persist/workspace-trak/KNOWLEDGE.md"
 else
   KF="$VF"
 fi
@@ -126,6 +175,8 @@ if [ ! -f "$KF" ]; then
 
 ## 2026-03-09 — Initial Setup
 - **Jira Projects**: LMNTL, M7, HK, MCSP, MO, MM, GTMS (7 active)
+- **Notion**: Available for roadmaps, project docs, and internal wiki
+- **Zendesk**: minute7.zendesk.com (view support ticket status for timeline impact)
 - **Performance tip**: Use `maxResults=0` for count-only Jira queries
 - **Custom fields**: 57 total, 2 duplicates (Department, Satisfaction)
 - **Workflows**: 24 total, some orphaned from deleted projects (HT, HTM, ID)
@@ -139,11 +190,6 @@ This file contains sprint patterns, velocity data, and project insights you've l
 PF="/root/.openclaw/.openclaw/workspace-trak/KNOWLEDGE.md"
 VF="$HOME/.openclaw/agents/trak/workspace/KNOWLEDGE.md"
 KF="$PF"; [ -f "$KF" ] || KF="$VF"
-# macOS fallback: persist outside virtual FS
-if [ ! -f "$KF" ] && [ "$(uname)" = "Darwin" ]; then
-  mkdir -p "$HOME/.openclaw-persist/workspace-trak"
-  KF="$HOME/.openclaw-persist/workspace-trak/KNOWLEDGE.md"
-fi
 cat >> "$KF" << 'EOF'
 
 ## YYYY-MM-DD — Topic

@@ -42,6 +42,17 @@ config = {
                     'Notion-Version': '2022-06-28'
                 })
             }
+        },
+        'zoho': {
+            'command': 'npx',
+            'args': ['-y', '@macnishio/zoho-mcp-server1'],
+            'description': 'Zoho CRM MCP Server',
+            'env': {
+                'ZOHO_CLIENT_ID': os.environ.get('ZOHO_CLIENT_ID', ''),
+                'ZOHO_CLIENT_SECRET': os.environ.get('ZOHO_CLIENT_SECRET', ''),
+                'ZOHO_REFRESH_TOKEN': os.environ.get('ZOHO_REFRESH_TOKEN', ''),
+                'ZOHO_API_DOMAIN': os.environ.get('ZOHO_API_DOMAIN', 'https://www.zohoapis.com')
+            }
         }
     }
 }

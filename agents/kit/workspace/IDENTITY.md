@@ -51,6 +51,53 @@ gh project view <project-number> --owner LMNTL-AI --format json
 **GitHub Org**: LMNTL-AI
 **Key repos**: lmntl, service-platform, web-platform, mobile-platform, web-admin-dashboard, infra-jenkins, infra-argocd, infra-terraform, tools, e2e-test, marketing-site, brand-system, openclaw-agents
 
+### Notion (via mcporter)
+
+Access engineering docs, architecture decisions, and internal wiki:
+
+```bash
+# Search for pages
+mcporter call notion.API-post-search query="architecture decision"
+
+# Get a page by ID
+mcporter call notion.API-retrieve-a-page page_id=<page-id>
+
+# Query a database
+mcporter call notion.API-query-data-source database_id=<db-id>
+
+# Create a page
+mcporter call notion.API-post-page parent='{"database_id": "<db-id>"}' properties='{"Name": {"title": [{"text": {"content": "New item"}}]}}'
+```
+
+### Zendesk (via mcporter)
+
+View support tickets to understand customer-reported bugs and their impact:
+
+```bash
+# Search for bug-related tickets
+mcporter call zendesk.zendesk_search query="status:open type:ticket"
+
+# Get a specific ticket
+mcporter call zendesk.zendesk_get_ticket ticket_id=12345
+```
+
+**Zendesk Site**: minute7.zendesk.com
+
+### Zoho CRM (via mcporter)
+
+View CRM data to understand customer context for engineering decisions:
+
+```bash
+# List CRM modules
+mcporter call zoho.list_modules
+
+# Search records
+mcporter call zoho.search_records module="Contacts" criteria="(Email:equals:user@example.com)"
+
+# Get deals
+mcporter call zoho.get_deals page=1 per_page=20
+```
+
 ### Jira (via mcporter)
 Check engineering issues, link PRs to tickets:
 
@@ -96,10 +143,6 @@ VF="$HOME/.openclaw/agents/kit/workspace/KNOWLEDGE.md"
 # Use persistent path if available (Docker), else fall back to virtual FS path
 if [ -d "/root/.openclaw/.openclaw/workspace-kit" ]; then
   KF="$PF"
-elif [ "$(uname)" = "Darwin" ]; then
-  # macOS: write outside virtual FS to real disk
-  mkdir -p "$HOME/.openclaw-persist/workspace-kit"
-  KF="$HOME/.openclaw-persist/workspace-kit/KNOWLEDGE.md"
 else
   KF="$VF"
 fi
@@ -112,6 +155,8 @@ if [ ! -f "$KF" ]; then
 
 ## 2026-03-09 — Initial Setup
 - **GitHub Org**: LMNTL-AI — 15 repositories
+- **Notion**: Available for engineering docs, architecture decisions, internal wiki
+- **Zendesk**: minute7.zendesk.com (view customer-reported bugs)
 - **Repos with CI/CD**: 14 of 15 have GitHub Actions configured
 - **Key repos**: lmntl (core), service-platform, web-platform, mobile-platform, web-admin-dashboard, openclaw-agents
 - **Infrastructure repos**: infra-jenkins, infra-argocd, infra-terraform
@@ -125,11 +170,6 @@ This file contains architecture notes, CI/CD gotchas, deployment procedures, and
 PF="/root/.openclaw/.openclaw/workspace-kit/KNOWLEDGE.md"
 VF="$HOME/.openclaw/agents/kit/workspace/KNOWLEDGE.md"
 KF="$PF"; [ -f "$KF" ] || KF="$VF"
-# macOS fallback: persist outside virtual FS
-if [ ! -f "$KF" ] && [ "$(uname)" = "Darwin" ]; then
-  mkdir -p "$HOME/.openclaw-persist/workspace-kit"
-  KF="$HOME/.openclaw-persist/workspace-kit/KNOWLEDGE.md"
-fi
 cat >> "$KF" << 'EOF'
 
 ## YYYY-MM-DD — Topic
