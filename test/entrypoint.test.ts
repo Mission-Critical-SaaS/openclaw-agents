@@ -585,6 +585,17 @@ describe('GitHub App auth lifecycle', () => {
     expect(ghAuthIdx).toBeGreaterThan(doctorIdx);
   });
 
+  test('persists gh token to hosts.yml so all processes can authenticate', () => {
+    // gh prioritises GITHUB_TOKEN env var, but child processes spawned
+    // after gateway start won't inherit updated env. Writing hosts.yml
+    // ensures gh reads the latest token regardless of process lineage.
+    expect(script).toContain('/root/.config/gh/hosts.yml');
+    expect(script).toContain('oauth_token');
+    // Refresh script must also write hosts.yml
+    const refresh = readScript('scripts/github-token-refresh.sh');
+    expect(refresh).toContain('/root/.config/gh/hosts.yml');
+  });
+
   test('gh auth login runs BEFORE gateway restart', () => {
     const ghAuthIdx = script.indexOf('gh auth login --with-token');
     const firstGatewayRun = script.indexOf('openclaw gateway run');

@@ -129,6 +129,15 @@ INJECT_PYEOF
   # Authenticate gh CLI with the GitHub App installation token
   if command -v gh &> /dev/null && [ -n "${GITHUB_TOKEN:-}" ]; then
     echo "${GITHUB_TOKEN}" | gh auth login --with-token 2>/dev/null || true
+    # Persist to hosts.yml so ALL processes can authenticate with gh,
+    # not just those inheriting PID 1's GITHUB_TOKEN env var.
+    mkdir -p /root/.config/gh
+    cat > /root/.config/gh/hosts.yml <<GHEOF
+github.com:
+    oauth_token: ${GITHUB_TOKEN}
+    user: lmntl-agents[bot]
+    git_protocol: https
+GHEOF
     echo "gh CLI authenticated with GitHub App token"
   fi
 
