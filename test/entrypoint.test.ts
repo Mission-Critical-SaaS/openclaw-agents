@@ -497,9 +497,119 @@ describe('GitHub App token scripts', () => {
     expect(tokenScript).toContain('GH_APP_PRIVATE_KEY_FILE');
   });
 
+  test('token script validates private key file exists', () => {
+    expect(tokenScript).toContain('! -f "$GH_APP_PRIVATE_KEY_FILE"');
+    expect(tokenScript).toContain('Private key file not found');
+  });
+
+  test('token script uses base64url encoding for JWT', () => {
+    // JWT requires base64url, not standard base64
+    expect(tokenScript).toContain("tr '+/' '-_'");
+    expect(tokenScript).toContain("tr -d '='");
+  });
+
+  test('token script sets JWT expiry to 10 minutes', () => {
+    // GitHub requires exp <= 10 minutes from iat
+    expect(tokenScript).toContain('600');
+  });
+
+  test('token script handles API failure gracefully', () => {
+    expect(tokenScript).toContain('Failed to get installation token');
+    expect(tokenScript).toContain('exit 1');
+  });
+
+  test('token script uses GitHub API versioning header', () => {
+    expect(tokenScript).toContain('X-GitHub-Api-Version');
+  });
+
   test('refresh script runs every 50 minutes', () => {
     expect(refreshScript).toContain('3000');
     expect(refreshScript).toContain('github-app-token.sh');
     expect(refreshScript).toContain('gh auth login');
+  });
+
+  test('refresh script writes token to temp file for other processes', () => {
+    expect(refreshScript).toContain('/tmp/.github-token');
+  });
+
+  test('refresh script handles refresh failure without crashing', () => {
+    // Must use set -uo pipefail (not -e) so loop continues on failure
+    expect(refreshScript).toContain('set -uo pipefail');
+    expect(refreshScript).not.toMatch(/^set -euo pipefail/m);
+    expect(refreshScript).toContain('WARNING: Token refresh failed');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GitHub App auth lifecycle (end-to-end ordering in outer entrypoint)
+// ---------------------------------------------------------------------------
+describe('GitHub App auth lifecycle', () => {
+  let script: string;
+
+  beforeAll(() => {
+    script = readScript('entrypoint.sh');
+  });
+
+  test('does NOT use a static PAT from Secrets Manager', () => {
+    // The old GITHUB_TOKEN line from Secrets Manager must be gone
+    expect(script).not.toMatch(/GITHUB_TOKEN=\$\(echo \$SECRET.*jq.*GITHUB_TOKEN/);
+  });
+
+  test('fetches GitHub App credentials from SSM Parameter Store (not Secrets Manager)', () => {
+    expect(script).toMatch(/aws ssm get-parameter.*github-app\/app-id/);
+    expect(script).toMatch(/aws ssm get-parameter.*github-app\/installation-id/);
+    expect(script).toMatch(/aws ssm get-parameter.*github-app\/private-key.*--with-decryption/);
+  });
+
+  test('writes private key to temp file with secure permissions', () => {
+    expect(script).toContain('GH_APP_PRIVATE_KEY_FILE=/tmp/.github-app-key.pem');
+    expect(script).toContain('chmod 600 "$GH_APP_PRIVATE_KEY_FILE"');
+  });
+
+  test('sources token script to export GITHUB_TOKEN into current shell', () => {
+    // Must use "source" not just "bash" so GITHUB_TOKEN is available
+    expect(script).toMatch(/source.*github-app-token\.sh/);
+  });
+
+  test('authenticates gh CLI after gateway restart (not just in inner entrypoint)', () => {
+    const doctorIdx = script.indexOf('openclaw doctor --fix');
+    const ghAuthIdx = script.indexOf('gh auth login --with-token');
+    expect(ghAuthIdx).toBeGreaterThan(doctorIdx);
+  });
+
+  test('gh auth login runs BEFORE gateway restart', () => {
+    const ghAuthIdx = script.indexOf('gh auth login --with-token');
+    const firstGatewayRun = script.indexOf('openclaw gateway run');
+    expect(ghAuthIdx).toBeGreaterThan(-1);
+    expect(ghAuthIdx).toBeLessThan(firstGatewayRun);
+  });
+
+  test('gh auth login is conditional on gh being available', () => {
+    const doctorIdx = script.indexOf('openclaw doctor --fix');
+    const blockStart = script.indexOf('command -v gh', doctorIdx);
+    expect(blockStart).toBeGreaterThan(doctorIdx);
+    expect(blockStart).toBeLessThan(script.indexOf('gh auth login --with-token'));
+  });
+
+  test('token generation happens before inner entrypoint starts', () => {
+    const tokenGenIdx = script.indexOf('github-app-token.sh');
+    const innerStartIdx = script.indexOf('"$@"');
+    expect(tokenGenIdx).toBeLessThan(innerStartIdx);
+  });
+
+  test('token refresh loop starts after gateway is confirmed alive', () => {
+    const livenessIdx = script.indexOf('kill -0 $GATEWAY_PID');
+    const refreshIdx = script.indexOf('github-token-refresh.sh');
+    expect(refreshIdx).toBeGreaterThan(livenessIdx);
+  });
+
+  test('scripts volume is mounted in docker-compose', () => {
+    const compose = readScript('docker-compose.yml');
+    expect(compose).toContain('/opt/openclaw/scripts:/app/scripts');
+  });
+
+  test('deploy.sh makes scripts executable', () => {
+    const deploy = readScript('deploy.sh');
+    expect(deploy).toMatch(/chmod.*scripts/);
   });
 });
