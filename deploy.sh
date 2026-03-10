@@ -113,7 +113,7 @@ log "Container: $(docker inspect -f '{{.State.Status}}' $CONTAINER_NAME)"
 log "Status:"
 timeout 15 docker exec "$CONTAINER_NAME" openclaw status 2>/dev/null | head -20 | while IFS= read -r l; do log "  $l"; done || log "  (status check timed out)"
 log "Slack:"
-docker logs "$CONTAINER_NAME" 2>&1 | grep -i "socket mode" | tail -6 | while IFS= read -r l; do log "  $l"; done
+docker logs "$CONTAINER_NAME" 2>&1 | grep -i "socket mode" | tail -6 | while IFS= read -r l; do log "  $l"; done || log "  (no socket mode messages yet)"
 log "Previous: $CURRENT_COMMIT | Deployed: $NEW_COMMIT"
 log "Log: $DEPLOY_LOG"
 log "SUCCESS: Deployment complete!"
