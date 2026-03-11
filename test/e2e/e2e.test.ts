@@ -1,13 +1,16 @@
 /**
  * OpenClaw Agents - End-to-End Tests
  *
- * These tests verify the full deployment is working correctly
+ * These tests verify the full deployment is working correctly.
+ * Requires AWS CLI access (openclaw profile) and optionally SLACK_TEST_TOKEN.
+ *
+ * Run manually: npx jest test/e2e/e2e.test.ts --verbose
+ * NOT run in CI — these require live AWS/Slack access.
  */
 
 import { execSync } from 'child_process';
 
 const EC2_INSTANCE_ID = 'i-0acd7169101e93388';
-const LEADS_CHANNEL = 'C089JBLCFLL';
 const EXPECTED_AGENTS = ['scout', 'trak', 'kit'];
 const AGENT_BOT_IDS = {
   scout: 'U0AJLT30KMG',
@@ -16,19 +19,68 @@ const AGENT_BOT_IDS = {
 };
 
 function awsCli(cmd: string): string {
-  return execSync('aws ' + cmd, { encoding: 'utf-8' }).trim();
+  return execSync('aws ' + cmd, { encoding: 'utf-8', timeout: 30000 }).trim();
 }
 
-function slackApi(method: string, params: any): any {
+function ssmExec(command: string, timeoutSec = 30): string {
+  const cmdId = awsCli(
+    `ssm send-command --instance-ids ${EC2_INSTANCE_ID} ` +
+    `--document-name AWS-RunShellScript ` +
+    `--parameters 'commands=["${command.replace(/"/g, '\\"')}"]' ` +
+    `--timeout-seconds ${timeoutSec} ` +
+    `--query Command.CommandId --output text`
+  );
+
+  // Poll for completion
+  for (let i = 0; i < timeoutSec * 2; i++) {
+    try {
+      const status = awsCli(
+        `ssm get-command-invocation --command-id ${cmdId} ` +
+        `--instance-id ${EC2_INSTANCE_ID} --query Status --output text`
+      );
+      if (status === 'Success') {
+        return awsCli(
+          `ssm get-command-invocation --command-id ${cmdId} ` +
+          `--instance-id ${EC2_INSTANCE_ID} --query StandardOutputContent --output text`
+        );
+      }
+      if (status === 'Failed' || status === 'TimedOut') {
+        const err = awsCli(
+          `ssm get-command-invocation --command-id ${cmdId} ` +
+          `--instance-id ${EC2_INSTANCE_ID} --query StandardErrorContent --output text`
+        );
+        throw new Error(`SSM command failed (${status}): ${err}`);
+      }
+    } catch (e: any) {
+      if (!e.message?.includes('InvocationDoesNotExist')) throw e;
+    }
+    execSync('sleep 1');
+  }
+  throw new Error('SSM command timed out');
+}
+
+function slackApi(method: string, params: Record<string, string>): any {
   const token = process.env.SLACK_TEST_TOKEN;
   if (!token) throw new Error('SLACK_TEST_TOKEN not set');
-  return {};
+
+  const qs = Object.entries(params)
+    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+    .join('&');
+  const url = `https://slack.com/api/${method}?${qs}`;
+
+  const result = execSync(
+    `curl -s -H "Authorization: Bearer ${token}" "${url}"`,
+    { encoding: 'utf-8', timeout: 15000 }
+  );
+  return JSON.parse(result);
 }
+
+// ── AWS Infrastructure ─────────────────────────────────────────────
 
 describe('AWS Infrastructure', () => {
   test('EC2 instance is running', () => {
     const state = awsCli(
-      'ec2 describe-instances --instance-ids ' + EC2_INSTANCE_ID + 
+      'ec2 describe-instances --instance-ids ' + EC2_INSTANCE_ID +
       ' --query Reservations[0].Instances[0].State.Name --output text'
     );
     expect(state).toBe('running');
@@ -51,21 +103,61 @@ describe('AWS Infrastructure', () => {
   });
 });
 
+// ── Container Health (via SSM) ─────────────────────────────────────
+
+describe('Container Health', () => {
+  test('Docker container is running', () => {
+    const output = ssmExec('docker ps --filter name=openclaw-agents --format {{.Names}}');
+    expect(output).toContain('openclaw-agents');
+  });
+
+  test('Bootstrap completed successfully', () => {
+    const output = ssmExec('docker logs openclaw-agents 2>&1 | grep BOOTSTRAP_OK | tail -1');
+    expect(output).toContain('BOOTSTRAP_OK');
+  });
+
+  test('All 3 Slack socket mode connections established', () => {
+    const output = ssmExec(
+      'docker logs openclaw-agents 2>&1 | grep -c "socket mode connected" || echo 0'
+    );
+    const count = parseInt(output.trim(), 10);
+    expect(count).toBeGreaterThanOrEqual(3);
+  });
+
+  test('No streaming normalization warnings', () => {
+    const output = ssmExec(
+      'docker logs openclaw-agents 2>&1 | grep -c "Normalized.*streaming" || echo 0'
+    );
+    const count = parseInt(output.trim(), 10);
+    expect(count).toBe(0);
+  });
+
+  test('Gateway process is alive', () => {
+    const output = ssmExec('docker exec openclaw-agents pgrep -f "openclaw gateway" | head -1');
+    expect(output.trim()).toMatch(/^\d+$/);
+  });
+});
+
+// ── Slack Agent Connectivity ───────────────────────────────────────
+
 describe('Slack Agent Connectivity', () => {
   const hasToken = !!process.env.SLACK_TEST_TOKEN;
 
-  (hasToken ? test : test.skip)('Scout bot is active', () => {
+  (hasToken ? test : test.skip)('Scout bot is active in Slack', () => {
     const result = slackApi('users.info', { user: AGENT_BOT_IDS.scout });
     expect(result.ok).toBe(true);
+    expect(result.user?.deleted).toBe(false);
   });
 
-  (hasToken ? test : test.skip)('Trak bot is active', () => {
+  (hasToken ? test : test.skip)('Trak bot is active in Slack', () => {
     const result = slackApi('users.info', { user: AGENT_BOT_IDS.trak });
     expect(result.ok).toBe(true);
+    expect(result.user?.deleted).toBe(false);
   });
 
-  (hasToken ? test : test.skip)('Kit bot is active', () => {
+  (hasToken ? test : test.skip)('Kit bot is active in Slack', () => {
     const result = slackApi('users.info', { user: AGENT_BOT_IDS.kit });
     expect(result.ok).toBe(true);
+    expect(result.user?.deleted).toBe(false);
   });
 });

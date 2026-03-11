@@ -65,7 +65,7 @@ Plan → Develop → Test → Deploy (CI/CD) → Verify → Document
 | 2 — Docker build | Image builds without errors | Before deploy | `docker build docker/` |
 | 3 — Container startup | Entrypoint runs, services ready | After image rebuild | `docker-compose up`, check logs |
 | 4 — Agent DM test | DM each agent and verify tool access | After MCP or container restart | Send specific tool-testing messages via Slack DM |
-| 5 — Agent functionality | Agents respond to commands/workflows | After config or agent code change | Manual: send commands via Slack |
+| 5 — Channel threading | @mention in channel → ack + answer in-thread, no leaked messages | After streaming/config change | @mention agent in channel, verify thread behavior |
 
 ### What to test per change type
 
@@ -76,6 +76,11 @@ Plan → Develop → Test → Deploy (CI/CD) → Verify → Document
 | MCP server fix (runtime) | 2, 4, 5 | Rebuild image, restart container, verify in DMs |
 | CDK infrastructure | 1 | `npx jest test/openclaw-agents.test.ts` |
 | Deploy tooling | 1, 2 | No runtime test needed |
+
+
+### PR CI Gate (Automated)
+
+Every pull request and push to `main` triggers the CI workflow (`.github/workflows/ci.yml`) which runs all unit tests. PRs cannot merge with failing tests. This is separate from the deploy pipeline which only triggers on version tags.
 
 ### CI/CD Test Gate
 
@@ -170,6 +175,13 @@ See [deploy.md](deploy.md) for full deployment details.
 - **Fix**: Split the IAM policy into two statements — SendCommand (scoped to instance) and GetCommandInvocation (wildcard). Updated both the live IAM policy and the CDK stack.
 - **Prevention**: Always check AWS documentation for API actions that don't support resource-level permissions before scoping IAM policies.
 
+
+### Streaming Value Rejection (Session 7)
+- **Symptom**: Agents posted intermediate streaming updates as top-level channel messages instead of in-thread. After setting `streaming: 'none'`, container logs showed `Normalized channels.slack.accounts.scout.streaming (none) → (partial)` for all 3 agents.
+- **Root cause**: `'none'` is not a valid OpenClaw streaming value. Valid values are: `true`, `false`, `"off"`, `"partial"`, `"block"`, `"progress"`. OpenClaw silently rejects invalid values and normalizes them to `"partial"`.
+- **Fix**: Changed `'streaming': 'none'` to `'streaming': 'off'` in the outer entrypoint.
+- **Prevention**: After any streaming config change, check container logs for "Normalized" warnings: `docker logs openclaw-agents 2>&1 | grep Normalized`. Zero matches = config accepted.
+
 ## Emergency Procedures
 
 ### Agent not responding
@@ -202,4 +214,5 @@ See [deploy.md](deploy.md) for full deployment details.
 | MCP server offline, `Connection closed` | Corrupted npx cache | `rm -rf /root/.npm/_npx/*` + restart | mcp-troubleshooting.md |
 | `openclaw status` healthy but agent can't see tools | Agent session cached stale tool list | `docker restart openclaw-agents` | Lessons Learned §3 |
 | Agent responds with wrong/outdated identity | Container using cached IDENTITY.md | Full restart: `docker-compose down && up -d` | restart.md |
+| Agent posts streaming updates as top-level messages | `streaming` config rejected (using invalid value) | Use `'off'` not `'none'` + check for "Normalized" in logs | Lessons Learned §6 |
 | GHA deploy times out polling SSM | GetCommandInvocation IAM scoped to resource | Set `Resource: "*"` for GetCommandInvocation | Lessons Learned §5 |

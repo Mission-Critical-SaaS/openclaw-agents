@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Run unit tests
+        run: npx jest test/entrypoint.test.ts test/openclaw-agents.test.ts --verbose
+
+      - name: Test summary
+        if: always()
+        run: echo "Unit tests completed. See above for results."
