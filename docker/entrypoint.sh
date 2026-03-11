@@ -181,7 +181,7 @@ if 'PATCHED_DIRECT_HTTP' in content:
     print('zd-mcp-server already patched')
     exit(0)
 
-old_get_ticket = 'export async function getTicket(client, ticketId) {\n    const ticketResult = await new Promise((resolve, reject) => {\n        client.tickets.show(ticketId, (error, req, result) => {\n            if (error) {\n                reject(error);\n            }\n            else {\n                resolve(result);\n            }\n        });\n    });\n    return ticketResult;\n}'
+old_get_ticket = 'export async function getTicket(client, ticketId) {\n    return new Promise((resolve, reject) => {\n        client.tickets.show(ticketId, (error, req, result) => {\n            if (error) {\n                reject(error);\n            }\n            else {\n                resolve(result);\n            }\n        });\n    });\n}'
 
 new_get_ticket = """// PATCHED_DIRECT_HTTP: bypass node-zendesk tickets.show() bug
 export async function getTicket(client, ticketId) {
@@ -225,7 +225,7 @@ export async function getTicket(client, ticketId) {
     });
 }"""
 
-old_get_details = 'export async function getTicketDetails(client, ticketId) {\n    const ticketResult = await getTicket(client, ticketId);\n    const commentsResult = await new Promise((resolve, reject) => {\n        client.tickets.getComments(ticketId, (error, req, result) => {\n            if (error) {\n                reject(error);\n            }\n            else {\n                resolve(result);\n            }\n        });\n    });\n    return {\n        ticket: ticketResult,\n        comments: commentsResult,\n    };\n}'
+old_get_details = 'export async function getTicketDetails(client, ticketId) {\n    const ticketResult = await getTicket(client, ticketId);\n    const commentsResult = await new Promise((resolve, reject) => {\n        client.tickets.getComments(ticketId, (error, req, result) => {\n            if (error) {\n                reject(error);\n            }\n            else {\n                resolve(result);\n            }\n        });\n    });\n    return {\n        ticket: ticketResult,\n        comments: commentsResult\n    };\n}'
 
 new_get_details = """// PATCHED_DIRECT_HTTP: bypass node-zendesk getComments bug
 export async function getTicketDetails(client, ticketId) {
