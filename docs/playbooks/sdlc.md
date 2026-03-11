@@ -184,6 +184,17 @@ See [deploy.md](deploy.md) for full deployment details.
 
 ## Emergency Procedures
 
+### Rollback to a previous version
+
+Use `scripts/rollback.sh` to quickly revert to any previous tag or commit:
+
+```bash
+./scripts/rollback.sh i-0acd7169101e93388              # rollback to HEAD~1
+./scripts/rollback.sh i-0acd7169101e93388 v1.3.41       # rollback to specific tag
+```
+
+The script runs via SSM — it checks out the target ref, rebuilds the container, and verifies it comes back up.
+
 ### Agent not responding
 1. Check logs: `docker logs openclaw-agents 2>&1 | tail -50`
 2. If error found, fix and redeploy via CI/CD

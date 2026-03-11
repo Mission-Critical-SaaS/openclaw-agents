@@ -1,36 +1,84 @@
 #!/bin/bash
-# rollback.sh - Rollback OpenClaw agents on EC2 via SSM
-# Usage: ./scripts/rollback.sh <instance-id> [git-ref]
+# ──────────────────────────────────────────────────────────
+# rollback.sh — Rollback OpenClaw agents on EC2 via SSM
+# ──────────────────────────────────────────────────────────
+# Usage:
+#   ./scripts/rollback.sh <instance-id> [git-ref]
+#
+# If git-ref is omitted, rolls back to the previous commit (HEAD~1).
+# ──────────────────────────────────────────────────────────
 set -euo pipefail
+
 INSTANCE_ID="${1:-}"
 GIT_REF="${2:-HEAD~1}"
 DEPLOY_DIR="/opt/openclaw"
+
 if [ -z "$INSTANCE_ID" ]; then
   echo "Usage: $0 <instance-id> [git-ref]"
+  echo ""
   echo "Examples:"
-  echo "  $0 i-0acd7169101e93388           # previous commit"
-  echo "  $0 i-0acd7169101e93388 v1.0.0    # specific tag"
-  echo "  $0 i-0acd7169101e93388 abc1234   # specific SHA"
+  echo "  $0 i-0acd7169101e93388              # rollback to previous commit"
+  echo "  $0 i-0acd7169101e93388 v1.0.0       # rollback to specific tag"
+  echo "  $0 i-0acd7169101e93388 abc1234       # rollback to specific SHA"
   exit 1
 fi
-echo "Rolling back to ${GIT_REF} on ${INSTANCE_ID}..."
+
+echo "🔄 Rolling back to ${GIT_REF} on ${INSTANCE_ID}..."
+
 RESULT=$(aws ssm send-command \
   --instance-ids "$INSTANCE_ID" \
   --document-name "AWS-RunShellScript" \
   --timeout-seconds 300 \
-  --parameters "commands=[\"set -euo pipefail\",\"cd ${DEPLOY_DIR}\",\"CURRENT=\\$(git rev-parse --short HEAD)\",\"echo Current: \\$CURRENT\",\"git fetch origin\",\"git checkout ${GIT_REF}\",\"NEW=\\$(git rev-parse --short HEAD)\",\"echo Rolling back to: \\$NEW\",\"docker-compose build --no-cache\",\"docker-compose down\",\"docker-compose up -d\",\"sleep 15\",\"docker-compose ps\",\"echo Rollback complete: \\$CURRENT to \\$NEW\"]" \
+  --parameters "commands=[
+    \"set -euo pipefail\",
+    \"cd ${DEPLOY_DIR}\",
+    \"CURRENT=\$(git rev-parse --short HEAD)\",
+    \"echo \\\"Current: \$CURRENT\\\"\",
+    \"git fetch origin\",
+    \"git checkout ${GIT_REF}\",
+    \"NEW=\$(git rev-parse --short HEAD)\",
+    \"echo \\\"Rolling back to: \$NEW\\\"\",
+    \"docker-compose build --no-cache\",
+    \"docker-compose down\",
+    \"docker-compose up -d\",
+    \"sleep 15\",
+    \"docker-compose ps\",
+    \"echo '✅ Rollback complete: '\$CURRENT' → '\$NEW\"
+  ]" \
   --output json)
+
 CMD_ID=$(echo "$RESULT" | jq -r '.Command.CommandId')
-echo "SSM Command ID: ${CMD_ID}"
-echo "Waiting for rollback..."
-aws ssm wait command-executed --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" 2>/dev/null || true
-STATUS=$(aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query 'Status' --output text)
-OUTPUT=$(aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query 'StandardOutputContent' --output text)
+echo "📡 SSM Command ID: ${CMD_ID}"
+
+echo "⏳ Waiting for rollback to complete..."
+aws ssm wait command-executed \
+  --command-id "$CMD_ID" \
+  --instance-id "$INSTANCE_ID" 2>/dev/null || true
+
+STATUS=$(aws ssm get-command-invocation \
+  --command-id "$CMD_ID" \
+  --instance-id "$INSTANCE_ID" \
+  --query 'Status' \
+  --output text)
+
+OUTPUT=$(aws ssm get-command-invocation \
+  --command-id "$CMD_ID" \
+  --instance-id "$INSTANCE_ID" \
+  --query 'StandardOutputContent' \
+  --output text)
+
 echo "$OUTPUT"
+
 if [ "$STATUS" != "Success" ]; then
-  ERROR=$(aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query 'StandardErrorContent' --output text)
-  echo "STDERR: $ERROR"
-  echo "Rollback FAILED: $STATUS"
+  ERROR=$(aws ssm get-command-invocation \
+    --command-id "$CMD_ID" \
+    --instance-id "$INSTANCE_ID" \
+    --query 'StandardErrorContent' \
+    --output text)
+  echo "--- Errors ---"
+  echo "$ERROR"
+  echo "❌ Rollback failed with status: ${STATUS}"
   exit 1
 fi
-echo "Rollback completed successfully!"
+
+echo "✅ Rollback succeeded"
