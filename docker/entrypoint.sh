@@ -180,7 +180,15 @@ with open(tools_file, 'r') as f:
 if 'PATCHED_DIRECT_HTTP' in content:
     print('zd-mcp-server already patched')
     exit(0)
-or('Invalid ticket ID: ' + ticketId);
+
+old_get_ticket = 'export async function getTicket(client, ticketId) {\n    const ticketResult = await new Promise((resolve, reject) => {\n        client.tickets.show(ticketId, (error, req, result) => {\n            if (error) {\n                reject(error);\n            }\n            else {\n                resolve(result);\n            }\n        });\n    });\n    return ticketResult;\n}'
+
+new_get_ticket = """// PATCHED_DIRECT_HTTP: bypass node-zendesk tickets.show() bug
+export async function getTicket(client, ticketId) {
+    const https = await import('node:https');
+    const id = parseInt(ticketId, 10);
+    if (isNaN(id)) {
+        throw new Error('Invalid ticket ID: ' + ticketId);
     }
     const subdomain = process.env.ZENDESK_SUBDOMAIN;
     const email = process.env.ZENDESK_EMAIL;
