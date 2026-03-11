@@ -99,6 +99,58 @@ with open("/root/AppData/Roaming/Claude/claude_desktop_config.json", "w") as f:
 print("Zoho desktop config written OK")
 ZOHO_CONFIG_EOF
 
+# Seed Zoho OAuth tokens into the token manager's storage file
+# The @macnishio/zoho-mcp-server stores tokens in config/zoho-tokens.json
+# relative to the package directory. Without this, the server reports
+# "not connected" even though env vars have the credentials.
+# We exchange the refresh token for an access token at startup so the
+# server has a valid access_token immediately.
+ZOHO_TOKENS_DIR="/usr/lib/node_modules/@macnishio/zoho-mcp-server/config"
+if [ -d "/usr/lib/node_modules/@macnishio/zoho-mcp-server" ] && [ -n "${ZOHO_REFRESH_TOKEN:-}" ]; then
+  mkdir -p "$ZOHO_TOKENS_DIR"
+  export ZOHO_TOKENS_DIR
+  python3 << 'ZOHO_TOKENS_EOF'
+import json, os, urllib.request, urllib.parse
+
+refresh_token = os.environ.get('ZOHO_REFRESH_TOKEN', '')
+client_id = os.environ.get('ZOHO_CLIENT_ID', '')
+client_secret = os.environ.get('ZOHO_CLIENT_SECRET', '')
+
+# Exchange refresh token for access token
+access_token = ''
+try:
+    data = urllib.parse.urlencode({
+        'refresh_token': refresh_token,
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'grant_type': 'refresh_token'
+    }).encode()
+    req = urllib.request.Request('https://accounts.zoho.com/oauth/v2/token', data=data, method='POST')
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        result = json.loads(resp.read())
+        access_token = result.get('access_token', '')
+        if access_token:
+            print(f'Zoho OAuth refresh OK (scope: {result.get("scope", "unknown")})')
+        else:
+            print(f'Zoho OAuth refresh failed: {result}')
+except Exception as e:
+    print(f'Zoho OAuth refresh error: {e}')
+
+tokens = {
+    'crm': {
+        'access_token': access_token,
+        'refresh_token': refresh_token,
+        'token_type': 'Bearer',
+        'api_domain': os.environ.get('ZOHO_API_DOMAIN', 'https://www.zohoapis.com')
+    }
+}
+tokens_path = os.environ.get('ZOHO_TOKENS_DIR', '/usr/lib/node_modules/@macnishio/zoho-mcp-server/config')
+with open(f'{tokens_path}/zoho-tokens.json', 'w') as f:
+    json.dump(tokens, f, indent=2)
+print('Zoho tokens seeded OK')
+ZOHO_TOKENS_EOF
+fi
+
 # Set up agent auth profiles
 for agent in scout trak kit; do
   AGENT_DIR="${OPENCLAW_HOME}/agents/${agent}/agent"

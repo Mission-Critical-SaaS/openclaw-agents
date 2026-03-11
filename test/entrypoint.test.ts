@@ -706,3 +706,49 @@ describe('Dockerfile Zoho package', () => {
     expect(dockerfile).not.toContain('zoho-mcp-server1');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Zoho OAuth token seeding
+// ---------------------------------------------------------------------------
+describe('Zoho OAuth token seeding', () => {
+  let script: string;
+  beforeAll(() => {
+    script = readScript('docker/entrypoint.sh');
+  });
+
+  test('seeds zoho-tokens.json from env vars at startup', () => {
+    expect(script).toContain('zoho-tokens.json');
+    expect(script).toContain('ZOHO_TOKENS_DIR');
+  });
+
+  test('exchanges refresh token for access token via Zoho OAuth endpoint', () => {
+    expect(script).toContain('accounts.zoho.com/oauth/v2/token');
+    expect(script).toContain('grant_type');
+    expect(script).toContain('refresh_token');
+  });
+
+  test('seeds both access_token and refresh_token into token file', () => {
+    expect(script).toContain("'access_token': access_token");
+    expect(script).toContain("'refresh_token': refresh_token");
+  });
+
+  test('token seeding only runs when zoho package is installed', () => {
+    expect(script).toContain('if [ -d "/usr/lib/node_modules/@macnishio/zoho-mcp-server"');
+  });
+
+  test('token seeding only runs when ZOHO_REFRESH_TOKEN is set', () => {
+    expect(script).toContain('ZOHO_REFRESH_TOKEN:-');
+  });
+
+  test('token seeding runs BEFORE gateway starts', () => {
+    const tokenIdx = script.indexOf('Zoho tokens seeded OK');
+    const gatewayIdx = script.indexOf('exec openclaw gateway run');
+    expect(tokenIdx).toBeGreaterThan(-1);
+    expect(gatewayIdx).toBeGreaterThan(tokenIdx);
+  });
+
+  test('handles OAuth refresh failure gracefully', () => {
+    expect(script).toContain('except Exception as e');
+    expect(script).toContain('Zoho OAuth refresh error');
+  });
+});
