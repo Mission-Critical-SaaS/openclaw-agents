@@ -5,6 +5,10 @@ on:
     types: [opened, synchronize, ready_for_review]
     branches: [main]
 
+permissions:
+  statuses: write
+  pull-requests: read
+
 jobs:
   trigger-review:
     name: Request Agent Ensemble Review
