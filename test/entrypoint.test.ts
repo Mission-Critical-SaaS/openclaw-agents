@@ -522,6 +522,25 @@ describe('.env.example', () => {
 });
 
 // ---------------------------------------------------------------------------
+
+// Slack streaming disabled (prevents leaked channel messages)
+// ---------------------------------------------------------------------------
+describe('Slack streaming config', () => {
+  let script: string;
+  beforeAll(() => { script = readScript('entrypoint.sh'); });
+
+  test('streaming is set to none (not partial) to prevent channel message leaks', () => {
+    expect(script).toContain("'streaming': 'none'");
+    expect(script).not.toContain("'streaming': 'partial'");
+  });
+
+  test('nativeStreaming is disabled', () => {
+    expect(script).toContain("'nativeStreaming': False");
+  });
+});
+
+// ---------------------------------------------------------------------------
+
 // GitHub App token scripts
 // ---------------------------------------------------------------------------
 describe('GitHub App token scripts', () => {
