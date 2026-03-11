@@ -200,12 +200,12 @@ GHEOF
   # ============================================================
   echo "Populating main workspace for memory indexing..."
   MAIN_WS="/root/.openclaw/.openclaw/workspace"
-  mkdir -p "$MAIN_WS"
+  mkdir -p "$MAIN_WS/memory"
   for agent in scout trak kit; do
     PERSIST="/root/.openclaw/.openclaw/workspace-${agent}"
     if [ -f "$PERSIST/KNOWLEDGE.md" ]; then
-      cp "$PERSIST/KNOWLEDGE.md" "$MAIN_WS/KNOWLEDGE-${agent}.md"
-      echo "  ${agent}: KNOWLEDGE.md copied to main workspace"
+      cp "$PERSIST/KNOWLEDGE.md" "$MAIN_WS/memory/KNOWLEDGE-${agent}.md"
+      echo "  ${agent}: KNOWLEDGE.md copied to main workspace/memory/"
     fi
   done
 
