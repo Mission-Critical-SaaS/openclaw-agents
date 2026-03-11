@@ -752,3 +752,96 @@ describe('Zoho OAuth token seeding', () => {
     expect(script).toContain('Zoho OAuth refresh error');
   });
 });
+
+
+describe('Zendesk MCP server patch', () => {
+  let script: string;
+
+  beforeAll(() => {
+    script = readScript('docker/entrypoint.sh');
+  });
+
+  test('patch block exists in entrypoint', () => {
+    expect(script).toContain('Patching zd-mcp-server');
+  });
+
+  test('triggers npx install of zd-mcp-server before patching', () => {
+    expect(script).toContain('npx -y zd-mcp-server --help');
+  });
+
+  test('locates tools file via find command', () => {
+    expect(script).toContain('zd-mcp-server/dist/tools');
+  });
+
+  test('uses PATCHED_DIRECT_HTTP marker for idempotency', () => {
+    expect(script).toContain('PATCHED_DIRECT_HTTP');
+    const matches = script.match(/PATCHED_DIRECT_HTTP/g);
+    expect(matches!.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test('checks if already patched before applying', () => {
+    expect(script).toContain('zd-mcp-server already patched');
+  });
+
+  test('defines old_get_ticket pattern for replacement', () => {
+    expect(script).toContain('old_get_ticket');
+  });
+
+  test('defines new_get_ticket replacement with direct HTTPS', () => {
+    expect(script).toContain('new_get_ticket');
+    // The new implementation uses node:https directly
+    expect(script).toContain("node:https");
+  });
+
+  test('replaces getTicketDetails as well', () => {
+    expect(script).toContain('old_get_details');
+    expect(script).toContain('new_get_details');
+  });
+
+  test('new implementation validates ticket ID with isNaN', () => {
+    expect(script).toContain('isNaN(id)');
+  });
+
+  test('new implementation uses correct Zendesk API path', () => {
+    expect(script).toContain('/api/v2/tickets/');
+  });
+
+  test('new implementation uses Zendesk environment variables for auth', () => {
+    expect(script).toContain('ZENDESK_SUBDOMAIN');
+    expect(script).toContain('ZENDESK_EMAIL');
+    expect(script).toContain('ZENDESK_TOKEN');
+  });
+
+  test('new implementation constructs Basic auth header', () => {
+    expect(script).toContain("Buffer.from(email + '/token:' + token)");
+  });
+
+  test('new implementation fetches ticket comments endpoint', () => {
+    expect(script).toContain('/comments.json');
+  });
+
+  test('patch runs BEFORE gateway starts', () => {
+    const patchIdx = script.indexOf('Patching zd-mcp-server');
+    const gatewayIdx = script.indexOf('exec openclaw gateway run');
+    expect(patchIdx).toBeGreaterThan(-1);
+    expect(gatewayIdx).toBeGreaterThan(patchIdx);
+  });
+
+  test('handles missing zd-mcp-server gracefully', () => {
+    expect(script).toContain('zd-mcp-server not found in npx cache, skipping patch');
+  });
+
+  test('reports patch results with function-level detail', () => {
+    expect(script).toContain('zd-mcp-server patched OK');
+    expect(script).toContain('getTicket=');
+    expect(script).toContain('getTicketDetails=');
+  });
+
+  test('warns when expected function signatures are not found', () => {
+    expect(script).toContain('Could not find expected function signatures to patch');
+  });
+
+  test('uses python heredoc for safe multi-line patching', () => {
+    expect(script).toContain('ZD_PATCH_EOF');
+  });
+});

@@ -151,6 +151,138 @@ print('Zoho tokens seeded OK')
 ZOHO_TOKENS_EOF
 fi
 
+
+# Patch zd-mcp-server to fix zendesk_get_ticket bug
+# Bug: node-zendesk assembleUrl() drops the ticket ID when parseInt() returns NaN
+# (NaN is falsy in JS), resulting in list-all-tickets endpoint instead of single-ticket.
+# Fix: replace getTicket/getTicketDetails with direct HTTP calls using node https module.
+echo "Patching zd-mcp-server..."
+# Ensure zd-mcp-server is installed in npx cache
+npx -y zd-mcp-server --help > /dev/null 2>&1 || true
+ZD_TOOLS_FILE=$(find /root/.npm/_npx -name "index.js" -path "*/zd-mcp-server/dist/tools/*" 2>/dev/null | head -1)
+if [ -n "$ZD_TOOLS_FILE" ]; then
+  export _ZD_TOOLS_FILE="$ZD_TOOLS_FILE"
+  python3 << 'ZD_PATCH_EOF'
+import os, glob
+
+tools_file = os.environ.get('_ZD_TOOLS_FILE', '')
+if not tools_file:
+    matches = glob.glob('/root/.npm/_npx/*/node_modules/zd-mcp-server/dist/tools/index.js')
+    tools_file = matches[0] if matches else ''
+
+if not tools_file:
+    print('zd-mcp-server tools file not found, skipping patch')
+    exit(0)
+
+with open(tools_file, 'r') as f:
+    content = f.read()
+
+if 'PATCHED_DIRECT_HTTP' in content:
+    print('zd-mcp-server already patched')
+    exit(0)
+or('Invalid ticket ID: ' + ticketId);
+    }
+    const subdomain = process.env.ZENDESK_SUBDOMAIN;
+    const email = process.env.ZENDESK_EMAIL;
+    const token = process.env.ZENDESK_TOKEN;
+    const auth = Buffer.from(email + '/token:' + token).toString('base64');
+    return new Promise((resolve, reject) => {
+        const req = https.default.request({
+            hostname: subdomain + '.zendesk.com',
+            path: '/api/v2/tickets/' + id + '.json',
+            method: 'GET',
+            headers: {
+                'Authorization': 'Basic ' + auth,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        }, (res) => {
+            let data = '';
+            res.on('data', (chunk) => data += chunk);
+            res.on('end', () => {
+                try {
+                    const parsed = JSON.parse(data);
+                    if (res.statusCode >= 400) {
+                        reject(new Error('Zendesk Error (' + res.statusCode + '): ' + JSON.stringify(parsed)));
+                    } else {
+                        resolve(parsed.ticket || parsed);
+                    }
+                } catch(e) {
+                    reject(new Error('Failed to parse response: ' + e.message));
+                }
+            });
+        });
+        req.on('error', reject);
+        req.end();
+    });
+}"""
+
+old_get_details = 'export async function getTicketDetails(client, ticketId) {\n    const ticketResult = await getTicket(client, ticketId);\n    const commentsResult = await new Promise((resolve, reject) => {\n        client.tickets.getComments(ticketId, (error, req, result) => {\n            if (error) {\n                reject(error);\n            }\n            else {\n                resolve(result);\n            }\n        });\n    });\n    return {\n        ticket: ticketResult,\n        comments: commentsResult,\n    };\n}'
+
+new_get_details = """// PATCHED_DIRECT_HTTP: bypass node-zendesk getComments bug
+export async function getTicketDetails(client, ticketId) {
+    const https = await import('node:https');
+    const id = parseInt(ticketId, 10);
+    if (isNaN(id)) {
+        throw new Error('Invalid ticket ID: ' + ticketId);
+    }
+    const ticketResult = await getTicket(client, id);
+    const subdomain = process.env.ZENDESK_SUBDOMAIN;
+    const email = process.env.ZENDESK_EMAIL;
+    const token = process.env.ZENDESK_TOKEN;
+    const auth = Buffer.from(email + '/token:' + token).toString('base64');
+    const commentsResult = await new Promise((resolve, reject) => {
+        const req = https.default.request({
+            hostname: subdomain + '.zendesk.com',
+            path: '/api/v2/tickets/' + id + '/comments.json',
+            method: 'GET',
+            headers: {
+                'Authorization': 'Basic ' + auth,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        }, (res) => {
+            let data = '';
+            res.on('data', (chunk) => data += chunk);
+            res.on('end', () => {
+                try {
+                    const parsed = JSON.parse(data);
+                    if (res.statusCode >= 400) {
+                        reject(new Error('Zendesk Error (' + res.statusCode + '): ' + JSON.stringify(parsed)));
+                    } else {
+                        resolve(parsed.comments || parsed);
+                    }
+                } catch(e) {
+                    reject(new Error('Failed to parse response: ' + e.message));
+                }
+            });
+        });
+        req.on('error', reject);
+        req.end();
+    });
+    return { ticket: ticketResult, comments: commentsResult };
+}"""
+
+patched = content
+gt = old_get_ticket in content
+gd = old_get_details in content
+
+if gt:
+    patched = patched.replace(old_get_ticket, new_get_ticket)
+if gd:
+    patched = patched.replace(old_get_details, new_get_details)
+
+if gt or gd:
+    with open(tools_file, 'w') as f:
+        f.write(patched)
+    print(f'zd-mcp-server patched OK (getTicket={gt}, getTicketDetails={gd})')
+else:
+    print('WARNING: Could not find expected function signatures to patch')
+ZD_PATCH_EOF
+else
+  echo "WARNING: zd-mcp-server not found in npx cache, skipping patch"
+fi
+
 # Set up agent auth profiles
 for agent in scout trak kit; do
   AGENT_DIR="${OPENCLAW_HOME}/agents/${agent}/agent"
