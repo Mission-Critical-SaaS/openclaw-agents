@@ -147,6 +147,38 @@ done
 
 ---
 
+## Specialist Agent Integration
+
+All three agents have access to 13 specialist agent personas in `agents/shared/specialists/`. These provide deep domain expertise for the 7-dimension ensemble audit protocol.
+
+### Specialist-to-Dimension Mapping
+
+| # | Dimension | Primary Agent | Specialist Persona |
+|---|-----------|---------------|--------------------|
+| 1 | Correctness | Kit | code-review-architect |
+| 2 | Security | Kit | security-risk-auditor |
+| 3 | UX/Accessibility | Scout | ux-ui-designer |
+| 4 | Product-Market Fit | Trak | product-owner |
+| 5 | Operations | Kit | devops-engineer + site-reliability-engineer |
+| 6 | Architecture | Kit | technical-architect |
+| 7 | Test Coverage | Kit | qa-test-engineer |
+
+### Supporting Specialists
+
+| Specialist | Used By | Purpose |
+|-----------|---------|---------|
+| implementation-engineer | Kit | Code writing standards, TDD |
+| pr-scope-reviewer | Kit | Pre-audit scope validation |
+| data-engineer | Kit | Database/query review |
+| business-analyst | Trak | Requirements, ROI analysis |
+| orchestrator-coordinator | Trak | Multi-agent coordination patterns |
+
+### How Specialists Work
+
+Specialists are NOT separate processes. They are expertise profiles (stored as markdown files) that the human-facing agents adopt when a task requires deep domain knowledge. Each specialist includes systematic checklists, evidence protocols, and anti-hallucination guardrails.
+
+---
+
 ## Agent Specialization Summary
 
 ### When to Use Scout
@@ -154,21 +186,21 @@ done
 - Creating/searching Jira support tickets in MCSP project
 - Cross-referencing known bugs with customer issues
 - Explaining technical issues in non-technical language
-- **Ensemble PR review**: Customer impact assessment (when @mentioned by Kit)
+- **Ensemble PR review**: Customer impact assessment + UX/accessibility (dimension #3, ux-ui-designer specialist)
 
 ### When to Use Trak
 - Sprint planning, status updates, and velocity tracking
 - Identifying blockers and stale tickets
 - Project-wide issue tracking and organization
 - Linking PRs to Jira issues for traceability
-- **Ensemble PR review**: Jira verification (when @mentioned by Kit)
+- **Ensemble PR review**: Jira verification + product-market fit (dimension #4, product-owner specialist)
 
 ### When to Use Kit
 - Code review coordination and PR status checks
 - CI/CD pipeline monitoring and debugging
 - GitHub issue creation and search
 - Technical implementation details and code changes
-- **Ensemble PR review**: Lead reviewer — code analysis, GitHub status checks, ensemble coordination
+- **Ensemble PR review**: Lead reviewer — 5 dimensions (correctness, security, operations, architecture, test coverage) using 6+ specialist personas
 
 ---
 

@@ -17,68 +17,125 @@ PR opened → GitHub Actions → Slack #sdlc-reviews → Kit leads review
 
 OpenClaw agents run on Slack Socket Mode — there are no webhooks or HTTP endpoints. Slack IS the agent interface. GitHub Actions posts a structured notification to #sdlc-reviews via an Incoming Webhook, and Kit picks it up from there.
 
+## Specialist Agent Integration
+
+All three agents have access to **13 specialist agent personas** stored in `agents/shared/specialists/`. These specialists originate from the LMNTL ensemble audit system and provide deep domain expertise across 7 audit dimensions.
+
+### 7-Dimension Audit Model
+
+| # | Dimension | Primary Agent | Specialist Persona(s) |
+|---|-----------|---------------|----------------------|
+| 1 | Correctness | Kit | code-review-architect |
+| 2 | Security | Kit | security-risk-auditor |
+| 3 | UX/Accessibility | Scout | ux-ui-designer |
+| 4 | Product-Market Fit | Trak | product-owner |
+| 5 | Operations | Kit | devops-engineer + site-reliability-engineer |
+| 6 | Architecture | Kit | technical-architect |
+| 7 | Test Coverage | Kit | qa-test-engineer |
+
+**Supporting specialists** (cross-cutting, used as needed): data-engineer, implementation-engineer, pr-scope-reviewer, business-analyst, orchestrator-coordinator.
+
+### How It Works
+
+Each human-facing agent "adopts" specialist personas during reviews:
+
+- **Kit** applies 6 specialist methodologies across dimensions 1, 2, 5, 6, 7 (plus pr-scope-reviewer as a pre-check)
+- **Trak** applies the product-owner methodology for dimension 4 alongside Jira verification
+- **Scout** applies the ux-ui-designer methodology for dimension 3 alongside customer impact assessment
+
+The specialist definitions include systematic checklists, evidence protocols, and anti-hallucination guardrails that each agent follows.
+
+### Evidence Protocol (All Dimensions)
+
+Every finding MUST include:
+- **File path and line number(s)**: `src/routes/auth.ts:42-58`
+- **Actual code quote**: Show the relevant snippet
+- **Verification label**: `VERIFIED` (read actual code) or `UNVERIFIED` (inferred)
+- **Severity**: Critical / High / Medium / Low / Informational
+- **Scope**: `NEW` (in this PR) or `PRE-EXISTING` (existed before)
+
+Historical false positive rate is ~40-50%. Always verify findings against actual code before flagging.
+
 ## Agent Roles
 
-### Kit ⚡ — Code Review (Lead)
+### Kit ⚡ — Code Review Lead (Dimensions 1, 2, 5, 6, 7)
 
 Kit is the ensemble lead. When a PR review notification arrives in #sdlc-reviews:
 
 1. Acknowledges in-thread
 2. Fetches PR details, diff, and CI status via `gh` CLI
-3. Analyzes: code quality, test coverage, security, pattern compliance, breaking changes
-4. @mentions Trak and Scout in-thread requesting their checks
+3. **Applies specialist analysis across 5 dimensions**:
+   - **Correctness** (code-review-architect): Logic errors, edge cases, patterns, maintainability
+   - **Security** (security-risk-auditor): OWASP Top 10, auth, secrets, tenant isolation
+   - **Operations** (devops-engineer + SRE): Deployability, monitoring, performance
+   - **Architecture** (technical-architect): Pattern compliance, system design fit
+   - **Test Coverage** (qa-test-engineer): Test pyramid, coverage thresholds, regression risk
+   - Plus **PR Scope** (pr-scope-reviewer): Is the PR atomic and focused?
+4. @mentions Trak and Scout in-thread requesting their dimension checks
 5. Waits briefly (~5 min) for responses
-6. Compiles the ensemble result and posts as a GitHub PR comment
+6. Compiles the 7-dimension ensemble result and posts as a GitHub PR comment
 7. Updates the `ensemble-review` GitHub status check (success/failure)
 8. Transitions the linked Jira issue to "In Review" if approved
 
-### Trak 📋 — Jira Verification
+### Trak 📋 — Jira Verification + Product-Market Fit (Dimension 4)
 
 When @mentioned by Kit in a review thread:
 
 1. Looks up the Jira issue linked to the PR
 2. Verifies: issue exists, in current/next sprint, no blockers, can transition
-3. Replies in-thread with verification status
+3. **Applies product-owner specialist**: Assesses strategic alignment, value, scope creep
+4. Replies in-thread with combined Jira verification + product-market fit assessment
 
-### Scout 🔍 — Customer Impact Assessment
+### Scout 🔍 — Customer Impact + UX/Accessibility (Dimension 3)
 
 When @mentioned by Kit in a review thread:
 
 1. Reads the PR description and diff summary (provided by Kit in thread)
 2. Assesses: customer-facing changes, breaking changes, documentation updates
-3. Replies in-thread with impact rating (None / Low / Medium / High)
+3. **Applies ux-ui-designer specialist**: WCAG 2.1 AA, usability, responsive design (if UI changes)
+4. Replies in-thread with combined impact rating + accessibility assessment
 
 ## Standardized Result Format
 
 Kit posts this as a GitHub PR comment:
 
 ```markdown
-## 🔍 Ensemble Code Review
+## 🔍 Ensemble Code Review (7-Dimension Audit)
 
-| Agent | Status | Summary |
-|-------|--------|---------|
-| ⚡ Kit (Code) | ✅ Approved | Tests pass, no security issues, follows patterns |
-| 📋 Trak (Jira) | ✅ Verified | LMNTL-123 linked, in Sprint 3, can transition |
-| 🔍 Scout (Impact) | ✅ Low Impact | Internal refactor, no customer-facing changes |
+| # | Dimension | Status | Agent | Summary |
+|---|-----------|--------|-------|---------|
+| 1 | Correctness | ✅ | Kit | Tests pass, no logic errors |
+| 2 | Security | ✅ | Kit | No OWASP issues, auth correct |
+| 3 | UX/Accessibility | ✅ | Scout | No UI changes / WCAG compliant |
+| 4 | Product-Market Fit | ✅ | Trak | Aligns with sprint goal, no scope creep |
+| 5 | Operations | ✅ | Kit | Deployable, monitoring adequate |
+| 6 | Architecture | ✅ | Kit | Follows established patterns |
+| 7 | Test Coverage | ✅ | Kit | Coverage meets thresholds |
 
+**Dimensions Passing: 7/7**
 **Consensus: APPROVED** ✅
 **Jira**: LMNTL-123 → transitioned to "In Review"
+
+<details><summary>Detailed Findings</summary>
+[Per-dimension breakdown with evidence citations]
+</details>
 ```
 
 ### Status Values
 
-| Agent | Statuses |
-|-------|----------|
-| Kit | ✅ Approved, ❌ Needs Work, ⚠️ Approved with Comments |
-| Trak | ✅ Verified, ⚠️ Issue (e.g., not in sprint), ❌ Blocked |
-| Scout | ✅ None/Low Impact, ⚠️ Medium Impact, ❌ High Impact |
+| Dimension | Statuses |
+|-----------|----------|
+| Correctness, Security, Operations, Architecture, Test Coverage (Kit) | ✅ Pass, ❌ Fail Critical, ⚠️ Pass with Notes |
+| UX/Accessibility (Scout) | ✅ Pass, ⚠️ Pass with Notes, ❌ Fail Critical |
+| Product-Market Fit (Trak) | ✅ Aligned, ⚠️ Questions, ❌ Misaligned |
 
 ### Consensus Rules
 
-- **APPROVED**: All three agents green (✅)
-- **APPROVED WITH COMMENTS**: Kit approves, minor issues from Trak/Scout (⚠️)
-- **NEEDS WORK**: Kit finds code issues (❌)
-- **BLOCKED**: Trak finds Jira blockers (❌) or Scout finds high impact without mitigation (❌)
+- **APPROVED (7/7)**: All dimensions pass (✅ or ⚠️ with non-blocking notes)
+- **NEEDS WORK**: Any dimension has a ❌ Fail Critical
+- **BLOCKED**: Trak finds Jira blockers or Scout finds critical accessibility violations
+
+Maximum 3 audit rounds before escalation to human leads.
 
 If Trak or Scout don't respond within ~5 minutes, Kit marks them as "Pending" and proceeds. They can update later, and Kit will amend the PR comment.
 
