@@ -44,8 +44,8 @@ config = {
             }
         },
         'zoho': {
-            'command': 'npx',
-            'args': ['-y', '@macnishio/zoho-mcp-server1'],
+            'command': 'node',
+            'args': ['/usr/lib/node_modules/@macnishio/zoho-mcp-server/dist/server.js'],
             'description': 'Zoho CRM MCP Server',
             'env': {
                 'ZOHO_CLIENT_ID': os.environ.get('ZOHO_CLIENT_ID', ''),
@@ -60,6 +60,44 @@ with open('/root/.mcporter/mcporter.json', 'w') as f:
     json.dump(config, f, indent=2)
 print('mcporter config written OK')
 "
+
+# Create Zoho config file required by @macnishio/zoho-mcp-server
+# The package reads OAuth client config from this Claude Desktop config path
+mkdir -p /root/AppData/Roaming/Claude
+python3 << 'ZOHO_CONFIG_EOF'
+import json, os
+zoho_config = {
+    "zohoConfig": {
+        "crm": {
+            "clientId": os.environ.get("ZOHO_CLIENT_ID", ""),
+            "clientSecret": os.environ.get("ZOHO_CLIENT_SECRET", ""),
+            "redirectUri": "http://localhost:3003/oauth/callback",
+            "scope": "ZohoCRM.modules.ALL,ZohoCRM.settings.ALL,ZohoCRM.users.ALL",
+            "authDomain": "https://accounts.zoho.com",
+            "apiBaseUrl": os.environ.get("ZOHO_API_DOMAIN", "https://www.zohoapis.com")
+        },
+        "desk": {
+            "clientId": os.environ.get("ZOHO_CLIENT_ID", ""),
+            "clientSecret": os.environ.get("ZOHO_CLIENT_SECRET", ""),
+            "redirectUri": "http://localhost:3003/oauth/callback",
+            "scope": "Desk.tickets.ALL,Desk.basic.READ",
+            "authDomain": "https://accounts.zoho.com",
+            "apiBaseUrl": "https://desk.zoho.com"
+        },
+        "books": {
+            "clientId": os.environ.get("ZOHO_CLIENT_ID", ""),
+            "clientSecret": os.environ.get("ZOHO_CLIENT_SECRET", ""),
+            "redirectUri": "http://localhost:3003/oauth/callback",
+            "scope": "ZohoBooks.fullaccess.all",
+            "authDomain": "https://accounts.zoho.com",
+            "apiBaseUrl": "https://books.zoho.com"
+        }
+    }
+}
+with open("/root/AppData/Roaming/Claude/claude_desktop_config.json", "w") as f:
+    json.dump(zoho_config, f, indent=2)
+print("Zoho desktop config written OK")
+ZOHO_CONFIG_EOF
 
 # Set up agent auth profiles
 for agent in scout trak kit; do

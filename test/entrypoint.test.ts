@@ -631,3 +631,78 @@ describe('GitHub App auth lifecycle', () => {
     expect(deploy).toMatch(/chmod.*scripts/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Zoho MCP server configuration (inner entrypoint)
+// ---------------------------------------------------------------------------
+describe('Zoho MCP server configuration', () => {
+  let script: string;
+
+  beforeAll(() => {
+    script = readScript('docker/entrypoint.sh');
+  });
+
+  test('configures zoho in mcporter config', () => {
+    expect(script).toContain("'zoho'");
+  });
+
+  test('uses node with direct path to zoho-mcp-server (not npx)', () => {
+    // npx causes permission issues with this package's bin file
+    // Must use node + direct path to dist/server.js
+    expect(script).toContain("'command': 'node'");
+    expect(script).toContain('/usr/lib/node_modules/@macnishio/zoho-mcp-server/dist/server.js');
+    // Must NOT use npx for zoho (other servers can use npx)
+    expect(script).not.toContain("@macnishio/zoho-mcp-server']");
+  });
+
+  test('passes Zoho OAuth env vars to mcporter config', () => {
+    expect(script).toContain('ZOHO_CLIENT_ID');
+    expect(script).toContain('ZOHO_CLIENT_SECRET');
+    expect(script).toContain('ZOHO_REFRESH_TOKEN');
+    expect(script).toContain('ZOHO_API_DOMAIN');
+  });
+
+  test('creates Claude Desktop config file for Zoho MCP server', () => {
+    // @macnishio/zoho-mcp-server reads config from this Claude Desktop path
+    expect(script).toContain('/root/AppData/Roaming/Claude');
+    expect(script).toContain('claude_desktop_config.json');
+  });
+
+  test('Zoho desktop config includes all three required services (crm, desk, books)', () => {
+    // The server crashes with "Unknown service: desk" if desk/books are missing
+    expect(script).toContain('"crm"');
+    expect(script).toContain('"desk"');
+    expect(script).toContain('"books"');
+  });
+
+  test('Zoho desktop config is created BEFORE gateway starts', () => {
+    const zohoConfigIdx = script.indexOf('Zoho desktop config written OK');
+    const gatewayIdx = script.indexOf('exec openclaw gateway run');
+    expect(zohoConfigIdx).toBeGreaterThan(-1);
+    expect(gatewayIdx).toBeGreaterThan(zohoConfigIdx);
+  });
+
+  test('does NOT use the broken zoho-mcp-server1 package (with 1 suffix)', () => {
+    // @macnishio/zoho-mcp-server1 has multiple critical bugs:
+    // - bin/cli.mjs not executable
+    // - startServer not exported
+    // - MCP SDK version mismatch
+    expect(script).not.toContain('zoho-mcp-server1');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Dockerfile — Zoho package
+// ---------------------------------------------------------------------------
+describe('Dockerfile Zoho package', () => {
+  let dockerfile: string;
+
+  beforeAll(() => {
+    dockerfile = readScript('docker/Dockerfile');
+  });
+
+  test('installs @macnishio/zoho-mcp-server (without 1 suffix)', () => {
+    expect(dockerfile).toContain('@macnishio/zoho-mcp-server');
+    expect(dockerfile).not.toContain('zoho-mcp-server1');
+  });
+});

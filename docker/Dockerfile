@@ -16,7 +16,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install
 RUN npm install -g openclaw@latest
 
 # Install MCP server packages globally
-RUN npm install -g @anthropic/mcp-server-github @aashari/mcp-server-atlassian-jira @anthropic/mcp-server-stripe @notionhq/notion-mcp-server zd-mcp-server @macnishio/zoho-mcp-server1 2>/dev/null || true
+RUN npm install -g @anthropic/mcp-server-github @aashari/mcp-server-atlassian-jira @anthropic/mcp-server-stripe @notionhq/notion-mcp-server zd-mcp-server @macnishio/zoho-mcp-server 2>/dev/null || true
 
 # Create directory structure
 RUN mkdir -p ${OPENCLAW_HOME}/agents/scout/workspace/skills ${OPENCLAW_HOME}/agents/trak/workspace/skills ${OPENCLAW_HOME}/agents/kit/workspace/skills ${OPENCLAW_HOME}/workspace /data/logs
