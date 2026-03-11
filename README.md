@@ -42,7 +42,7 @@ After the gateway starts, the outer entrypoint sends a lightweight agent turn (`
 
 ### Slack Streaming
 
-Streaming is **disabled** (`streaming: 'none'`, `nativeStreaming: false`). This is intentional — OpenClaw's partial streaming mode posts intermediate updates as top-level channel messages rather than in-thread, which causes leaked messages in channels. Agents instead follow a structured threading pattern: ack → (optional progress) → final answer, all in-thread.
+Streaming is **disabled** (`streaming: 'off'`, `nativeStreaming: false`). This is intentional — OpenClaw's partial streaming mode posts intermediate updates as top-level channel messages rather than in-thread, which causes leaked messages in channels. The value must be `'off'` (not `'none'` — OpenClaw rejects `'none'` and silently normalizes it back to `'partial'`). Agents instead follow a structured threading pattern: ack → (optional progress) → final answer, all in-thread.
 
 ### MCP Integrations
 

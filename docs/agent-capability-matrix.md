@@ -142,7 +142,7 @@ done
 | Key Channels | #leads (C089JBLCFLL), #dev (C086N5031LZ), #agentic-dev (C0AKWU052CW) |
 | groupPolicy | `open` (respond in any channel when @mentioned) |
 | requireMention | `true` (all agents) |
-| streaming | `none` (disabled — prevents leaked channel messages) |
+| streaming | `off` (disabled — prevents leaked channel messages; must be `'off'` not `'none'`) |
 | Allowed Users | 9 users — see README for current list |
 
 ---

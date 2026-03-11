@@ -529,8 +529,8 @@ describe('Slack streaming config', () => {
   let script: string;
   beforeAll(() => { script = readScript('entrypoint.sh'); });
 
-  test('streaming is set to none (not partial) to prevent channel message leaks', () => {
-    expect(script).toContain("'streaming': 'none'");
+  test('streaming is set to off (not partial) to prevent channel message leaks', () => {
+    expect(script).toContain("'streaming': 'off'");
     expect(script).not.toContain("'streaming': 'partial'");
   });
 

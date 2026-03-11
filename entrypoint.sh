@@ -84,7 +84,7 @@ for name, bk, ak in [
             'enabled': True,
             'botToken': bot,
             'appToken': app,
-            'streaming': 'none',
+            'streaming': 'off',
             'nativeStreaming': False,
             'dmPolicy': 'allowlist',
             'groupPolicy': 'open',
