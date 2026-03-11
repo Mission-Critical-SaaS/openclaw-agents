@@ -37,6 +37,15 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     }
   });
 
+  test('quotes $SECRET in all jq extractions to prevent word splitting', () => {
+    // Every echo $SECRET must be echo "$SECRET" to prevent word splitting
+    // if a secret value ever contains spaces or shell metacharacters
+    const unquoted = (script.match(/echo \$SECRET/g) || []).length;
+    expect(unquoted).toBe(0);
+    // Verify quoted form is used
+    expect(script).toContain('echo "$SECRET"');
+  });
+
   test('exports Atlassian credentials', () => {
     expect(script).toContain('ATLASSIAN_SITE_NAME');
     expect(script).toContain('ATLASSIAN_USER_EMAIL');
@@ -309,6 +318,10 @@ describe('docker-compose.yml', () => {
     compose = readScript('docker-compose.yml');
   });
 
+  test('does not use legacy version field (Compose v2 ignores it)', () => {
+    expect(compose).not.toMatch(/^version:/m);
+  });
+
   test('mounts outer entrypoint as /app/entrypoint.sh', () => {
     expect(compose).toContain('/opt/openclaw/entrypoint.sh:/app/entrypoint.sh');
   });
@@ -527,8 +540,10 @@ describe('GitHub App token scripts', () => {
     expect(refreshScript).toContain('gh auth login');
   });
 
-  test('refresh script writes token to temp file for other processes', () => {
+  test('refresh script writes token to temp file with restrictive permissions', () => {
     expect(refreshScript).toContain('/tmp/.github-token');
+    // Must use umask 077 to prevent other processes from reading the token
+    expect(refreshScript).toContain('umask 077');
   });
 
   test('refresh script handles refresh failure without crashing', () => {
@@ -570,7 +585,8 @@ describe('GitHub App auth lifecycle', () => {
 
   test('writes private key to temp file with secure permissions', () => {
     expect(script).toContain('GH_APP_PRIVATE_KEY_FILE=/tmp/.github-app-key.pem');
-    expect(script).toContain('chmod 600 "$GH_APP_PRIVATE_KEY_FILE"');
+    // Uses umask 077 to create file with 0600 from the start (no race window)
+    expect(script).toContain('umask 077');
   });
 
   test('sources token script to export GITHUB_TOKEN into current shell', () => {
@@ -694,7 +710,7 @@ describe('Zoho MCP server configuration', () => {
 // ---------------------------------------------------------------------------
 // Dockerfile — Zoho package
 // ---------------------------------------------------------------------------
-describe('Dockerfile Zoho package', () => {
+describe('Dockerfile', () => {
   let dockerfile: string;
 
   beforeAll(() => {
@@ -704,6 +720,18 @@ describe('Dockerfile Zoho package', () => {
   test('installs @macnishio/zoho-mcp-server (without 1 suffix)', () => {
     expect(dockerfile).toContain('@macnishio/zoho-mcp-server');
     expect(dockerfile).not.toContain('zoho-mcp-server1');
+  });
+
+  test('pins OpenClaw version via ARG (not @latest)', () => {
+    // Using @latest causes unpredictable builds; pin to a known version
+    expect(dockerfile).not.toContain('openclaw@latest');
+    expect(dockerfile).toMatch(/OPENCLAW_VERSION=\d+\.\d+/);
+    expect(dockerfile).toContain('openclaw@${OPENCLAW_VERSION}');
+  });
+
+  test('installs logrotate for log management', () => {
+    expect(dockerfile).toContain('logrotate');
+    expect(dockerfile).toContain('/etc/logrotate.d/openclaw');
   });
 });
 

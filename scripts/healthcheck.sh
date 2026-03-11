@@ -13,13 +13,13 @@ mkdir -p /opt/openclaw/logs
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 
-# Get Slack token from container env
+# Get Slack token from container env (only reads the specific var, not all of /proc/1/environ)
 get_slack_token() {
-    docker exec "$CONTAINER" bash -c '
-        while IFS= read -r -d "" line; do export "$line"; done < /proc/1/environ 2>/dev/null
-        echo "$SLACK_BOT_TOKEN_SCOUT"
-    ' 2>/dev/null
+    docker exec "$CONTAINER" printenv SLACK_BOT_TOKEN_SCOUT 2>/dev/null
 }
+
+# Slack #leads channel ID (use ID not name — survives channel renames)
+SLACK_ALERT_CHANNEL="C089JBLCFLL"
 
 send_slack_alert() {
     local msg="$1"
@@ -28,11 +28,10 @@ send_slack_alert() {
         log "WARN: No Slack token available, skipping Slack alert"
         return
     fi
-    # Post to #leads channel
     curl -s -X POST https://slack.com/api/chat.postMessage \
         -H "Authorization: Bearer $token" \
         -H "Content-Type: application/json" \
-        -d "{\"channel\":\"leads\",\"text\":\"$msg\"}" > /dev/null 2>&1
+        -d "{\"channel\":\"${SLACK_ALERT_CHANNEL}\",\"text\":\"$msg\"}" > /dev/null 2>&1
     log "Slack alert sent"
 }
 

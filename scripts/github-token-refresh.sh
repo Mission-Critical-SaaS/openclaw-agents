@@ -49,8 +49,8 @@ github.com:
     git_protocol: https
 GHEOF
 
-      # Write token to shared file so agents can read it
-      echo "$GITHUB_TOKEN" > /tmp/.github-token
+      # Write token to shared file so agents can read it (restrictive perms)
+      (umask 077 && echo "$GITHUB_TOKEN" > /tmp/.github-token)
     else
       echo "WARNING: Token refresh produced empty token, will retry in ${REFRESH_INTERVAL}s"
     fi

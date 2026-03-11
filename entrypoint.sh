@@ -3,15 +3,15 @@ export PATH="$PATH:/root/.openclaw/bin:/root/.local/bin:/usr/bin"
 
 # Fetch secrets from AWS Secrets Manager
 SECRET=$(aws secretsmanager get-secret-value --secret-id openclaw/agents --region us-east-1 --query SecretString --output text)
-export SLACK_BOT_TOKEN_SCOUT=$(echo $SECRET | jq -r .SLACK_BOT_TOKEN_SCOUT)
-export SLACK_APP_TOKEN_SCOUT=$(echo $SECRET | jq -r .SLACK_APP_TOKEN_SCOUT)
-export SLACK_BOT_TOKEN_TRAK=$(echo $SECRET | jq -r .SLACK_BOT_TOKEN_TRAK)
-export SLACK_APP_TOKEN_TRAK=$(echo $SECRET | jq -r .SLACK_APP_TOKEN_TRAK)
-export SLACK_BOT_TOKEN_KIT=$(echo $SECRET | jq -r .SLACK_BOT_TOKEN_KIT)
-export SLACK_APP_TOKEN_KIT=$(echo $SECRET | jq -r .SLACK_APP_TOKEN_KIT)
-export ATLASSIAN_SITE_NAME=$(echo $SECRET | jq -r .ATLASSIAN_SITE_NAME)
-export ATLASSIAN_USER_EMAIL=$(echo $SECRET | jq -r .ATLASSIAN_USER_EMAIL)
-export ATLASSIAN_API_TOKEN=$(echo $SECRET | jq -r .ATLASSIAN_API_TOKEN)
+export SLACK_BOT_TOKEN_SCOUT=$(echo "$SECRET" | jq -r .SLACK_BOT_TOKEN_SCOUT)
+export SLACK_APP_TOKEN_SCOUT=$(echo "$SECRET" | jq -r .SLACK_APP_TOKEN_SCOUT)
+export SLACK_BOT_TOKEN_TRAK=$(echo "$SECRET" | jq -r .SLACK_BOT_TOKEN_TRAK)
+export SLACK_APP_TOKEN_TRAK=$(echo "$SECRET" | jq -r .SLACK_APP_TOKEN_TRAK)
+export SLACK_BOT_TOKEN_KIT=$(echo "$SECRET" | jq -r .SLACK_BOT_TOKEN_KIT)
+export SLACK_APP_TOKEN_KIT=$(echo "$SECRET" | jq -r .SLACK_APP_TOKEN_KIT)
+export ATLASSIAN_SITE_NAME=$(echo "$SECRET" | jq -r .ATLASSIAN_SITE_NAME)
+export ATLASSIAN_USER_EMAIL=$(echo "$SECRET" | jq -r .ATLASSIAN_USER_EMAIL)
+export ATLASSIAN_API_TOKEN=$(echo "$SECRET" | jq -r .ATLASSIAN_API_TOKEN)
 
 # Derived Jira env vars (backward compat only)
 export JIRA_BASE_URL="https://${ATLASSIAN_SITE_NAME}.atlassian.net"
@@ -22,21 +22,21 @@ export GH_APP_ID=$(aws ssm get-parameter --name /openclaw/github-app/app-id --re
 export GH_APP_INSTALLATION_ID=$(aws ssm get-parameter --name /openclaw/github-app/installation-id --region us-east-1 --query Parameter.Value --output text)
 GH_APP_PRIVATE_KEY=$(aws ssm get-parameter --name /openclaw/github-app/private-key --region us-east-1 --with-decryption --query Parameter.Value --output text)
 export GH_APP_PRIVATE_KEY_FILE=/tmp/.github-app-key.pem
-echo "$GH_APP_PRIVATE_KEY" > "$GH_APP_PRIVATE_KEY_FILE"
-chmod 600 "$GH_APP_PRIVATE_KEY_FILE"
+# Write private key with restrictive permissions from the start (no race window)
+(umask 077 && echo "$GH_APP_PRIVATE_KEY" > "$GH_APP_PRIVATE_KEY_FILE")
 source /app/scripts/github-app-token.sh
-export ZENDESK_SUBDOMAIN=$(echo $SECRET | jq -r .ZENDESK_SUBDOMAIN)
-export ZENDESK_EMAIL=$(echo $SECRET | jq -r .ZENDESK_EMAIL)
-export ZENDESK_API_TOKEN=$(echo $SECRET | jq -r .ZENDESK_API_TOKEN)
+export ZENDESK_SUBDOMAIN=$(echo "$SECRET" | jq -r .ZENDESK_SUBDOMAIN)
+export ZENDESK_EMAIL=$(echo "$SECRET" | jq -r .ZENDESK_EMAIL)
+export ZENDESK_API_TOKEN=$(echo "$SECRET" | jq -r .ZENDESK_API_TOKEN)
 export ZENDESK_TOKEN="${ZENDESK_API_TOKEN}"
-export NOTION_API_TOKEN=$(echo $SECRET | jq -r .NOTION_API_TOKEN)
+export NOTION_API_TOKEN=$(echo "$SECRET" | jq -r .NOTION_API_TOKEN)
 export NOTION_API_KEY=${NOTION_API_TOKEN}
-export ZOHO_CLIENT_ID=$(echo $SECRET | jq -r '.ZOHO_CLIENT_ID // empty')
-export ZOHO_CLIENT_SECRET=$(echo $SECRET | jq -r '.ZOHO_CLIENT_SECRET // empty')
-export ZOHO_REFRESH_TOKEN=$(echo $SECRET | jq -r '.ZOHO_REFRESH_TOKEN // empty')
-export ZOHO_API_DOMAIN=$(echo $SECRET | jq -r '.ZOHO_API_DOMAIN // "https://www.zohoapis.com"')
-export SLACK_ALLOW_FROM=$(echo $SECRET | jq -r .SLACK_ALLOW_FROM)
-export ANTHROPIC_API_KEY=$(echo $SECRET | jq -r .ANTHROPIC_API_KEY)
+export ZOHO_CLIENT_ID=$(echo "$SECRET" | jq -r '.ZOHO_CLIENT_ID // empty')
+export ZOHO_CLIENT_SECRET=$(echo "$SECRET" | jq -r '.ZOHO_CLIENT_SECRET // empty')
+export ZOHO_REFRESH_TOKEN=$(echo "$SECRET" | jq -r '.ZOHO_REFRESH_TOKEN // empty')
+export ZOHO_API_DOMAIN=$(echo "$SECRET" | jq -r '.ZOHO_API_DOMAIN // "https://www.zohoapis.com"')
+export SLACK_ALLOW_FROM=$(echo "$SECRET" | jq -r .SLACK_ALLOW_FROM)
+export ANTHROPIC_API_KEY=$(echo "$SECRET" | jq -r .ANTHROPIC_API_KEY)
 
 # Start inner entrypoint (which starts the gateway) in background
 "$@" &

@@ -1,19 +1,23 @@
 # OpenClaw Gateway - Multi-Agent Docker Image
 FROM ubuntu:22.04 AS base
 
-ARG OPENCLAW_VERSION=latest
+ARG OPENCLAW_VERSION=2026.3
 ARG TARGETARCH=amd64
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV OPENCLAW_HOME=/root/.openclaw
 
-RUN apt-get update && apt-get install -y curl jq ca-certificates awscli gettext-base git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl jq ca-certificates awscli gettext-base git logrotate && rm -rf /var/lib/apt/lists/*
+
+# Logrotate config for OpenClaw gateway logs (prevents disk fill)
+RUN printf '/data/logs/openclaw.log {\n  daily\n  rotate 7\n  compress\n  missingok\n  notifempty\n  copytruncate\n  size 50M\n}\n' > /etc/logrotate.d/openclaw
 
 # Install Node.js 22 (required for OpenClaw and MCP servers)
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
 
 # Install OpenClaw via npm (full channel bridge support: Slack, Discord, etc.)
-RUN npm install -g openclaw@latest
+# Pin to major version to get patches but avoid breaking changes
+RUN npm install -g openclaw@${OPENCLAW_VERSION}
 
 # Install MCP server packages globally
 RUN npm install -g @anthropic/mcp-server-github @aashari/mcp-server-atlassian-jira @anthropic/mcp-server-stripe @notionhq/notion-mcp-server zd-mcp-server 2>/dev/null || true

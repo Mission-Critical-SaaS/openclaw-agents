@@ -118,4 +118,4 @@ jobs:
           curl -s -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"channel\": \"leads\", \"text\": \":x: *OpenClaw Deploy Failed*\nTag: $TAG\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
+            -d "{\"channel\": \"C089JBLCFLL\", \"text\": \":x: *OpenClaw Deploy Failed*\nTag: $TAG\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
