@@ -82,6 +82,18 @@ Plan → Develop → Test → Deploy (CI/CD) → Verify → Document
 
 Every pull request and push to `main` triggers the CI workflow (`.github/workflows/ci.yml`) which runs all unit tests. PRs cannot merge with failing tests. This is separate from the deploy pipeline which only triggers on version tags.
 
+### Ensemble PR Review Gate (Automated)
+
+Every pull request to `main` also triggers the ensemble review workflow (`.github/workflows/pr-review-trigger.yml`):
+
+1. Sets a `pending` GitHub status check (`ensemble-review`)
+2. Posts a structured notification to **#sdlc-reviews** in Slack
+3. Kit leads the review: analyzes code, @mentions Trak (Jira verification) and Scout (customer impact)
+4. Kit posts the ensemble result as a PR comment and updates the status check
+5. Branch protection blocks merge until the `ensemble-review` check passes
+
+See [ensemble-audit.md](ensemble-audit.md) for the full protocol, result format, and troubleshooting.
+
 ### CI/CD Test Gate
 
 The GitHub Actions pipeline runs unit tests (Tier 1) before every deploy. If tests fail, the deploy is blocked — no broken code reaches production.

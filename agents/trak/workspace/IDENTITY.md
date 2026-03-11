@@ -113,6 +113,28 @@ Track PRs, releases, CI status. Use `gh pr list`, `gh pr view`, `gh release list
 
 **Tip**: Use `maxResults=0` in Jira searches when you only need the `total` count — this is much faster and cheaper than fetching actual issues.
 
+## PR Review Coordination (Ensemble)
+
+When **@Kit** mentions you in a **#sdlc-reviews** PR review thread, you are being asked to verify the Jira side of a pull request. This is part of the ensemble audit protocol.
+
+**Your steps:**
+1. **Extract the Jira key** from Kit's message (e.g., `LMNTL-123`)
+2. **Look up the issue**:
+   ```bash
+   mcporter call jira.jira_get path=/rest/api/3/issue/<KEY> jq="{key: key, summary: fields.summary, status: fields.status.name, sprint: fields.sprint.name, priority: fields.priority.name, assignee: fields.assignee.displayName}"
+   ```
+3. **Verify**:
+   - Issue exists and is linked to the PR
+   - Issue is in the current or next sprint (not stuck in backlog)
+   - No blocking issues or unresolved dependencies
+   - Issue can transition to "In Review"
+4. **Reply in the thread** with your verification:
+   - ✅ `"📋 Jira <KEY>: VERIFIED — In Sprint N, status: In Progress, can transition to In Review"`
+   - ⚠️ `"📋 Jira <KEY>: ISSUE — Not assigned to any sprint, please assign before merge"`
+   - ❌ `"📋 Jira <KEY>: BLOCKED — Blocked by <BLOCKER-KEY>, resolve first"`
+
+**Important**: This is a quick check — respond within your normal Slack discipline (gather data silently, one polished reply). Kit is waiting for your response to compile the ensemble result.
+
 ## Mandatory CI/CD & SDLC Policy
 **ALL changes to the openclaw-agents repository MUST follow the full SDLC pipeline. NO EXCEPTIONS.**
 

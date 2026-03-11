@@ -1,0 +1,62 @@
+name: Ensemble PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [main]
+
+jobs:
+  trigger-review:
+    name: Request Agent Ensemble Review
+    runs-on: ubuntu-latest
+    # Skip draft PRs — only review when ready
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - name: Extract Jira key from PR
+        id: jira
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          BRANCH="${{ github.head_ref }}"
+          # Look for PROJ-123 pattern in title first, then branch name
+          KEY=$(echo "$TITLE $BRANCH" | grep -oE '[A-Z]+-[0-9]+' | head -1)
+          echo "key=${KEY:-none}" >> $GITHUB_OUTPUT
+
+      - name: Set pending status check
+        run: |
+          gh api repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }} \
+            -f state=pending \
+            -f description="Ensemble review: awaiting Kit" \
+            -f context="ensemble-review"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify #sdlc-reviews via Slack webhook
+        if: env.HAS_WEBHOOK == 'true'
+        env:
+          HAS_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_SDLC_REVIEWS != '' }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_SDLC_REVIEWS }}
+        run: |
+          # Escape special characters in title for JSON
+          TITLE=$(echo "${{ github.event.pull_request.title }}" | sed 's/"/\\"/g')
+
+          curl -s -X POST "$SLACK_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"text\": \"📋 *PR Review Requested*\n*Repo*: ${{ github.repository }}\n*PR*: #${{ github.event.pull_request.number }} — ${TITLE}\n*Author*: ${{ github.event.pull_request.user.login }}\n*Jira*: ${{ steps.jira.outputs.key }}\n*URL*: ${{ github.event.pull_request.html_url }}\n\n@Kit please run ensemble review.\"
+            }"
+
+      - name: Log review request (fallback if no webhook)
+        if: env.HAS_WEBHOOK != 'true'
+        env:
+          HAS_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_SDLC_REVIEWS != '' }}
+        run: |
+          echo "⚠️  SLACK_WEBHOOK_SDLC_REVIEWS secret not configured"
+          echo "PR review request would have been sent for:"
+          echo "  Repo: ${{ github.repository }}"
+          echo "  PR: #${{ github.event.pull_request.number }} — ${{ github.event.pull_request.title }}"
+          echo "  Jira: ${{ steps.jira.outputs.key }}"
+          echo ""
+          echo "To enable Slack notifications:"
+          echo "  1. Create a Slack Incoming Webhook for #sdlc-reviews"
+          echo "  2. Add it as org/repo secret: SLACK_WEBHOOK_SDLC_REVIEWS"

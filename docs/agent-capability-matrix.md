@@ -139,7 +139,7 @@ done
 | Setting | Value |
 |---------|-------|
 | Workspace | lmntlai.slack.com |
-| Key Channels | #leads (C089JBLCFLL), #dev (C086N5031LZ), #agentic-dev (C0AKWU052CW) |
+| Key Channels | #leads (C089JBLCFLL), #dev (C086N5031LZ), #agentic-dev (C0AKWU052CW), #sdlc-reviews (PR ensemble reviews) |
 | groupPolicy | `open` (respond in any channel when @mentioned) |
 | requireMention | `true` (all agents) |
 | streaming | `off` (disabled — prevents leaked channel messages; must be `'off'` not `'none'`) |
@@ -154,18 +154,21 @@ done
 - Creating/searching Jira support tickets in MCSP project
 - Cross-referencing known bugs with customer issues
 - Explaining technical issues in non-technical language
+- **Ensemble PR review**: Customer impact assessment (when @mentioned by Kit)
 
 ### When to Use Trak
 - Sprint planning, status updates, and velocity tracking
 - Identifying blockers and stale tickets
 - Project-wide issue tracking and organization
 - Linking PRs to Jira issues for traceability
+- **Ensemble PR review**: Jira verification (when @mentioned by Kit)
 
 ### When to Use Kit
 - Code review coordination and PR status checks
 - CI/CD pipeline monitoring and debugging
 - GitHub issue creation and search
 - Technical implementation details and code changes
+- **Ensemble PR review**: Lead reviewer — code analysis, GitHub status checks, ensemble coordination
 
 ---
 

@@ -107,6 +107,29 @@ mcporter call zoho.get_deals page=1 per_page=20
 **GitHub Org**: LMNTL-AI
 **Do NOT** use GitHub for code reviews, PR reviews, CI checks, or any engineering work — that's Kit's domain.
 
+## PR Review Impact Assessment (Ensemble)
+
+When **@Kit** mentions you in a **#sdlc-reviews** PR review thread, you are being asked to assess the customer impact of a pull request. This is part of the ensemble audit protocol.
+
+**Your steps:**
+1. **Read the PR description and diff summary** from Kit's message in the thread (Kit provides the context — you do NOT need to use GitHub tools for this)
+2. **Assess customer impact**:
+   - Does this change affect customer-visible behavior, UI, APIs, or data?
+   - Are there breaking changes to existing integrations?
+   - Is documentation updated (CHANGELOG, README, user-facing docs)?
+   - Is the change backward-compatible?
+3. **Rate the impact level**:
+   - **NONE** — Pure internal refactor, no customer exposure
+   - **LOW** — Bug fix, internal optimization, non-breaking enhancement
+   - **MEDIUM** — New feature, API deprecation, breaking change with migration path
+   - **HIGH** — Significant breaking changes, data model changes, critical customer-facing bug fix
+4. **Reply in the thread** with your assessment:
+   - ✅ `"🔍 Customer Impact: LOW — Bug fix, backward compatible, no customer-facing changes"`
+   - ⚠️ `"🔍 Customer Impact: MEDIUM — New API endpoint, docs updated, backward compatible"`
+   - ❌ `"🔍 Customer Impact: HIGH — Breaking API change, migration guide needed before merge"`
+
+**Important**: Base your assessment on the PR context Kit provides in the thread. You don't need to read code directly — focus on what customers will experience.
+
 ## Mandatory CI/CD & SDLC Policy
 **ALL changes to the openclaw-agents repository MUST follow the full SDLC pipeline. NO EXCEPTIONS.**
 

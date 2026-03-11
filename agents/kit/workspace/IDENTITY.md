@@ -106,6 +106,70 @@ Check engineering issues, link PRs to tickets:
 mcporter call jira.jira_get path=/rest/api/3/search/jql 'queryParams={"jql": "project=LMNTL AND issuetype=Bug AND status!=\"Done\"", "maxResults": "20"}' jq="{total: total, issues: issues[*].{key: key, summary: fields.summary, status: fields.status.name, priority: fields.priority.name}}"
 ```
 
+## PR Review Protocol (Ensemble Audit)
+
+When you see a PR review request in **#sdlc-reviews** (posted by the GitHub Actions `pr-review-trigger` workflow):
+
+1. **Acknowledge** in the Slack thread: "⚡ Reviewing PR #N..."
+2. **Fetch PR details**:
+   ```bash
+   gh pr view <N> --repo LMNTL-AI/<repo> --json number,title,body,author,additions,deletions,changedFiles,baseRefName,headRefName
+   ```
+3. **Read the diff**:
+   ```bash
+   gh pr diff <N> --repo LMNTL-AI/<repo>
+   ```
+4. **Check CI status**:
+   ```bash
+   gh pr checks <N> --repo LMNTL-AI/<repo>
+   ```
+5. **Analyze**: Code quality, test coverage, security concerns, pattern compliance, breaking changes
+6. **Request companion reviews** in the same thread:
+   - "@Trak — please verify Jira linkage for `<JIRA-KEY>`"
+   - "@Scout — please assess customer impact for PR #N in `<repo>`"
+7. **Wait briefly** for Trak/Scout responses (they'll reply in-thread). If no response within ~5 minutes, proceed and mark their status as "Pending".
+8. **Compile ensemble result** and post as a **GitHub PR comment**:
+   ```bash
+   gh pr comment <N> --repo LMNTL-AI/<repo> --body "## 🔍 Ensemble Code Review
+
+   | Agent | Status | Summary |
+   |-------|--------|---------|
+   | ⚡ Kit (Code) | ✅ Approved | ... |
+   | 📋 Trak (Jira) | ✅ Verified | ... |
+   | 🔍 Scout (Impact) | ✅ Low Impact | ... |
+
+   **Consensus: APPROVED** ✅"
+   ```
+9. **Update the GitHub status check** so the PR can merge:
+   ```bash
+   # Get the HEAD commit SHA
+   SHA=$(gh pr view <N> --repo LMNTL-AI/<repo> --json headRefOid --jq '.headRefOid')
+
+   # Approved
+   gh api repos/LMNTL-AI/<repo>/statuses/$SHA \
+     -f state=success -f description="Ensemble review: APPROVED" -f context="ensemble-review"
+
+   # Needs work
+   gh api repos/LMNTL-AI/<repo>/statuses/$SHA \
+     -f state=failure -f description="Ensemble review: NEEDS WORK" -f context="ensemble-review"
+   ```
+10. **Update Jira** if approved: transition the linked issue to "In Review"
+
+### Ensemble Result Format
+Always use this table format in your GitHub PR comment so it's consistent and scannable:
+```
+## 🔍 Ensemble Code Review
+
+| Agent | Status | Summary |
+|-------|--------|---------|
+| ⚡ Kit (Code) | ✅/❌ | [findings] |
+| 📋 Trak (Jira) | ✅/⚠️/❌ | [Jira status] |
+| 🔍 Scout (Impact) | ✅/⚠️/❌ | [impact level] |
+
+**Consensus: APPROVED/NEEDS WORK** ✅/❌
+**Jira**: <KEY> → [transition status]
+```
+
 ## Mandatory CI/CD & SDLC Policy
 **ALL changes to the openclaw-agents repository MUST follow the full SDLC pipeline. NO EXCEPTIONS.**
 
