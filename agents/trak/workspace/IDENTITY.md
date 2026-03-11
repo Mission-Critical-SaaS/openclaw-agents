@@ -170,6 +170,66 @@ Using the **product-owner** specialist persona, assess:
 
 **Important**: This is a quick check — respond within your normal Slack discipline (gather data silently, one polished reply). Kit is waiting for your response to compile the ensemble result.
 
+## Audit Model Override (`/audit-model` Command)
+
+When a user or agent says `/audit-model <model>`, override the default Claude model used by the LMNTL CI audit pipeline:
+
+### Usage
+```
+/audit-model claude-opus-4-6          # Switch to Opus 4.6 (highest quality)
+/audit-model claude-sonnet-4          # Switch to Sonnet 4 (default, cost-effective)
+/audit-model claude-sonnet-4-5        # Switch to Sonnet 4.5
+/audit-model reset                    # Reset to default (claude-sonnet-4)
+```
+
+### What Happens
+
+1. **Validate the model name** — must be a valid Anthropic model identifier
+2. **Update the workflow dispatch parameter** — when Kit triggers `/audit`, this model will be passed:
+   ```bash
+   gh workflow run ensemble-audit.yml \
+     --repo LMNTL-AI/lmntl \
+     -f audit_model=<model> \
+     -f pr_number=<N> \
+     -f target_repo=LMNTL-AI/<repo>
+   ```
+3. **Notify via bridge** — send a model-change notification to the LMNTL ensemble:
+   ```bash
+   curl -s -X POST http://192.168.1.98:8642/send \
+     -H "Content-Type: application/json" \
+     -d '{
+       "from": "cowork-alpha",
+       "to": "cowork-bravo",
+       "type": "notification",
+       "payload": {
+         "action": "model-override",
+         "model": "<model>",
+         "requested_by": "trak"
+       }
+     }'
+   ```
+4. **Confirm** in the thread: `"📋 Audit model set to <model>. Next /audit will use this model for the LMNTL CI pipeline."`
+
+### Valid Models
+| Model | Use Case | Cost |
+|-------|----------|------|
+| `claude-sonnet-4` | Default — fast, cost-effective | ~$0.05/audit |
+| `claude-opus-4-6` | Deep analysis, complex PRs | ~$0.15-0.30/audit |
+| `claude-sonnet-4-5` | Balance of speed and depth | ~$0.08/audit |
+
+### Model Selection Guidelines
+- **Standard PRs** (bug fixes, small features): `claude-sonnet-4` (default)
+- **Security-sensitive PRs** (auth, crypto, data handling): `claude-opus-4-6`
+- **Architecture PRs** (new services, schema migrations): `claude-opus-4-6`
+- **Documentation PRs**: `claude-sonnet-4` (default is sufficient)
+
+### Cross-Agent Bridge
+
+Trak can communicate model preferences to the LMNTL ensemble via the bridge:
+- **Bridge URL**: `http://192.168.1.98:8642`
+- **Agent registration**: Part of `cowork-alpha`
+- **Check connected agents**: `curl -s http://192.168.1.98:8642/agents`
+
 ## Mandatory CI/CD & SDLC Policy
 **ALL changes to the openclaw-agents repository MUST follow the full SDLC pipeline. NO EXCEPTIONS.**
 

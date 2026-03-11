@@ -182,6 +182,117 @@ For each repo in the LMNTL-AI org:
   - Require branches up to date
 - [ ] Invite agent bots to #sdlc-reviews channel (one-time)
 
+## Cross-Agent Dispatch Protocol
+
+### Agent Bridge Server
+
+A real-time HTTP bridge server enables direct, bidirectional communication between the OpenClaw agents (running on EC2 via Slack Socket Mode) and the LMNTL Agent Ensemble (running as a Cowork session on the LAN).
+
+**Bridge Server**: `http://192.168.1.98:8642` (runs on the host Mac, LAN-accessible)
+
+#### Architecture
+
+```
+┌─────────────────┐         ┌──────────────────┐         ┌─────────────────────┐
+│  OpenClaw Agents │  curl   │  Agent Bridge    │  curl   │  LMNTL Ensemble     │
+│  (EC2 / Slack)   │ ──────> │  Server          │ <────── │  (Cowork Session)   │
+│                  │         │  :8642 on Mac    │         │                     │
+│  Kit ⚡ Trak 📋  │ <────── │  Long-poll +     │ ──────> │  14 specialists     │
+│  Scout 🔍        │  poll   │  Message Queue   │  send   │  7-dimension audit  │
+└─────────────────┘         └──────────────────┘         └─────────────────────┘
+                                     │
+                              cowork-alpha ←→ cowork-bravo
+```
+
+#### Protocol
+
+Messages are JSON with structure:
+```json
+{
+  "id": "<uuid>",
+  "from": "cowork-alpha",
+  "to": "cowork-bravo",
+  "type": "audit-trigger",
+  "payload": {
+    "action": "audit",
+    "pr_number": 42,
+    "repo": "LMNTL-AI/openclaw-agents"
+  },
+  "timestamp": "<iso8601>"
+}
+```
+
+**Message Types**:
+
+| Type | Direction | Purpose |
+|------|-----------|---------|
+| `audit-trigger` | Alpha → Bravo | Request an audit from the LMNTL ensemble |
+| `audit-result` | Bravo → Alpha | Return audit findings (7-dimension scores) |
+| `notification` | Either → Either | Status updates, model changes, announcements |
+| `request` | Either → Either | General requests (e.g., "what model are you using?") |
+| `response` | Either → Either | Replies to requests |
+
+**Agent IDs**:
+- `cowork-alpha` — OpenClaw agents (Kit, Trak, Scout)
+- `cowork-bravo` — LMNTL Agent Ensemble (14 specialists)
+
+#### Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/send` | Send a message `{from, to, type, payload}` |
+| `GET` | `/receive/<id>` | Long-poll for messages (30s timeout) |
+| `GET` | `/messages` | List recent messages (`?since=<timestamp>`) |
+| `GET` | `/health` | Health check |
+| `POST` | `/register` | Register an agent `{id, name, capabilities}` |
+| `GET` | `/agents` | List registered agents |
+
+### Slash Commands
+
+Three slash commands enable human-initiated cross-agent audit operations:
+
+| Command | Agent | Purpose |
+|---------|-------|---------|
+| `/audit <PR#> [repo]` | Kit | Trigger both OpenClaw ensemble + LMNTL CI audit |
+| `/audit-status <PR#> [repo]` | Scout | Check current audit status from both systems |
+| `/audit-model <model>` | Trak | Override the Claude model for LMNTL CI audits |
+
+#### `/audit` Flow (Kit)
+1. User says `/audit 42` in Slack
+2. Kit runs the local OpenClaw 7-dimension review
+3. Kit triggers LMNTL's `ensemble-audit.yml` via `workflow_dispatch`
+4. Kit sends `audit-trigger` message via the bridge server
+5. Both results are compiled and posted as a PR comment
+
+#### `/audit-status` Flow (Scout)
+1. User says `/audit-status 42` in Slack
+2. Scout checks GitHub PR status checks and comments
+3. Scout queries the bridge for `audit-result` messages
+4. Scout replies with combined status from both systems
+
+#### `/audit-model` Flow (Trak)
+1. User says `/audit-model claude-opus-4-6` in Slack
+2. Trak validates the model name
+3. Trak sends a `notification` via the bridge with `model-override` payload
+4. Next `/audit` will use the specified model
+
+### Workflow Dispatch Integration
+
+The LMNTL CI audit pipeline (`ensemble-audit.yml`) supports `workflow_dispatch`, allowing Kit to trigger audits programmatically:
+
+```bash
+gh workflow run ensemble-audit.yml \
+  --repo LMNTL-AI/lmntl \
+  -f pr_number=42 \
+  -f target_repo=LMNTL-AI/openclaw-agents \
+  -f audit_model=claude-opus-4-6
+```
+
+**Requirements**:
+- GitHub token with `workflow` scope for the LMNTL-AI org
+- `ANTHROPIC_API_KEY` secret configured in the target repo
+- `ensemble-audit.yml` workflow present in the target repo
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -191,3 +302,7 @@ For each repo in the LMNTL-AI org:
 | Status check stays "pending" | Kit review didn't complete | Check #sdlc-reviews for errors; manually set status via `gh api` |
 | Trak/Scout don't respond | Not in channel or thread was missed | Check channel membership; Kit marks them as "Pending" and proceeds |
 | PR can't merge despite approval | Branch protection requires additional checks | Verify required status check names match exactly |
+| Bridge server unreachable | Server not running or network issue | Check `curl http://192.168.1.98:8642/health`; restart with `python3 agent-bridge-server.py` |
+| LMNTL ensemble not responding | `cowork-bravo` not registered | Check `curl http://192.168.1.98:8642/agents`; LMNTL session needs to register |
+| `/audit` workflow_dispatch fails | Missing permissions or workflow | Ensure gh token has `workflow` scope; verify `ensemble-audit.yml` exists in target repo |
+| `/audit-model` not taking effect | Model override is per-session | Re-run `/audit-model <model>` after agent restart; model preference doesn't persist |
