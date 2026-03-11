@@ -116,7 +116,7 @@ INJECT_PYEOF
   # ============================================================
   # GATEWAY RESTART
   # Kill the initial gateway and restart with injected config.
-  # IMPORTANT: Only restart the gateway process — do NOT re-run
+  # IMPORTANT: Only restart the gateway process â do NOT re-run
   # the full inner entrypoint (/entrypoint.sh). All one-time
   # setup (mcporter config, auth-profiles, gh CLI auth, workspace
   # files) was completed during the first run.
@@ -152,12 +152,12 @@ GHEOF
   # in the agent's virtual workspace view.
   #
   # Two workspace paths per agent:
-  #   CFG  = /root/.openclaw/agents/{agent}/workspace  (configured — agent reads/writes here)
-  #   PERSIST = /root/.openclaw/.openclaw/workspace-{agent}  (bind-mounted — survives restarts)
+  #   CFG  = /root/.openclaw/agents/{agent}/workspace  (configured â agent reads/writes here)
+  #   PERSIST = /root/.openclaw/.openclaw/workspace-{agent}  (bind-mounted â survives restarts)
   # Strategy:
-  #   IDENTITY.md  → always copy from git to CFG (deploy may update instructions)
-  #   KNOWLEDGE.md → seed PERSIST from git if missing, then copy PERSIST → CFG
-  # Note: symlinks don't work — OpenClaw virtual FS doesn't resolve them.
+  #   IDENTITY.md  â always copy from git to CFG (deploy may update instructions)
+  #   KNOWLEDGE.md â seed PERSIST from git if missing, then copy PERSIST â CFG
+  # Note: symlinks don't work â OpenClaw virtual FS doesn't resolve them.
   # ============================================================
   echo "Injecting workspace files into agent workspaces..."
   for agent in scout trak kit; do
@@ -168,7 +168,7 @@ GHEOF
     mkdir -p "$CFG" "$PERSIST"
 
     # IDENTITY.md: always overwrite from git (instructions may change per deploy)
-    # Must copy to BOTH paths — OpenClaw reads from PERSIST (runtime workspace),
+    # Must copy to BOTH paths â OpenClaw reads from PERSIST (runtime workspace),
     # not CFG (configured workspace). CFG copy is kept for consistency.
     if [ -f "$SRC/IDENTITY.md" ]; then
       cp "$SRC/IDENTITY.md" "$CFG/IDENTITY.md"
@@ -183,14 +183,38 @@ GHEOF
     fi
 
     # Copy KNOWLEDGE.md from persist dir to configured workspace
-    # (symlinks don't work — OpenClaw virtual FS doesn't resolve them)
+    # (symlinks don't work â OpenClaw virtual FS doesn't resolve them)
     if [ -f "$PERSIST/KNOWLEDGE.md" ]; then
       cp "$PERSIST/KNOWLEDGE.md" "$CFG/KNOWLEDGE.md"
       echo "  ${agent}: KNOWLEDGE.md copied from persist to cfg"
     fi
   done
 
-  # Start gateway DIRECTLY — one-time setup is already done
+  # ============================================================
+  # MEMORY INDEXING
+  # The memory system indexes $OPENCLAW_HOME/.openclaw/workspace/
+  # (the main workspace) by default. Agent KNOWLEDGE.md files live
+  # in per-agent workspace dirs (workspace-{agent}/) so we copy
+  # them into the main workspace with agent-prefixed names so the
+  # FTS index can find them.
+  # ============================================================
+  echo "Populating main workspace for memory indexing..."
+  MAIN_WS="/root/.openclaw/.openclaw/workspace"
+  mkdir -p "$MAIN_WS"
+  for agent in scout trak kit; do
+    PERSIST="/root/.openclaw/.openclaw/workspace-${agent}"
+    if [ -f "$PERSIST/KNOWLEDGE.md" ]; then
+      cp "$PERSIST/KNOWLEDGE.md" "$MAIN_WS/KNOWLEDGE-${agent}.md"
+      echo "  ${agent}: KNOWLEDGE.md copied to main workspace"
+    fi
+  done
+
+  # Rebuild memory index so FTS can search agent knowledge
+  echo "Rebuilding memory index..."
+  openclaw memory index --force 2>/dev/null || true
+  echo "Memory index updated."
+
+  # Start gateway DIRECTLY â one-time setup is already done
   # Workspace files are in place so the gateway discovers them on scan
   echo "Starting gateway with injected channel config..."
   openclaw gateway run --allow-unconfigured 2>&1 | tee -a /data/logs/openclaw.log &
@@ -230,7 +254,7 @@ GHEOF
     --timeout 90 2>&1) || true
 
   if echo "$BOOTSTRAP_RESP" | grep -q "BOOTSTRAP_OK"; then
-    echo "Agent bootstrap succeeded — MCP tools are warm."
+    echo "Agent bootstrap succeeded â MCP tools are warm."
     # Count tools mentioned in response (rough heuristic)
     TOOL_COUNT=$(echo "$BOOTSTRAP_RESP" | grep -c "name" 2>/dev/null || echo "?")
     echo "  Tools loaded: ~${TOOL_COUNT}"
