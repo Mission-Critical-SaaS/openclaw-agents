@@ -929,3 +929,472 @@ describe('Zendesk MCP server patch', () => {
     expect(script).toContain('ZD_PATCH_EOF');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Specialist Agent Definitions
+// ---------------------------------------------------------------------------
+describe('Specialist Agent Definitions', () => {
+  const SPECIALISTS_DIR = join(ROOT, 'agents', 'shared', 'specialists');
+
+  const EXPECTED_SPECIALISTS = [
+    'business-analyst',
+    'code-review-architect',
+    'data-engineer',
+    'devops-engineer',
+    'implementation-engineer',
+    'orchestrator-coordinator',
+    'pr-scope-reviewer',
+    'product-owner',
+    'qa-test-engineer',
+    'security-risk-auditor',
+    'site-reliability-engineer',
+    'technical-architect',
+    'ux-ui-designer',
+  ];
+
+  test('specialists directory exists', () => {
+    const { existsSync } = require('fs');
+    expect(existsSync(SPECIALISTS_DIR)).toBe(true);
+  });
+
+  test('contains all 13 expected specialist files', () => {
+    const { readdirSync } = require('fs');
+    const files = readdirSync(SPECIALISTS_DIR).filter((f: string) => f !== 'README.md');
+    expect(files.sort()).toEqual(EXPECTED_SPECIALISTS.map(s => `${s}.md`).sort());
+  });
+
+  test('README.md exists in specialists directory', () => {
+    const readme = readScript('agents/shared/specialists/README.md');
+    expect(readme.length).toBeGreaterThan(100);
+    expect(readme).toContain('Specialist Agent');
+    expect(readme).toContain('Human-Facing Agent');
+  });
+
+  for (const specialist of EXPECTED_SPECIALISTS) {
+    describe(`${specialist}.md`, () => {
+      let content: string;
+
+      beforeAll(() => {
+        content = readScript(`agents/shared/specialists/${specialist}.md`);
+      });
+
+      test('is non-empty', () => {
+        expect(content.length).toBeGreaterThan(200);
+      });
+
+      test('has YAML frontmatter with name field', () => {
+        expect(content).toMatch(/^---\n/);
+        expect(content).toContain(`name: ${specialist}`);
+      });
+
+      test('has YAML frontmatter with description field', () => {
+        expect(content).toMatch(/description:/);
+      });
+
+      test('defines a clear role or methodology', () => {
+        // Every specialist should have some kind of methodology, review approach, or workflow
+        expect(content).toMatch(/[Mm]ethodology|[Rr]eview|[Ww]orkflow|[Pp]rocess|[Rr]esponsib/);
+      });
+    });
+  }
+
+  // Stricter checks for the core audit specialists that MUST have full guardrails
+  const AUDIT_SPECIALISTS_WITH_FULL_GUARDRAILS = [
+    'code-review-architect',
+    'security-risk-auditor',
+    'qa-test-engineer',
+  ];
+
+  for (const specialist of AUDIT_SPECIALISTS_WITH_FULL_GUARDRAILS) {
+    describe(`${specialist}.md — audit guardrails`, () => {
+      let content: string;
+      beforeAll(() => {
+        content = readScript(`agents/shared/specialists/${specialist}.md`);
+      });
+
+      test('contains evidence protocol section', () => {
+        expect(content).toMatch(/[Ee]vidence [Pp]rotocol/);
+      });
+
+      test('contains anti-hallucination guardrails', () => {
+        expect(content).toMatch(/[Aa]nti-[Hh]allucination/);
+      });
+
+      test('contains scope awareness section', () => {
+        expect(content).toMatch(/[Ss]cope [Aa]wareness/);
+      });
+
+      test('requires VERIFIED/UNVERIFIED labeling', () => {
+        expect(content).toContain('VERIFIED');
+        expect(content).toContain('UNVERIFIED');
+      });
+    });
+  }
+
+  // Validate specialist-to-dimension mapping is complete
+  describe('Dimension Coverage', () => {
+    test('code-review-architect covers Correctness dimension', () => {
+      const content = readScript('agents/shared/specialists/code-review-architect.md');
+      expect(content).toMatch(/[Cc]ode [Rr]eview|[Cc]ode quality|[Aa]rchitectural compliance/);
+    });
+
+    test('security-risk-auditor covers Security dimension', () => {
+      const content = readScript('agents/shared/specialists/security-risk-auditor.md');
+      expect(content).toMatch(/OWASP|[Vv]ulnerab/);
+    });
+
+    test('ux-ui-designer covers UX/Accessibility dimension', () => {
+      const content = readScript('agents/shared/specialists/ux-ui-designer.md');
+      expect(content).toMatch(/WCAG|[Aa]ccessibility/);
+    });
+
+    test('product-owner covers Product-Market Fit dimension', () => {
+      const content = readScript('agents/shared/specialists/product-owner.md');
+      expect(content).toMatch(/[Pp]roduct|[Pp]rioritiz|[Uu]ser stor/);
+    });
+
+    test('devops-engineer covers Operations dimension', () => {
+      const content = readScript('agents/shared/specialists/devops-engineer.md');
+      expect(content).toMatch(/CI\/CD|[Dd]eployment|[Mm]onitoring/);
+    });
+
+    test('site-reliability-engineer covers Operations dimension', () => {
+      const content = readScript('agents/shared/specialists/site-reliability-engineer.md');
+      expect(content).toMatch(/SLI|SLO|[Ii]ncident/);
+    });
+
+    test('technical-architect covers Architecture dimension', () => {
+      const content = readScript('agents/shared/specialists/technical-architect.md');
+      expect(content).toMatch(/[Ss]ystem [Dd]esign|[Aa]rchitect/);
+    });
+
+    test('qa-test-engineer covers Test Coverage dimension', () => {
+      const content = readScript('agents/shared/specialists/qa-test-engineer.md');
+      expect(content).toMatch(/[Tt]est|[Cc]overage/);
+    });
+
+    test('orchestrator-coordinator maps all 12 other specialists', () => {
+      const content = readScript('agents/shared/specialists/orchestrator-coordinator.md');
+      // Must list at least the core specialists
+      expect(content).toContain('code-review-architect');
+      expect(content).toContain('security-risk-auditor');
+      expect(content).toContain('qa-test-engineer');
+      expect(content).toContain('technical-architect');
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Specialist Integration in Agent IDENTITY.md files
+// ---------------------------------------------------------------------------
+describe('Specialist Integration in Agent Identities', () => {
+
+  describe('Kit — Specialist Integration', () => {
+    let identity: string;
+
+    beforeAll(() => {
+      identity = readScript('agents/kit/workspace/IDENTITY.md');
+    });
+
+    test('has Specialist Agent Capabilities section', () => {
+      expect(identity).toContain('Specialist Agent Capabilities');
+    });
+
+    test('references agents/shared/specialists/ directory', () => {
+      expect(identity).toContain('agents/shared/specialists/');
+    });
+
+    test('lists all primary engineering specialists', () => {
+      expect(identity).toContain('code-review-architect');
+      expect(identity).toContain('security-risk-auditor');
+      expect(identity).toContain('technical-architect');
+      expect(identity).toContain('devops-engineer');
+      expect(identity).toContain('site-reliability-engineer');
+      expect(identity).toContain('qa-test-engineer');
+      expect(identity).toContain('implementation-engineer');
+      expect(identity).toContain('pr-scope-reviewer');
+      expect(identity).toContain('data-engineer');
+    });
+
+    test('lists cross-domain specialists', () => {
+      expect(identity).toContain('product-owner');
+      expect(identity).toContain('business-analyst');
+      expect(identity).toContain('ux-ui-designer');
+      expect(identity).toContain('orchestrator-coordinator');
+    });
+
+    test('documents all 7 audit dimensions', () => {
+      expect(identity).toContain('Correctness');
+      expect(identity).toContain('Security');
+      expect(identity).toContain('Architecture');
+      expect(identity).toContain('Operations');
+      expect(identity).toContain('Test Coverage');
+      expect(identity).toContain('Product-Market Fit');
+    });
+
+    test('includes evidence protocol requirements', () => {
+      expect(identity).toContain('VERIFIED');
+      expect(identity).toContain('UNVERIFIED');
+      expect(identity).toContain('File path and line number');
+    });
+
+    test('mentions false positive rate awareness', () => {
+      expect(identity).toMatch(/false positive rate.*40.*50/i);
+    });
+
+    test('uses 7-dimension ensemble result format', () => {
+      expect(identity).toContain('7-Dimension Audit');
+      expect(identity).toContain('Dimensions Passing');
+    });
+
+    test('PR review protocol references specialist analysis', () => {
+      expect(identity).toContain('Apply specialist analysis');
+    });
+
+    test('requests product-market fit from Trak', () => {
+      expect(identity).toContain('product-market fit');
+    });
+
+    test('requests accessibility from Scout', () => {
+      expect(identity).toContain('accessibility');
+    });
+  });
+
+  describe('Trak — Specialist Integration', () => {
+    let identity: string;
+
+    beforeAll(() => {
+      identity = readScript('agents/trak/workspace/IDENTITY.md');
+    });
+
+    test('has Specialist Agent Capabilities section', () => {
+      expect(identity).toContain('Specialist Agent Capabilities');
+    });
+
+    test('references agents/shared/specialists/ directory', () => {
+      expect(identity).toContain('agents/shared/specialists/');
+    });
+
+    test('lists product-owner as primary specialist', () => {
+      expect(identity).toContain('product-owner');
+      expect(identity).toContain('Product Owner');
+    });
+
+    test('lists business-analyst as primary specialist', () => {
+      expect(identity).toContain('business-analyst');
+      expect(identity).toContain('Business Analyst');
+    });
+
+    test('lists orchestrator-coordinator as primary specialist', () => {
+      expect(identity).toContain('orchestrator-coordinator');
+      expect(identity).toContain('Orchestrator Coordinator');
+    });
+
+    test('contributes Product-Market Fit dimension (#4)', () => {
+      expect(identity).toContain('Product-Market Fit');
+      expect(identity).toContain('dimension #4');
+    });
+
+    test('includes product-market fit assessment in PR review', () => {
+      expect(identity).toContain('Product-Market Fit Assessment');
+      expect(identity).toContain('Strategic alignment');
+      expect(identity).toContain('Scope creep');
+    });
+
+    test('uses DATA-BACKED vs HYPOTHESIS evidence labels', () => {
+      expect(identity).toContain('DATA-BACKED');
+      expect(identity).toContain('HYPOTHESIS');
+    });
+
+    test('combines Jira verification with product-market fit in PR review', () => {
+      expect(identity).toContain('Jira Verification');
+      expect(identity).toContain('Product fit');
+    });
+  });
+
+  describe('Scout — Specialist Integration', () => {
+    let identity: string;
+
+    beforeAll(() => {
+      identity = readScript('agents/scout/workspace/IDENTITY.md');
+    });
+
+    test('has Specialist Agent Capabilities section', () => {
+      expect(identity).toContain('Specialist Agent Capabilities');
+    });
+
+    test('references agents/shared/specialists/ directory', () => {
+      expect(identity).toContain('agents/shared/specialists/');
+    });
+
+    test('lists ux-ui-designer as primary specialist', () => {
+      expect(identity).toContain('ux-ui-designer');
+      expect(identity).toContain('UX/UI Designer');
+    });
+
+    test('contributes UX/Accessibility dimension (#3)', () => {
+      expect(identity).toContain('UX/Accessibility');
+      expect(identity).toContain('dimension (#3)');
+    });
+
+    test('includes WCAG 2.1 AA compliance methodology', () => {
+      expect(identity).toContain('WCAG 2.1 AA');
+    });
+
+    test('includes accessibility evidence protocol', () => {
+      expect(identity).toContain('VERIFIED');
+      expect(identity).toContain('PROPOSED');
+    });
+
+    test('combines customer impact with accessibility in PR review', () => {
+      expect(identity).toContain('Customer Impact Assessment');
+      expect(identity).toContain('UX/Accessibility Assessment');
+    });
+
+    test('references specific WCAG criteria in examples', () => {
+      expect(identity).toMatch(/WCAG \d+\.\d+\.\d+/);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ensemble Audit Playbook — 7-Dimension Model
+// ---------------------------------------------------------------------------
+describe('Ensemble Audit Playbook — Specialist Integration', () => {
+  let playbook: string;
+
+  beforeAll(() => {
+    playbook = readScript('docs/playbooks/ensemble-audit.md');
+  });
+
+  test('has Specialist Agent Integration section', () => {
+    expect(playbook).toContain('Specialist Agent Integration');
+  });
+
+  test('references agents/shared/specialists/ directory', () => {
+    expect(playbook).toContain('agents/shared/specialists/');
+  });
+
+  test('documents all 7 audit dimensions', () => {
+    expect(playbook).toContain('Correctness');
+    expect(playbook).toContain('Security');
+    expect(playbook).toContain('UX/Accessibility');
+    expect(playbook).toContain('Product-Market Fit');
+    expect(playbook).toContain('Operations');
+    expect(playbook).toContain('Architecture');
+    expect(playbook).toContain('Test Coverage');
+  });
+
+  test('maps each dimension to a primary agent', () => {
+    // Dimensions 1,2,5,6,7 → Kit; 3 → Scout; 4 → Trak
+    expect(playbook).toMatch(/Correctness.*Kit/);
+    expect(playbook).toMatch(/Security.*Kit/);
+    expect(playbook).toMatch(/UX\/Accessibility.*Scout/);
+    expect(playbook).toMatch(/Product-Market Fit.*Trak/);
+    expect(playbook).toMatch(/Operations.*Kit/);
+    expect(playbook).toMatch(/Architecture.*Kit/);
+    expect(playbook).toMatch(/Test Coverage.*Kit/);
+  });
+
+  test('maps each dimension to specialist persona(s)', () => {
+    expect(playbook).toContain('code-review-architect');
+    expect(playbook).toContain('security-risk-auditor');
+    expect(playbook).toContain('ux-ui-designer');
+    expect(playbook).toContain('product-owner');
+    expect(playbook).toContain('devops-engineer');
+    expect(playbook).toContain('site-reliability-engineer');
+    expect(playbook).toContain('technical-architect');
+    expect(playbook).toContain('qa-test-engineer');
+  });
+
+  test('lists supporting specialists', () => {
+    expect(playbook).toContain('data-engineer');
+    expect(playbook).toContain('implementation-engineer');
+    expect(playbook).toContain('pr-scope-reviewer');
+    expect(playbook).toContain('business-analyst');
+    expect(playbook).toContain('orchestrator-coordinator');
+  });
+
+  test('includes evidence protocol section', () => {
+    expect(playbook).toContain('Evidence Protocol');
+    expect(playbook).toContain('VERIFIED');
+    expect(playbook).toContain('UNVERIFIED');
+  });
+
+  test('mentions false positive rate', () => {
+    expect(playbook).toMatch(/false positive.*40.*50/i);
+  });
+
+  test('specifies maximum 3 audit rounds before escalation', () => {
+    expect(playbook).toMatch(/[Mm]aximum 3 audit rounds/);
+  });
+
+  test('Kit applies specialist analysis across 5 dimensions', () => {
+    expect(playbook).toContain('Correctness');
+    expect(playbook).toContain('Security');
+    expect(playbook).toContain('Operations');
+    expect(playbook).toContain('Architecture');
+    expect(playbook).toContain('Test Coverage');
+  });
+
+  test('Trak applies product-owner specialist for dimension 4', () => {
+    expect(playbook).toContain('product-owner specialist');
+  });
+
+  test('Scout applies ux-ui-designer specialist for dimension 3', () => {
+    expect(playbook).toContain('ux-ui-designer specialist');
+  });
+
+  test('standardized result format shows all 7 dimensions', () => {
+    expect(playbook).toContain('7-Dimension Audit');
+    expect(playbook).toContain('Dimensions Passing');
+  });
+
+  test('consensus rules reference dimension pass/fail', () => {
+    expect(playbook).toContain('APPROVED (7/7)');
+    expect(playbook).toContain('NEEDS WORK');
+    expect(playbook).toContain('BLOCKED');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agent Capability Matrix — Specialist Integration
+// ---------------------------------------------------------------------------
+describe('Agent Capability Matrix — Specialist Integration', () => {
+  let matrix: string;
+
+  beforeAll(() => {
+    matrix = readScript('docs/agent-capability-matrix.md');
+  });
+
+  test('has Specialist Agent Integration section', () => {
+    expect(matrix).toContain('Specialist Agent Integration');
+  });
+
+  test('documents specialist-to-dimension mapping', () => {
+    expect(matrix).toContain('Specialist-to-Dimension Mapping');
+  });
+
+  test('documents supporting specialists', () => {
+    expect(matrix).toContain('Supporting Specialists');
+  });
+
+  test('explains how specialists work (not separate processes)', () => {
+    expect(matrix).toContain('NOT separate processes');
+    expect(matrix).toContain('expertise profiles');
+  });
+
+  test('Kit specialization includes 5 dimensions', () => {
+    expect(matrix).toContain('correctness, security, operations, architecture, test coverage');
+  });
+
+  test('Trak specialization includes product-market fit', () => {
+    expect(matrix).toContain('product-market fit');
+    expect(matrix).toContain('product-owner specialist');
+  });
+
+  test('Scout specialization includes UX/accessibility', () => {
+    expect(matrix).toContain('UX/accessibility');
+    expect(matrix).toContain('ux-ui-designer specialist');
+  });
+});
