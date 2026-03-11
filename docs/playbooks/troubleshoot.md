@@ -136,15 +136,12 @@ curl -s https://api.anthropic.com/v1/messages
 ```
 
 ### Check channel restrictions
-The agents only respond in channels listed in allowChannels in the config. Currently: C089JBLCFLL (#leads).
+Agents use `groupPolicy: "open"` with `requireMention: true`, so they respond in **any** channel when @mentioned. There is no channel allowlist restriction.
 
 ### Check user restrictions
-Only users in the allowFrom list can interact:
-- U082DEF37PC (David Allison)
-- U081YTU8JCX (Michael Wong)
-- U0ADABVCVH8 (Debbie Sabin)
+Only users in the `SLACK_ALLOW_FROM` secret can interact. See the README for the current allow list (9 users as of v1.3.37).
 
-To add a user, update the SLACK_ALLOW_FROM secret and restart.
+To add a user, update the `SLACK_ALLOW_FROM` JSON array in AWS Secrets Manager and redeploy.
 
 ## EC2 Instance Issues
 

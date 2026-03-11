@@ -139,10 +139,11 @@ done
 | Setting | Value |
 |---------|-------|
 | Workspace | lmntlai.slack.com |
-| Channel | #leads (C089JBLCFLL) — private |
+| Key Channels | #leads (C089JBLCFLL), #dev (C086N5031LZ), #agentic-dev (C0AKWU052CW) |
 | groupPolicy | `open` (respond in any channel when @mentioned) |
 | requireMention | `true` (all agents) |
-| Allowed Users | U082DEF37PC (David), U081YTU8JCX (Michael), U0ADABVCVH8 (Debbie) |
+| streaming | `none` (disabled — prevents leaked channel messages) |
+| Allowed Users | 9 users — see README for current list |
 
 ---
 

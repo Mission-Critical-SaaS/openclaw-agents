@@ -40,6 +40,10 @@ The container uses a two-stage entrypoint:
 
 After the gateway starts, the outer entrypoint sends a lightweight agent turn (`openclaw agent --agent main`) to force-load all MCP servers. This eliminates cold-start latency — by the time a user sends their first message, all tools are already warm.
 
+### Slack Streaming
+
+Streaming is **disabled** (`streaming: 'none'`, `nativeStreaming: false`). This is intentional — OpenClaw's partial streaming mode posts intermediate updates as top-level channel messages rather than in-thread, which causes leaked messages in channels. Agents instead follow a structured threading pattern: ack → (optional progress) → final answer, all in-thread.
+
 ### MCP Integrations
 
 | Server | Package | Purpose |
@@ -55,23 +59,103 @@ MCP tools are loaded by the OpenClaw gateway on demand. Agents access them nativ
 
 | Agent | Role | Slack App ID | Bot User ID |
 |-------|------|-------------|-------------|
-| Scout | Sales and lead qualification | A0AJ5DNRR6K | U0AJLT30KMG |
+| Scout | Customer support and lead qualification | A0AJ5DNRR6K | U0AJLT30KMG |
 | Trak | Project management and tracking | A0AJLU847U2 | U0AJEGUSELB |
-| Kit | Operations and internal tooling | A0AKF8212BA | U0AKF614URE |
+| Kit | Engineering operations and internal tooling | A0AKF8212BA | U0AKF614URE |
 
-Allowed users: David Allison (U082DEF37PC), Michael Wong (U081YTU8JCX), Debbie Sabin (U0ADABVCVH8).
+See [docs/agent-capability-matrix.md](docs/agent-capability-matrix.md) for detailed tool access per agent.
+
+### Allowed Users
+
+Access is controlled via the `SLACK_ALLOW_FROM` secret (JSON array of Slack user IDs). Current allow list:
+
+| User | Slack ID |
+|------|----------|
+| David Allison | U082DEF37PC |
+| Michael Wong | U081YTU8JCX |
+| Debbie Sabin | U0ADABVCVH8 |
+| Hao | U05PJJS5XST |
+| Luc | U07LD2KVA58 |
+| Trinh | U07EW4CD78C |
+| Nghia | U08FP393H4J |
+| Dai Kong | U084XE4S43G |
+| Duc | U08NGTS8Y5B |
+
+To update: modify `SLACK_ALLOW_FROM` in AWS Secrets Manager and redeploy.
+
+### Slack Channels
+
+| Channel | ID | Purpose |
+|---------|----|---------|
+| #leads | C089JBLCFLL | Customer-facing, all agents active |
+| #dev | C086N5031LZ | Development discussion |
+| #agentic-dev | C0AKWU052CW | Private — agent platform development |
+
+Agents use `groupPolicy: "open"` and `requireMention: true`, meaning they respond in **any** channel when @mentioned (not restricted to specific channels).
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 22+
+- npm
+- AWS CLI (for e2e tests and CDK deploys)
+
+### Install and Build
+
+```bash
+git clone https://github.com/LMNTL-AI/openclaw-agents.git
+cd openclaw-agents
+npm ci
+npm run build
+```
+
+### Environment Setup
+
+Copy the example env file and fill in your values:
+
+```bash
+cp .env.example .env
+# Edit .env with your actual secrets
+```
+
+See [docs/secrets.md](docs/secrets.md) for where to obtain each token.
+
+## Testing
+
+### Running Tests Locally
+
+```bash
+# Unit + CDK infrastructure tests (156 tests, ~6s)
+npx jest test/entrypoint.test.ts test/openclaw-agents.test.ts
+
+# End-to-end tests (requires AWS CLI + live credentials)
+npx jest test/e2e/e2e.test.ts
+```
+
+### Test Suites
+
+| Suite | File | Tests | What It Covers |
+|-------|------|-------|----------------|
+| Entrypoint | `test/entrypoint.test.ts` | 134 | Outer entrypoint: secret extraction, env var derivation, Slack config, MCP setup, streaming config, channel injection, bootstrap logic, .env.example completeness |
+| CDK Infrastructure | `test/openclaw-agents.test.ts` | 22 | AWS resources: VPC, EC2, IAM roles, security groups, CloudWatch alarms, SSM permissions, OIDC federation |
+| E2E Integration | `test/e2e/e2e.test.ts` | 6 | Live deployment: secrets reachable, container running, agents responsive via Slack DM (requires AWS credentials) |
+
+### Test Tiers
+
+The SDLC defines five test tiers — see [docs/playbooks/sdlc.md](docs/playbooks/sdlc.md) for the full breakdown. The CI/CD pipeline gates on Tier 1 (unit tests) before every deploy.
 
 ## Deployment (CI/CD Only)
 
 All deployments go through GitHub Actions. No manual deploys to EC2.
 
-```
-git tag v1.x.x && git push origin v1.x.x
+```bash
+git tag v1.x.x && git push origin main --tags
 ```
 
-The pipeline:
-1. **Tests** — `npx jest` must pass before deploy proceeds
-2. **Deploy via SSM** — sends `deploy.sh <tag>` to the instance
+The pipeline (`.github/workflows/deploy.yml`):
+1. **Tests** — unit + CDK tests must pass before deploy proceeds
+2. **Deploy via SSM** — sends `deploy.sh <tag>` to the EC2 instance
 3. **Verify** — checks docker logs for bootstrap success and Slack connections
 4. **Notify** — posts to Slack #leads on failure
 
@@ -120,11 +204,13 @@ openclaw-agents/
 │   ├── healthcheck.sh             # Basic health check
 │   ├── rollback.sh                # Rollback helper
 │   ├── setup-secrets.sh           # Secrets provisioning
-│   └── create-slack-apps.sh       # Slack app creation guide
+│   ├── create-slack-apps.sh       # Slack app creation guide
+│   ├── github-app-token.sh        # GitHub App installation token generator
+│   └── github-token-refresh.sh    # Background GitHub token refresh loop
 ├── test/
-│   ├── entrypoint.test.ts         # Entrypoint unit tests (52 assertions)
-│   ├── openclaw-agents.test.ts    # CDK infrastructure tests (22 assertions)
-│   └── e2e/e2e.test.ts           # End-to-end integration tests
+│   ├── entrypoint.test.ts         # Entrypoint unit tests (134 tests)
+│   ├── openclaw-agents.test.ts    # CDK infrastructure tests (22 tests)
+│   └── e2e/e2e.test.ts           # End-to-end integration tests (6 tests)
 ├── docs/                          # Architecture, playbooks, runbooks
 └── package.json                   # Dependencies (aws-cdk, jest, ts-jest)
 ```
@@ -146,6 +232,7 @@ All resources in LMNTL Agent Automation (122015479852), us-east-1:
 | Document | Purpose |
 |----------|---------|
 | [architecture.md](docs/architecture.md) | System design, container lifecycle, MCP tools |
+| [agent-capability-matrix.md](docs/agent-capability-matrix.md) | Agent roles, tool access, testing procedures |
 | [secrets.md](docs/secrets.md) | All secrets, rotation procedures |
 | [sdlc.md](docs/playbooks/sdlc.md) | Full development lifecycle for all changes |
 | [deploy.md](docs/playbooks/deploy.md) | Deployment procedures and CI/CD pipeline |
