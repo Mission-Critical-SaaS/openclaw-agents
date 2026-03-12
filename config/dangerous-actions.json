@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "description": "Registry of destructive/sensitive actions requiring explicit confirmation. Agents check this before executing matching operations. Injected into each agent's workspace at deploy time as .dangerous-actions.json.",
+  "confirmation_levels": {
+    "none": "No confirmation needed",
+    "explicit": "Agent asks 'Are you sure you want to [action]?' and waits for yes/confirm before proceeding",
+    "double": "Agent states exact consequences, asks user to reply with the confirmation phrase 'CONFIRM [ACTION]', then asks once more before proceeding"
+  },
+  "dangerous_actions": [
+    {
+      "pattern": "jira_delete_issue",
+      "description": "Delete a Jira issue permanently",
+      "min_tier": "admin",
+      "confirmation": "double",
+      "consequence": "Issue and all comments/attachments will be permanently deleted"
+    },
+    {
+      "pattern": "jira_bulk_transition",
+      "description": "Transition multiple Jira issues at once (3+ issues)",
+      "min_tier": "developer",
+      "confirmation": "explicit",
+      "consequence": "Multiple issues will change status simultaneously"
+    },
+    {
+      "pattern": "jira_modify_sprint",
+      "description": "Move issues between sprints or modify sprint scope",
+      "min_tier": "developer",
+      "confirmation": "explicit",
+      "consequence": "Sprint scope and planning will be affected"
+    },
+    {
+      "pattern": "zendesk_delete_ticket",
+      "description": "Delete a Zendesk ticket",
+      "min_tier": "admin",
+      "confirmation": "double",
+      "consequence": "Ticket and all customer correspondence will be permanently deleted"
+    },
+    {
+      "pattern": "zendesk_bulk_update",
+      "description": "Update multiple Zendesk tickets at once (3+ tickets)",
+      "min_tier": "developer",
+      "confirmation": "explicit",
+      "consequence": "Multiple customer tickets will be modified simultaneously"
+    },
+    {
+      "pattern": "zendesk_merge_tickets",
+      "description": "Merge Zendesk tickets together",
+      "min_tier": "developer",
+      "confirmation": "explicit",
+      "consequence": "Merged tickets cannot be unmerged; customer history will be combined"
+    },
+    {
+      "pattern": "zendesk_public_reply",
+      "description": "Send a public reply to a customer on a Zendesk ticket",
+      "min_tier": "support",
+      "confirmation": "explicit",
+      "consequence": "Customer will receive this message directly via email"
+    },
+    {
+      "pattern": "github_delete_branch",
+      "description": "Delete a GitHub branch",
+      "min_tier": "developer",
+      "confirmation": "explicit",
+      "consequence": "Branch and any unmerged commits will be lost"
+    },
+    {
+      "pattern": "github_force_push",
+      "description": "Force push to any branch",
+      "min_tier": "admin",
+      "confirmation": "double",
+      "consequence": "Remote branch history will be rewritten; other developers may lose work"
+    },
+    {
+      "pattern": "github_merge_pr",
+      "description": "Merge a pull request",
+      "min_tier": "developer",
+      "confirmation": "explicit",
+      "consequence": "Code will be merged into the target branch"
+    },
+    {
+      "pattern": "github_close_issue",
+      "description": "Close a GitHub issue or PR without merging",
+      "min_tier": "developer",
+      "confirmation": "explicit",
+      "consequence": "Issue/PR will be closed and removed from active tracking"
+    },
+    {
+      "pattern": "notion_delete_page",
+      "description": "Delete a Notion page or database",
+      "min_tier": "developer",
+      "confirmation": "explicit",
+      "consequence": "Page and all sub-pages will be moved to trash"
+    },
+    {
+      "pattern": "notion_bulk_edit",
+      "description": "Edit multiple Notion pages at once (3+ pages)",
+      "min_tier": "developer",
+      "confirmation": "explicit",
+      "consequence": "Multiple knowledge base pages will be modified simultaneously"
+    },
+    {
+      "pattern": "zoho_delete_record",
+      "description": "Delete a Zoho CRM record (contact, deal, account)",
+      "min_tier": "admin",
+      "confirmation": "double",
+      "consequence": "CRM record and associated data will be permanently deleted"
+    },
+    {
+      "pattern": "zoho_bulk_update",
+      "description": "Bulk update Zoho CRM records (3+ records)",
+      "min_tier": "developer",
+      "confirmation": "explicit",
+      "consequence": "Multiple CRM records will be modified simultaneously"
+    },
+    {
+      "pattern": "zoho_modify_pipeline",
+      "description": "Change deal stages or pipeline configuration",
+      "min_tier": "admin",
+      "confirmation": "double",
+      "consequence": "Sales pipeline structure will be changed for all users"
+    }
+  ]
+}
