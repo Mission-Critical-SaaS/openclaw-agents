@@ -13,6 +13,10 @@
     "support": {
       "description": "Support team — read-heavy, limited writes",
       "permissions": ["read", "write-tickets", "write-comments"]
+    },
+    "agent": {
+      "description": "Sibling agents (Kit, Trak, Scout) — cross-agent dispatch only",
+      "permissions": ["read", "write", "deploy", "cross-agent-dispatch"]
     }
   },
   "default_tier": "support",
@@ -25,6 +29,9 @@
     "U07EW4CD78C": "developer",
     "U08FP393H4J": "support",
     "U084XE4S43G": "support",
-    "U08NGTS8Y5B": "support"
+    "U08NGTS8Y5B": "support",
+    "U0AKF614URE": "agent",
+    "U0AJLT30KMG": "agent",
+    "U0AJEGUSELB": "agent"
   }
 }
