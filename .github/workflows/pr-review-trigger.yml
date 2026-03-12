@@ -47,7 +47,7 @@ jobs:
           curl -s -X POST "$SLACK_WEBHOOK" \
             -H "Content-Type: application/json" \
             -d "{
-              \"text\": \"📋 *PR Review Requested*\n*Repo*: ${{ github.repository }}\n*PR*: #${{ github.event.pull_request.number }} — ${TITLE}\n*Author*: ${{ github.event.pull_request.user.login }}\n*Jira*: ${{ steps.jira.outputs.key }}\n*URL*: ${{ github.event.pull_request.html_url }}\n\n@Kit please run ensemble review.\"
+              \"text\": \"📋 *PR Review Requested*\n*Repo*: ${{ github.repository }}\n*PR*: #${{ github.event.pull_request.number }} — ${TITLE}\n*Author*: ${{ github.event.pull_request.user.login }}\n*Jira*: ${{ steps.jira.outputs.key }}\n*URL*: ${{ github.event.pull_request.html_url }}\n\n<@U0AKF614URE> please run ensemble review.\"
             }"
 
       - name: Log review request (fallback if no webhook)
