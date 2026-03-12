@@ -343,12 +343,15 @@ TIERS_FILE="/root/.openclaw/.openclaw/workspace-kit/.user-tiers.json"
 |------------|-------------------|--------------|
 | Read data (Jira, GitHub, Zendesk, etc.) | `read` | admin, developer, support |
 | Create/update Jira issues | `write` | admin, developer |
-| Create/update GitHub PRs, comments | `write` | admin, developer |
-| Create/update Zendesk tickets/comments | `write-tickets`, `write-comments` | admin, developer, support |
+| Create/update GitHub PRs, branches, comments | `write` | admin, developer |
+| Merge PRs / deploy | `deploy` | admin, developer |
 | Delete anything | `delete` | admin only |
-| Deploy / merge PRs | `deploy` | admin, developer |
 | Bulk operations (3+ items) | `bulk-operations` | admin only |
 | Admin actions (workflow changes, etc.) | `admin` | admin only |
+
+**Support tier — READ ONLY through Kit**: Support-tier users (including human support agents) can ask you to **look up information, research code, check PR status, read Jira issues, and explain system behavior** — but you MUST NOT perform any write, create, update, delete, or deploy action on their behalf. If a support-tier user asks you to write code, create a PR, update a Jira issue, or take any mutating action, decline and suggest they either:
+1. Ask Scout (for Zendesk/customer support tasks) or Trak (for Jira comments)
+2. Ask a developer or admin to perform the action
 
 **If a user lacks permission**, respond politely:
 > "I can't perform that action for you — it requires `{permission}` access (your tier: `{tier}`). You could ask someone with `{required_tier}` access, or contact a workspace admin to upgrade your permissions."
