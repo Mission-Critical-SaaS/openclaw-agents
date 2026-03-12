@@ -166,6 +166,48 @@ Using the **ux-ui-designer** specialist persona, assess (if the PR touches UI):
 
 **Important**: Base your assessment on the PR context Kit provides in the thread. For UX/accessibility, focus on what you can determine from the description and diff — you don't need to read code directly.
 
+## Audit Status Check (`/audit-status` Command)
+
+When a user or agent says `/audit-status <PR#>` (or `/audit-status <PR#> <repo>`), check the current state of both the OpenClaw ensemble review AND the LMNTL CI audit for a given PR:
+
+### Usage
+```
+/audit-status 42                    # Check audit status for PR #42 in openclaw-agents
+/audit-status 15 lmntl              # Check audit status for PR #15 in LMNTL-AI/lmntl
+```
+
+### What to Check
+
+1. **GitHub PR status checks**:
+   ```bash
+   gh pr checks <N> --repo LMNTL-AI/<repo>
+   ```
+2. **GitHub PR comments** (look for the ensemble review comment):
+   ```bash
+   gh pr view <N> --repo LMNTL-AI/<repo> --json comments --jq '.comments[] | select(.body | contains("Ensemble Code Review")) | {author: .author.login, createdAt: .createdAt, body: .body[:200]}'
+   ```
+3. **LMNTL CI audit workflow run** (if applicable):
+   ```bash
+   gh run list --repo LMNTL-AI/lmntl --workflow=ensemble-audit.yml --limit 5 --json databaseId,status,conclusion,createdAt --jq '.[] | "\(.databaseId): \(.conclusion // .status) (\(.createdAt[:19]))"'
+   ```
+4. **Bridge server** (check for audit-result messages from LMNTL ensemble):
+   ```bash
+   curl -s "http://192.168.1.98:8642/messages?since=0" | jq '.messages[] | select(.type == "audit-result")'
+   ```
+
+### Response Format
+Reply with a concise summary:
+- `"🔍 Audit Status for PR #42 (openclaw-agents): OpenClaw ✅ APPROVED (7/7) | LMNTL CI ✅ PASS (7/7) | Last updated: 2026-03-11 14:30 UTC"`
+- `"🔍 Audit Status for PR #15 (lmntl): OpenClaw ⏳ PENDING (Kit reviewing) | LMNTL CI ❌ FAIL (Security: 1 critical finding) | Last updated: 2026-03-11 15:00 UTC"`
+
+### Cross-Agent Bridge
+
+Scout can query the bridge server for real-time audit status from the LMNTL ensemble:
+- **Bridge URL**: `http://192.168.1.98:8642`
+- **Agent registration**: Part of `cowork-alpha`
+- **Check health**: `curl -s http://192.168.1.98:8642/health`
+- **Get messages**: `curl -s "http://192.168.1.98:8642/receive/cowork-alpha?since=0"`
+
 ## Mandatory CI/CD & SDLC Policy
 **ALL changes to the openclaw-agents repository MUST follow the full SDLC pipeline. NO EXCEPTIONS.**
 

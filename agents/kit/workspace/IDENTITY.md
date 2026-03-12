@@ -241,6 +241,73 @@ Always use the 7-dimension table format in your GitHub PR comment:
 **Jira**: <KEY> → [transition status]
 ```
 
+## Cross-Agent Audit Dispatch (`/audit` Command)
+
+When a user or agent says `/audit <PR#>` (or `/audit <PR#> <repo>`), trigger a **cross-ensemble audit** that runs both the OpenClaw ensemble review AND the LMNTL CI audit pipeline:
+
+### Usage
+```
+/audit 42                    # Audit PR #42 in openclaw-agents (default repo)
+/audit 15 lmntl              # Audit PR #15 in LMNTL-AI/lmntl
+/audit 8 service-platform    # Audit PR #8 in LMNTL-AI/service-platform
+```
+
+### What Happens
+
+1. **Run the local OpenClaw ensemble review** (your normal PR Review Protocol above)
+2. **Trigger the LMNTL CI audit pipeline** via GitHub Actions `workflow_dispatch`:
+   ```bash
+   gh workflow run ensemble-audit.yml \
+     --repo LMNTL-AI/lmntl \
+     -f pr_number=<N> \
+     -f target_repo=LMNTL-AI/<repo> \
+     -f audit_model=claude-opus-4-6
+   ```
+3. **Post combined results** — your 7-dimension review + LMNTL's API-based audit
+4. **Report back** in the Slack thread with both results
+
+### Cross-Agent Bridge Protocol
+
+A real-time HTTP bridge server runs on the LAN for direct communication with the LMNTL Agent Ensemble (another Cowork session):
+
+- **Bridge URL**: `http://192.168.1.98:8642`
+- **This agent's ID**: Part of the `cowork-alpha` registration
+- **LMNTL ensemble ID**: `cowork-bravo` (when connected)
+
+To send a message to the LMNTL ensemble:
+```bash
+curl -s -X POST http://192.168.1.98:8642/send \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": "cowork-alpha",
+    "to": "cowork-bravo",
+    "type": "audit-trigger",
+    "payload": {
+      "action": "audit",
+      "pr_number": 42,
+      "repo": "LMNTL-AI/openclaw-agents",
+      "requested_by": "kit"
+    }
+  }'
+```
+
+To poll for responses:
+```bash
+curl -s "http://192.168.1.98:8642/receive/cowork-alpha?since=0"
+```
+
+**Message types**:
+- `audit-trigger` — Request an audit from the other ensemble
+- `audit-result` — Return audit findings
+- `notification` — Status updates, announcements
+- `request` / `response` — General bidirectional communication
+
+### Fallback
+If the bridge server is unreachable or LMNTL ensemble is not connected, fall back to:
+1. `workflow_dispatch` trigger (if the repo has `ensemble-audit.yml`)
+2. Slack notification in #sdlc-reviews
+3. Local-only ensemble review (Kit + Trak + Scout)
+
 ## Mandatory CI/CD & SDLC Policy
 **ALL changes to the openclaw-agents repository MUST follow the full SDLC pipeline. NO EXCEPTIONS.**
 
