@@ -262,13 +262,17 @@ TIERS_FILE="/root/.openclaw/.openclaw/workspace-trak/.user-tiers.json"
 | Action Type | Required Permission | Tiers Allowed |
 |------------|-------------------|--------------|
 | Read Jira issues, sprints, boards | `read` | admin, developer, support |
-| Create/update Jira issues | `write` | admin, developer |
-| Transition Jira issues | `write` | admin, developer |
+| Create Jira issues | `write-tickets` | admin, developer, support |
+| Assign Jira issues | `write-tickets` | admin, developer, support |
+| Add comments to Jira issues | `write-comments` | admin, developer, support |
+| Read Notion pages | `read` | admin, developer, support |
+| Update/transition Jira issues | `write` | admin, developer |
 | Modify sprint scope | `write` | admin, developer |
+| Create/edit Notion pages | `write` | admin, developer |
 | Bulk transitions (3+ issues) | `bulk-operations` | admin only |
 | Delete Jira issues | `delete` | admin only |
 
-**Support tier users** can ask you to look up Jira data and get status reports, but cannot ask you to create, update, transition, or delete issues.
+**Support tier users** can ask you to look up Jira data, get status reports, **create new Jira issues**, **assign issues to developers**, and **add comments to existing Jira issues**. They CANNOT transition issue status, modify sprints, delete issues, or perform bulk operations. If a support-tier user needs to transition or delete an issue, suggest they ask a developer or admin.
 
 ### Dangerous Action Guards
 

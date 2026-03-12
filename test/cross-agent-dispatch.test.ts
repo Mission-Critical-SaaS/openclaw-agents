@@ -1056,7 +1056,7 @@ describe('Security Controls', () => {
       // tier_lookup covers known users
       expect(tiers.tier_lookup).toBeDefined();
       const lookupUserIds = Object.keys(tiers.tier_lookup);
-      expect(lookupUserIds.length).toBeGreaterThanOrEqual(9);
+      expect(lookupUserIds.length).toBeGreaterThanOrEqual(14);
 
       // Every user in tier_lookup maps to a valid tier
       Object.values(tiers.tier_lookup).forEach((tier) => {
@@ -1127,6 +1127,7 @@ describe('Security Controls', () => {
         'U082DEF37PC', 'U081YTU8JCX', 'U0ADABVCVH8',
         'U05PJJS5XST', 'U07LD2KVA58', 'U07EW4CD78C',
         'U08FP393H4J', 'U084XE4S43G', 'U08NGTS8Y5B',
+        'U08FAE33NE5', 'U08A9B8065N',
       ];
 
       knownUsers.forEach((userId) => {
@@ -1256,6 +1257,67 @@ describe('Security Controls', () => {
       expect(content).toContain('anomal');
       expect(content).toContain('SLACK_BOT_TOKEN');
       expect(content).toContain('threshold');
+    });
+  });
+
+  describe('Support Tier Enforcement', () => {
+    test('human support agents (Jonathan, Imrane) are mapped to support tier', () => {
+      const tiersPath = join(ROOT, 'config', 'user-tiers.json');
+      const tiers = JSON.parse(readFileSync(tiersPath, 'utf-8'));
+      expect(tiers.tier_lookup['U08FAE33NE5']).toBe('support');
+      expect(tiers.tier_lookup['U08A9B8065N']).toBe('support');
+    });
+
+    test('support tier has read, write-tickets, write-comments but NOT write, delete, deploy, admin', () => {
+      const tiersPath = join(ROOT, 'config', 'user-tiers.json');
+      const tiers = JSON.parse(readFileSync(tiersPath, 'utf-8'));
+      const supportPerms = tiers.tiers.support.permissions;
+      expect(supportPerms).toContain('read');
+      expect(supportPerms).toContain('write-tickets');
+      expect(supportPerms).toContain('write-comments');
+      expect(supportPerms).not.toContain('write');
+      expect(supportPerms).not.toContain('delete');
+      expect(supportPerms).not.toContain('deploy');
+      expect(supportPerms).not.toContain('admin');
+      expect(supportPerms).not.toContain('bulk-operations');
+    });
+
+    test('Kit IDENTITY.md enforces read-only for support tier', () => {
+      const content = readAgent(AGENTS[0]);
+      expect(content).toMatch(/[Ss]upport.*[Rr]ead[- ][Oo]nly/i);
+      expect(content).toMatch(/MUST NOT perform any write/i);
+    });
+
+    test('Trak IDENTITY.md allows support tier to create issues, assign, and add comments', () => {
+      const content = readAgent(AGENTS[2]);
+      expect(content).toMatch(/[Cc]reate.*[Jj]ira.*issues/i);
+      expect(content).toMatch(/[Aa]ssign.*[Jj]ira.*issues/i);
+      expect(content).toMatch(/[Aa]dd comments.*[Jj]ira/i);
+      expect(content).toMatch(/CANNOT.*transition.*status|CANNOT.*delete/i);
+    });
+
+    test('Scout IDENTITY.md allows support tier to manage Zendesk tickets', () => {
+      const content = readAgent(AGENTS[1]);
+      expect(content).toContain('write-tickets');
+      expect(content).toContain('write-comments');
+      expect(content).toMatch(/support.*\*\*requires confirmation\*\*/i);
+    });
+
+    test('tier_lookup has at least 14 entries (admins + devs + support + agents)', () => {
+      const tiersPath = join(ROOT, 'config', 'user-tiers.json');
+      const tiers = JSON.parse(readFileSync(tiersPath, 'utf-8'));
+      expect(Object.keys(tiers.tier_lookup).length).toBeGreaterThanOrEqual(14);
+    });
+
+    test('no dangerous action allows support tier as min_tier except zendesk_public_reply', () => {
+      const dangerPath = join(ROOT, 'config', 'dangerous-actions.json');
+      const danger = JSON.parse(readFileSync(dangerPath, 'utf-8'));
+      const supportMinActions = danger.dangerous_actions.filter(
+        (a: any) => a.min_tier === 'support'
+      );
+      supportMinActions.forEach((action: any) => {
+        expect(action.pattern).toBe('zendesk_public_reply');
+      });
     });
   });
 });
