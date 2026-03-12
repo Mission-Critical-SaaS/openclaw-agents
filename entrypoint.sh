@@ -89,6 +89,7 @@ for name, bk, ak in [
             'dmPolicy': 'allowlist',
             'groupPolicy': 'open',
             'requireMention': True,
+            'allowBots': True,
             'allowFrom': allow_from
         }
         print(f'  Added Slack account: {name}')
