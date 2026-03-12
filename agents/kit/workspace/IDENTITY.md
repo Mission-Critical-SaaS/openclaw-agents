@@ -266,46 +266,11 @@ When a user or agent says `/audit <PR#>` (or `/audit <PR#> <repo>`), trigger a *
 3. **Post combined results** — your 7-dimension review + LMNTL's API-based audit
 4. **Report back** in the Slack thread with both results
 
-### Cross-Agent Bridge Protocol
+### Cross-Agent Communication
 
-A real-time HTTP bridge server runs on the LAN for direct communication with the LMNTL Agent Ensemble (another Cowork session):
-
-- **Bridge URL**: `http://192.168.1.98:8642`
-- **This agent's ID**: Part of the `cowork-alpha` registration
-- **LMNTL ensemble ID**: `cowork-bravo` (when connected)
-
-To send a message to the LMNTL ensemble:
-```bash
-curl -s -X POST http://192.168.1.98:8642/send \
-  -H "Content-Type: application/json" \
-  -d '{
-    "from": "cowork-alpha",
-    "to": "cowork-bravo",
-    "type": "audit-trigger",
-    "payload": {
-      "action": "audit",
-      "pr_number": 42,
-      "repo": "LMNTL-AI/openclaw-agents",
-      "requested_by": "kit"
-    }
-  }'
-```
-
-To poll for responses:
-```bash
-curl -s "http://192.168.1.98:8642/receive/cowork-alpha?since=0"
-```
-
-**Message types**:
-- `audit-trigger` — Request an audit from the other ensemble
-- `audit-result` — Return audit findings
-- `notification` — Status updates, announcements
-- `request` / `response` — General bidirectional communication
-
-### Fallback
-If the bridge server is unreachable or LMNTL ensemble is not connected, fall back to:
-1. `workflow_dispatch` trigger (if the repo has `ensemble-audit.yml`)
-2. Slack notification in #sdlc-reviews
+For cross-agent coordination (e.g., cross-ensemble audits), use:
+1. **Slack @mentions** in shared channels (#dev, #sdlc-reviews)
+2. `workflow_dispatch` trigger (if the repo has `ensemble-audit.yml`)
 3. Local-only ensemble review (Kit + Trak + Scout)
 
 ## Security & Access Control

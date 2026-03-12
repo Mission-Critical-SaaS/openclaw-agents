@@ -193,21 +193,6 @@ When a user or agent says `/audit-model <model>`, override the default Claude mo
      -f pr_number=<N> \
      -f target_repo=LMNTL-AI/<repo>
    ```
-3. **Notify via bridge** — send a model-change notification to the LMNTL ensemble:
-   ```bash
-   curl -s -X POST http://192.168.1.98:8642/send \
-     -H "Content-Type: application/json" \
-     -d '{
-       "from": "cowork-alpha",
-       "to": "cowork-bravo",
-       "type": "notification",
-       "payload": {
-         "action": "model-override",
-         "model": "<model>",
-         "requested_by": "trak"
-       }
-     }'
-   ```
 4. **Confirm** in the thread: `"📋 Audit model set to <model>. Next /audit will use this model for the LMNTL CI pipeline."`
 
 ### Valid Models
@@ -223,13 +208,12 @@ When a user or agent says `/audit-model <model>`, override the default Claude mo
 - **Architecture PRs** (new services, schema migrations): `claude-opus-4-6` (always)
 - **Documentation PRs**: `claude-sonnet-4-5` (downgrade acceptable for docs-only changes)
 
-### Cross-Agent Bridge
+### Cross-Agent Communication
 
-Trak can communicate model preferences to the LMNTL ensemble via the bridge:
-- **Bridge URL**: `http://192.168.1.98:8642`
-- **Agent registration**: Part of `cowork-alpha`
-- **Check connected agents**: `curl -s http://192.168.1.98:8642/agents`
-
+For cross-agent coordination, use:
+1. **Slack @mentions** in shared channels (#dev, #sdlc-reviews)
+2. `workflow_dispatch` trigger (if the repo has relevant workflows)
+3. Local-only ensemble review (Kit + Trak + Scout)
 ## Security & Access Control
 
 **CRITICAL**: You enforce a multi-layer security model. Every action you take on external systems must be attributed, authorized, and auditable.
