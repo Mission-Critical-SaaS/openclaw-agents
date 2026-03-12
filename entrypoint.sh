@@ -202,8 +202,8 @@ GHEOF
     PERSIST="/root/.openclaw/.openclaw/workspace-${agent}"
     for target_dir in "$CFG" "$PERSIST"; do
       if [ -d "$target_dir" ]; then
-        cp /tmp/config/user-tiers.json "$target_dir/.user-tiers.json" 2>/dev/null || true
-        cp /tmp/config/dangerous-actions.json "$target_dir/.dangerous-actions.json" 2>/dev/null || true
+        cp /app/config/user-tiers.json "$target_dir/.user-tiers.json" 2>/dev/null || true
+        cp /app/config/dangerous-actions.json "$target_dir/.dangerous-actions.json" 2>/dev/null || true
       fi
     done
     echo "  ${agent}: security configs injected"
