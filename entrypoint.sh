@@ -191,6 +191,25 @@ GHEOF
   done
 
   # ============================================================
+  # SECURITY CONFIG INJECTION
+  # Copy user-tiers and dangerous-actions configs into each
+  # agent's workspace so they can enforce RBAC and action guards.
+  # Dot-prefixed to avoid cluttering the agent's visible workspace.
+  # ============================================================
+  echo "Injecting security configs into agent workspaces..."
+  for agent in scout trak kit; do
+    CFG="/root/.openclaw/agents/${agent}/workspace"
+    PERSIST="/root/.openclaw/.openclaw/workspace-${agent}"
+    for target_dir in "$CFG" "$PERSIST"; do
+      if [ -d "$target_dir" ]; then
+        cp /tmp/config/user-tiers.json "$target_dir/.user-tiers.json" 2>/dev/null || true
+        cp /tmp/config/dangerous-actions.json "$target_dir/.dangerous-actions.json" 2>/dev/null || true
+      fi
+    done
+    echo "  ${agent}: security configs injected"
+  done
+
+  # ============================================================
   # MEMORY INDEXING
   # The memory system indexes $OPENCLAW_HOME/.openclaw/workspace/
   # (the main workspace) by default. Agent KNOWLEDGE.md files live

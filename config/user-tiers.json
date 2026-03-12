@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "description": "RBAC tier definitions for OpenClaw agent access control. Injected into each agent's workspace at deploy time as .user-tiers.json.",
+  "tiers": {
+    "admin": {
+      "description": "Full access — org owners, lead devs",
+      "permissions": ["read", "write", "delete", "deploy", "admin", "bulk-operations"]
+    },
+    "developer": {
+      "description": "Standard dev access — code, tickets, deploys",
+      "permissions": ["read", "write", "deploy"]
+    },
+    "support": {
+      "description": "Support team — read-heavy, limited writes",
+      "permissions": ["read", "write-tickets", "write-comments"]
+    }
+  },
+  "default_tier": "support",
+  "tier_lookup": {
+    "U082DEF37PC": "admin",
+    "U081YTU8JCX": "admin",
+    "U0ADABVCVH8": "developer",
+    "U05PJJS5XST": "developer",
+    "U07LD2KVA58": "developer",
+    "U07EW4CD78C": "developer",
+    "U08FP393H4J": "support",
+    "U084XE4S43G": "support",
+    "U08NGTS8Y5B": "support"
+  }
+}
