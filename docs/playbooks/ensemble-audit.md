@@ -56,6 +56,21 @@ Every finding MUST include:
 
 Historical false positive rate is ~40-50%. Always verify findings against actual code before flagging.
 
+## Cross-Agent Communication Model
+
+All three agents run as separate Slack bots connected via Socket Mode. Communication constraints:
+
+**Channels** (e.g., #sdlc-reviews, #dev): All agents are present. @mentions using real Slack user IDs are delivered via Socket Mode. Ensemble reviews happen here in threads.
+
+**DMs**: Each DM is a 1:1 conversation between one user and one agent. Agents CANNOT reach each other from DMs — there is no inter-agent message bus. If a user asks an agent about another agent's domain in a DM, the agent should direct them to DM the other agent directly.
+
+**Agent Slack User IDs** (for @mentions in channels):
+- Kit ⚡: `U0AKF614URE`
+- Scout 🔍: `U0AJLT30KMG`
+- Trak 📋: `U0AJEGUSELB`
+
+This is why ensemble reviews MUST happen in a shared channel (#sdlc-reviews), not in DMs.
+
 ## Agent Roles
 
 ### Kit ⚡ — Code Review Lead (Dimensions 1, 2, 5, 6, 7)
