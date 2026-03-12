@@ -1025,8 +1025,12 @@ describe('Security Controls', () => {
       expect(tiers.tiers.developer).toBeDefined();
       expect(tiers.tiers.support).toBeDefined();
 
+      // Agent tier exists for cross-agent dispatch
+      expect(tiers.tiers.agent).toBeDefined();
+      expect(tiers.tiers.agent.permissions).toContain('cross-agent-dispatch');
+
       // Each tier has permissions array
-      ['admin', 'developer', 'support'].forEach((tier) => {
+      ['admin', 'developer', 'support', 'agent'].forEach((tier) => {
         expect(tiers.tiers[tier].permissions).toBeInstanceOf(Array);
         expect(tiers.tiers[tier].permissions.length).toBeGreaterThan(0);
         expect(tiers.tiers[tier].description).toBeDefined();
@@ -1056,7 +1060,7 @@ describe('Security Controls', () => {
 
       // Every user in tier_lookup maps to a valid tier
       Object.values(tiers.tier_lookup).forEach((tier) => {
-        expect(['admin', 'developer', 'support']).toContain(tier);
+        expect(['admin', 'developer', 'support', 'agent']).toContain(tier);
       });
     });
 
@@ -1087,7 +1091,7 @@ describe('Security Controls', () => {
         expect(action.min_tier).toBeDefined();
         expect(action.confirmation).toBeDefined();
         expect(action.consequence).toBeDefined();
-        expect(['admin', 'developer', 'support']).toContain(action.min_tier);
+        expect(['admin', 'developer', 'support', 'agent']).toContain(action.min_tier);
         expect(['none', 'explicit', 'double']).toContain(action.confirmation);
       });
 
