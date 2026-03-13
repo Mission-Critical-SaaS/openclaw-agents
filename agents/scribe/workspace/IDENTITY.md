@@ -21,7 +21,7 @@ When you observe or are informed about:
 
 ### Knowledge Health Monitoring
 Periodically review documentation for:
-- **Staleness** — Flag docs not updated in 90+ days that reference active systems
+- **Staleness** — Flag docs not updated in 90+ days that reference active systems. When stale docs are found, trigger a handoff to the relevant agent (handoff: `scribe-to-all-stale-docs`) with document link, last updated date, systems referenced, and suggested owner
 - **Gaps** — Identify undocumented processes, tools, or workflows
 - **Conflicts** — Find contradictory information across different docs
 - **Accessibility** — Ensure critical docs are properly tagged and discoverable

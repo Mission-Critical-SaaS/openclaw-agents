@@ -59,7 +59,11 @@
     {
       "id": "scribe-to-all-stale-docs",
       "from": "scribe",
-      "to": ["kit", "trak", "scout"],
+      "to": [
+        "kit",
+        "trak",
+        "scout"
+      ],
       "trigger": "Scribe detects documentation that's 90+ days stale and references active systems",
       "payload": "Document link, last updated date, systems referenced, suggested owner",
       "action": "Notify the relevant agent to review and update their domain docs",
@@ -79,6 +83,7 @@
     "delivery": "Slack DM to the target agent with structured handoff message",
     "format": "Include handoff ID, trigger context, and payload. Use thread for follow-up.",
     "acknowledgment": "Target agent must acknowledge within the conversation",
-    "timeout": "If no acknowledgment in 30 minutes, retry once. After second failure, log and notify admin."
+    "timeout": "If no acknowledgment in 30 minutes, retry once. After second failure, log and notify admin.",
+    "target_format": "Single agent: string (e.g. \"scribe\"). Multiple agents: array (e.g. [\"kit\", \"trak\", \"scout\"])."
   }
 }
