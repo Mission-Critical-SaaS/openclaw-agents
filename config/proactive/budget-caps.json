@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "description": "Per-agent budget caps for proactive operations. Agents read this at runtime from .budget-caps.json in their workspace.",
+  "caps": {
+    "kit": {
+      "daily": {
+        "github_api_calls": 50,
+        "slack_messages": 20,
+        "jira_updates": 10
+      },
+      "monthly": {
+        "github_api_calls": 1000,
+        "slack_messages": 400,
+        "jira_updates": 200
+      },
+      "per_action": {
+        "max_files_per_pr_review": 25,
+        "max_comments_per_review": 15
+      }
+    },
+    "trak": {
+      "daily": {
+        "jira_api_calls": 50,
+        "slack_messages": 30,
+        "notion_updates": 10
+      },
+      "monthly": {
+        "jira_api_calls": 1000,
+        "slack_messages": 600,
+        "notion_updates": 200
+      },
+      "per_action": {
+        "max_issues_per_bulk_update": 10,
+        "max_sprint_reports_per_day": 2
+      }
+    },
+    "scout": {
+      "daily": {
+        "zendesk_api_calls": 100,
+        "slack_messages": 40,
+        "notion_updates": 5
+      },
+      "monthly": {
+        "zendesk_api_calls": 2000,
+        "slack_messages": 800,
+        "notion_updates": 100
+      },
+      "per_action": {
+        "max_tickets_per_summary": 50,
+        "max_auto_responses_per_day": 0
+      }
+    },
+    "scribe": {
+      "daily": {
+        "notion_api_calls": 30,
+        "slack_messages": 15,
+        "confluence_updates": 10
+      },
+      "monthly": {
+        "notion_api_calls": 600,
+        "slack_messages": 300,
+        "confluence_updates": 200
+      },
+      "per_action": {
+        "max_pages_per_batch": 5,
+        "max_knowledge_articles_per_day": 3
+      }
+    }
+  },
+  "enforcement": "advisory",
+  "notes": "Caps are advisory — agents track counts in KNOWLEDGE.md and self-limit. Infrastructure enforcement planned for phase 2."
+}

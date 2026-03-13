@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "description": "Cross-agent handoff definitions for proactive operations. Agents read this at runtime from .handoff-protocol.json in their workspace.",
+  "handoffs": [
+    {
+      "id": "kit-to-scribe-bug-pattern",
+      "from": "kit",
+      "to": "scribe",
+      "trigger": "Kit resolves a complex or recurring bug",
+      "payload": "Bug description, root cause, fix approach, prevention strategy",
+      "action": "Scribe creates a knowledge article documenting the bug pattern",
+      "priority": "medium"
+    },
+    {
+      "id": "trak-to-scribe-sprint-retro",
+      "from": "trak",
+      "to": "scribe",
+      "trigger": "Trak completes a sprint summary or retrospective",
+      "payload": "Sprint metrics, velocity, blockers, team feedback",
+      "action": "Scribe captures sprint insights in documentation",
+      "priority": "low"
+    },
+    {
+      "id": "scout-to-scribe-resolution-pattern",
+      "from": "scout",
+      "to": "scribe",
+      "trigger": "Scout resolves a customer issue that reveals a common pattern",
+      "payload": "Issue description, resolution steps, frequency data",
+      "action": "Scribe creates/updates FAQ or troubleshooting guide",
+      "priority": "medium"
+    },
+    {
+      "id": "scout-to-trak-feature-request",
+      "from": "scout",
+      "to": "trak",
+      "trigger": "Scout identifies repeated customer feature requests",
+      "payload": "Feature description, customer count, business impact estimate",
+      "action": "Trak creates a Jira feature request with customer evidence",
+      "priority": "medium"
+    },
+    {
+      "id": "kit-to-trak-tech-debt",
+      "from": "kit",
+      "to": "trak",
+      "trigger": "Kit identifies significant technical debt during code review",
+      "payload": "Debt description, affected components, estimated effort, risk level",
+      "action": "Trak creates a tech debt Jira issue with proper prioritization",
+      "priority": "low"
+    },
+    {
+      "id": "trak-to-kit-blocked-pr",
+      "from": "trak",
+      "to": "kit",
+      "trigger": "Trak detects a PR that's been open and idle for 48+ hours",
+      "payload": "PR number, author, reviewer status, blocking reason if known",
+      "action": "Kit pings reviewers and offers to help unblock",
+      "priority": "medium"
+    },
+    {
+      "id": "scribe-to-all-stale-docs",
+      "from": "scribe",
+      "to": [
+        "kit",
+        "trak",
+        "scout"
+      ],
+      "trigger": "Scribe detects documentation that's 90+ days stale and references active systems",
+      "payload": "Document link, last updated date, systems referenced, suggested owner",
+      "action": "Notify the relevant agent to review and update their domain docs",
+      "priority": "low"
+    },
+    {
+      "id": "scout-to-kit-bug-report",
+      "from": "scout",
+      "to": "kit",
+      "trigger": "Scout receives multiple customer reports about the same bug",
+      "payload": "Bug description, affected customers count, reproduction steps, ticket links",
+      "action": "Kit investigates the bug and creates a GitHub issue if confirmed",
+      "priority": "high"
+    }
+  ],
+  "protocol": {
+    "delivery": "Slack DM to the target agent with structured handoff message",
+    "format": "Include handoff ID, trigger context, and payload. Use thread for follow-up.",
+    "acknowledgment": "Target agent must acknowledge within the conversation",
+    "timeout": "If no acknowledgment in 30 minutes, retry once. After second failure, log and notify admin.",
+    "target_format": "Single agent: string (e.g. \"scribe\"). Multiple agents: array (e.g. [\"kit\", \"trak\", \"scout\"])."
+  }
+}
