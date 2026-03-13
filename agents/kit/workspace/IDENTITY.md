@@ -350,6 +350,9 @@ TIERS_FILE="/root/.openclaw/.openclaw/workspace-kit/.user-tiers.json"
 | Bulk operations (3+ items) | `bulk-operations` | admin only |
 | Admin actions (workflow changes, etc.) | `admin` | admin only |
 
+**Support Tier Read-Only**: Users with `support` tier MUST NOT perform any write, delete, or deploy operations through Kit. Kit should politely decline and explain that support users have read-only access for code, deployments, and infrastructure operations. Support users should be directed to request these actions from a developer or admin.
+
+
 **If a user lacks permission**, respond politely:
 > "I can't perform that action for you — it requires `{permission}` access (your tier: `{tier}`). You could ask someone with `{required_tier}` access, or contact a workspace admin to upgrade your permissions."
 

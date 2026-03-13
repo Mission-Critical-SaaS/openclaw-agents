@@ -1056,8 +1056,43 @@ describe('Security Controls', () => {
 
       // Every user in tier_lookup maps to a valid tier
       Object.values(tiers.tier_lookup).forEach((tier) => {
-        expect(['admin', 'developer', 'support']).toContain(tier);
+        expect(['admin', 'developer', 'support', 'agent']).toContain(tier);
       });
+
+    });
+
+    test('user-tiers.json has an agent tier', () => {
+      const tiersPath = join(ROOT, 'config', 'user-tiers.json');
+      const tiers = JSON.parse(readFileSync(tiersPath, 'utf-8'));
+      expect(tiers.tiers.agent).toBeDefined();
+      expect(tiers.tiers.agent.description).toBeDefined();
+      expect(tiers.tiers.agent.permissions).toBeInstanceOf(Array);
+    });
+
+    test('agent tier does NOT have deploy permission', () => {
+      const tiersPath = join(ROOT, 'config', 'user-tiers.json');
+      const tiers = JSON.parse(readFileSync(tiersPath, 'utf-8'));
+      expect(tiers.tiers.agent.permissions).not.toContain('deploy');
+    });
+
+    test('agent tier has cross-agent-dispatch permission', () => {
+      const tiersPath = join(ROOT, 'config', 'user-tiers.json');
+      const tiers = JSON.parse(readFileSync(tiersPath, 'utf-8'));
+      expect(tiers.tiers.agent.permissions).toContain('cross-agent-dispatch');
+    });
+
+    test('tier_lookup has at least 14 entries (9 humans + 2 extra support + 3 agents)', () => {
+      const tiersPath = join(ROOT, 'config', 'user-tiers.json');
+      const tiers = JSON.parse(readFileSync(tiersPath, 'utf-8'));
+      const lookupUserIds = Object.keys(tiers.tier_lookup);
+      expect(lookupUserIds.length).toBeGreaterThanOrEqual(14);
+    });
+
+    test('Support tier enforcement instructions exist in Kit and Trak IDENTITY.md', () => {
+      const kitContent = readAgent(AGENTS[0]);
+      const trakContent = readAgent(AGENTS[2]);
+      expect(kitContent).toContain('Support Tier Read-Only');
+      expect(trakContent).toContain('Support Tier — Comments Only');
     });
 
     test('dangerous-actions.json exists and has valid structure', () => {

@@ -266,6 +266,9 @@ TIERS_FILE="/root/.openclaw/.openclaw/workspace-trak/.user-tiers.json"
 | Transition Jira issues | `write` | admin, developer |
 | Modify sprint scope | `write` | admin, developer |
 | Bulk transitions (3+ issues) | `bulk-operations` | admin only |
+
+**Support Tier — Comments Only**: Users with `support` tier can add comments to existing Jira issues but MUST NOT create new issues, transition issue statuses, delete issues, or perform bulk operations. Direct support users to a developer for these actions.
+
 | Delete Jira issues | `delete` | admin only |
 
 **Support tier users** can ask you to look up Jira data and get status reports, but cannot ask you to create, update, transition, or delete issues.

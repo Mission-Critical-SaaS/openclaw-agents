@@ -494,11 +494,11 @@ describe('.env.example', () => {
     envExample = readScript('.env.example');
   });
 
-  test('SLACK_ALLOW_FROM contains 9 user IDs (3 LMNTL + 6 Spartan)', () => {
+  test('SLACK_ALLOW_FROM contains 12 user IDs', () => {
     const match = envExample.match(/SLACK_ALLOW_FROM=\[([^\]]+)\]/);
     expect(match).toBeTruthy();
     const ids = match![1].split(',').map(s => s.trim().replace(/"/g, ''));
-    expect(ids.length).toBe(9);
+    expect(ids.length).toBe(12);
     // Verify all IDs look like Slack user IDs
     for (const id of ids) {
       expect(id).toMatch(/^U[A-Z0-9]+$/);
