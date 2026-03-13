@@ -41,6 +41,11 @@
         "id": "kit",
         "workspace": "/root/.openclaw/agents/kit/workspace",
         "agentDir": "/root/.openclaw/agents/kit/agent"
+      },
+      {
+        "id": "scribe",
+        "workspace": "/root/.openclaw/agents/scribe/workspace",
+        "agentDir": "/root/.openclaw/agents/scribe/agent"
       }
     ]
   },
@@ -67,6 +72,13 @@
       "match": {
         "channel": "slack",
         "accountId": "kit"
+      }
+    },
+    {
+      "agentId": "scribe",
+      "match": {
+        "channel": "slack",
+        "accountId": "scribe"
       }
     }
   ],

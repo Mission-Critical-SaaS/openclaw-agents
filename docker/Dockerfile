@@ -24,7 +24,7 @@ RUN npm install -g @anthropic/mcp-server-github @aashari/mcp-server-atlassian-ji
 RUN npm install -g @macnishio/zoho-mcp-server 2>/dev/null || true
 
 # Create directory structure
-RUN mkdir -p ${OPENCLAW_HOME}/agents/scout/workspace/skills ${OPENCLAW_HOME}/agents/trak/workspace/skills ${OPENCLAW_HOME}/agents/kit/workspace/skills ${OPENCLAW_HOME}/workspace /data/logs
+RUN mkdir -p ${OPENCLAW_HOME}/agents/scout/workspace/skills ${OPENCLAW_HOME}/agents/trak/workspace/skills ${OPENCLAW_HOME}/agents/kit/workspace/skills ${OPENCLAW_HOME}/agents/scribe/workspace/skills ${OPENCLAW_HOME}/workspace /data/logs
 
 WORKDIR /root
 

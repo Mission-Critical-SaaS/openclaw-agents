@@ -1289,4 +1289,102 @@ describe('Security Controls', () => {
       expect(content).toContain('threshold');
     });
   });
+describe('Proactive Capabilities', () => {
+  describe('Config Files', () => {
+    test('budget-caps.json exists and has valid structure', () => {
+      const capsPath = join(ROOT, 'config', 'proactive', 'budget-caps.json');
+      expect(existsSync(capsPath)).toBe(true);
+      const caps = JSON.parse(readFileSync(capsPath, 'utf-8'));
+      expect(caps.version).toBe(1);
+      expect(caps.caps).toBeDefined();
+      for (const agent of ['kit', 'trak', 'scout', 'scribe']) {
+        expect(caps.caps[agent]).toBeDefined();
+        expect(caps.caps[agent].daily).toBeDefined();
+        expect(caps.caps[agent].monthly).toBeDefined();
+      }
+    });
+
+    test('handoff-protocol.json exists and has valid structure', () => {
+      const handoffPath = join(ROOT, 'config', 'proactive', 'handoff-protocol.json');
+      expect(existsSync(handoffPath)).toBe(true);
+      const handoff = JSON.parse(readFileSync(handoffPath, 'utf-8'));
+      expect(handoff.version).toBe(1);
+      expect(handoff.handoffs).toBeInstanceOf(Array);
+      expect(handoff.handoffs.length).toBeGreaterThanOrEqual(8);
+      expect(handoff.protocol).toBeDefined();
+      for (const h of handoff.handoffs) {
+        expect(h.id).toBeDefined();
+        expect(h.from).toBeDefined();
+        expect(h.to).toBeDefined();
+        expect(h.trigger).toBeDefined();
+        expect(h.action).toBeDefined();
+      }
+    });
+  });
+
+  describe('Scribe Agent', () => {
+    test('Scribe IDENTITY.md exists and has required sections', () => {
+      const scribePath = join(ROOT, 'agents', 'scribe', 'workspace', 'IDENTITY.md');
+      expect(existsSync(scribePath)).toBe(true);
+      const content = readFileSync(scribePath, 'utf-8');
+      expect(content).toContain('Security & Access Control');
+      expect(content).toContain('Action Attribution');
+      expect(content).toContain('User Tier Enforcement');
+      expect(content).toContain('Knowledge Health Monitoring');
+      expect(content).toContain('Cross-Agent Knowledge Capture');
+    });
+
+    test('Scribe KNOWLEDGE.md exists', () => {
+      const knowledgePath = join(ROOT, 'agents', 'scribe', 'workspace', 'KNOWLEDGE.md');
+      expect(existsSync(knowledgePath)).toBe(true);
+    });
+  });
+
+  describe('Agent Proactive Sections', () => {
+    test('Kit, Trak, Scout have Proactive Capabilities sections', () => {
+      for (const agent of ['kit', 'trak', 'scout']) {
+        const content = readFileSync(join(ROOT, 'agents', agent, 'workspace', 'IDENTITY.md'), 'utf-8');
+        expect(content).toContain('Proactive Capabilities');
+        expect(content).toContain('Budget Awareness');
+        expect(content).toContain('Handoff Protocol');
+      }
+    });
+
+    test('Kit has correct proactive handoffs', () => {
+      const content = readFileSync(join(ROOT, 'agents', 'kit', 'workspace', 'IDENTITY.md'), 'utf-8');
+      expect(content).toContain('kit-to-scribe-bug-pattern');
+      expect(content).toContain('kit-to-trak-tech-debt');
+    });
+
+    test('Trak has correct proactive handoffs', () => {
+      const content = readFileSync(join(ROOT, 'agents', 'trak', 'workspace', 'IDENTITY.md'), 'utf-8');
+      expect(content).toContain('trak-to-scribe-sprint-retro');
+      expect(content).toContain('trak-to-kit-blocked-pr');
+    });
+
+    test('Scout has correct proactive handoffs', () => {
+      const content = readFileSync(join(ROOT, 'agents', 'scout', 'workspace', 'IDENTITY.md'), 'utf-8');
+      expect(content).toContain('scout-to-scribe-resolution-pattern');
+      expect(content).toContain('scout-to-trak-feature-request');
+      expect(content).toContain('scout-to-kit-bug-report');
+    });
+  });
+
+  describe('Entrypoint Proactive Config Injection', () => {
+    test('entrypoint.sh copies proactive configs to agent workspaces', () => {
+      const entrypoint = readFile('entrypoint.sh');
+      expect(entrypoint).toContain('budget-caps.json');
+      expect(entrypoint).toContain('handoff-protocol.json');
+      expect(entrypoint).toContain('proactive configs injected');
+    });
+
+    test('Scribe is included in all entrypoint agent loops', () => {
+      const entrypoint = readFile('entrypoint.sh');
+      const scribeLoops = (entrypoint.match(/for agent in.*scribe/g) || []);
+      expect(scribeLoops.length).toBeGreaterThanOrEqual(3);
+    });
+  });
+});
+
+
 });

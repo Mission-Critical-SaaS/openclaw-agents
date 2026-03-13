@@ -239,6 +239,23 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(restartIdx).toBeGreaterThan(wsInjectIdx);
     expect(verifyIdx).toBeGreaterThan(restartIdx);
     expect(bootstrapIdx).toBeGreaterThan(verifyIdx);
+    });
+
+
+  test('Scribe Slack tokens are extracted from secrets', () => {
+    expect(script).toContain('SLACK_BOT_TOKEN_SCRIBE');
+    expect(script).toContain('SLACK_APP_TOKEN_SCRIBE');
+  });
+
+  test('proactive configs are injected into agent workspaces', () => {
+    expect(script).toContain('budget-caps.json');
+    expect(script).toContain('handoff-protocol.json');
+    expect(script).toContain('proactive configs injected');
+  });
+
+  test('Scribe is included in workspace injection loops', () => {
+    const scribeLoops = (script.match(/for agent in.*scribe/g) || []);
+    expect(scribeLoops.length).toBeGreaterThanOrEqual(3);
   });
 });
 
@@ -487,6 +504,7 @@ describe('Agent KNOWLEDGE.md files', () => {
 // ---------------------------------------------------------------------------
 // .env.example — allow list
 // ---------------------------------------------------------------------------
+
 describe('.env.example', () => {
   let envExample: string;
 

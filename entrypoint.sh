@@ -9,6 +9,9 @@ export SLACK_BOT_TOKEN_TRAK=$(echo "$SECRET" | jq -r .SLACK_BOT_TOKEN_TRAK)
 export SLACK_APP_TOKEN_TRAK=$(echo "$SECRET" | jq -r .SLACK_APP_TOKEN_TRAK)
 export SLACK_BOT_TOKEN_KIT=$(echo "$SECRET" | jq -r .SLACK_BOT_TOKEN_KIT)
 export SLACK_APP_TOKEN_KIT=$(echo "$SECRET" | jq -r .SLACK_APP_TOKEN_KIT)
+
+export SLACK_BOT_TOKEN_SCRIBE=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_SCRIBE // empty')
+export SLACK_APP_TOKEN_SCRIBE=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_SCRIBE // empty')
 export ATLASSIAN_SITE_NAME=$(echo "$SECRET" | jq -r .ATLASSIAN_SITE_NAME)
 export ATLASSIAN_USER_EMAIL=$(echo "$SECRET" | jq -r .ATLASSIAN_USER_EMAIL)
 export ATLASSIAN_API_TOKEN=$(echo "$SECRET" | jq -r .ATLASSIAN_API_TOKEN)
@@ -75,6 +78,7 @@ for name, bk, ak in [
     ('scout', 'SLACK_BOT_TOKEN_SCOUT', 'SLACK_APP_TOKEN_SCOUT'),
     ('trak', 'SLACK_BOT_TOKEN_TRAK', 'SLACK_APP_TOKEN_TRAK'),
     ('kit', 'SLACK_BOT_TOKEN_KIT', 'SLACK_APP_TOKEN_KIT'),
+    ('scribe', 'SLACK_BOT_TOKEN_SCRIBE', 'SLACK_APP_TOKEN_SCRIBE'),
 ]:
     bot = os.environ.get(bk, '')
     app = os.environ.get(ak, '')
@@ -161,7 +165,7 @@ GHEOF
   # Note: symlinks don't work â OpenClaw virtual FS doesn't resolve them.
   # ============================================================
   echo "Injecting workspace files into agent workspaces..."
-  for agent in scout trak kit; do
+  for agent in scout trak kit scribe; do
     SRC="/tmp/agents/${agent}/workspace"
     CFG="/root/.openclaw/agents/${agent}/workspace"
     PERSIST="/root/.openclaw/.openclaw/workspace-${agent}"
@@ -198,7 +202,7 @@ GHEOF
   # Dot-prefixed to avoid cluttering the agent's visible workspace.
   # ============================================================
   echo "Injecting security configs into agent workspaces..."
-  for agent in scout trak kit; do
+  for agent in scout trak kit scribe; do
     CFG="/root/.openclaw/agents/${agent}/workspace"
     PERSIST="/root/.openclaw/.openclaw/workspace-${agent}"
     for target_dir in "$CFG" "$PERSIST"; do
@@ -211,6 +215,25 @@ GHEOF
   done
 
   # ============================================================
+  # PROACTIVE CAPABILITIES CONFIG INJECTION
+  # Copy budget caps and handoff protocol configs into each
+  # agent workspace for proactive capability governance.
+  # ============================================================
+  echo "Injecting proactive capability configs into agent workspaces..."
+  for agent in scout trak kit scribe; do
+    CFG="/root/.openclaw/agents/${agent}/workspace"
+    PERSIST="/root/.openclaw/.openclaw/workspace-${agent}"
+    for target_dir in "$CFG" "$PERSIST"; do
+      if [ -d "$target_dir" ]; then
+        cp /app/config/proactive/budget-caps.json "$target_dir/.budget-caps.json" 2>/dev/null || true
+        cp /app/config/proactive/handoff-protocol.json "$target_dir/.handoff-protocol.json" 2>/dev/null || true
+      fi
+    done
+    echo "  ${agent}: proactive configs injected"
+  done
+
+
+  # ============================================================
   # MEMORY INDEXING
   # The memory system indexes $OPENCLAW_HOME/.openclaw/workspace/
   # (the main workspace) by default. Agent KNOWLEDGE.md files live
@@ -221,7 +244,7 @@ GHEOF
   echo "Populating main workspace for memory indexing..."
   MAIN_WS="/root/.openclaw/.openclaw/workspace"
   mkdir -p "$MAIN_WS/memory"
-  for agent in scout trak kit; do
+  for agent in scout trak kit scribe; do
     PERSIST="/root/.openclaw/.openclaw/workspace-${agent}"
     if [ -f "$PERSIST/KNOWLEDGE.md" ]; then
       cp "$PERSIST/KNOWLEDGE.md" "$MAIN_WS/memory/KNOWLEDGE-${agent}.md"
