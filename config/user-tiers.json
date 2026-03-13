@@ -3,40 +3,20 @@
   "description": "RBAC tier definitions for OpenClaw agent access control. Injected into each agent's workspace at deploy time as .user-tiers.json.",
   "tiers": {
     "admin": {
-      "description": "Full access \u2014 org owners, lead devs",
-      "permissions": [
-        "read",
-        "write",
-        "delete",
-        "deploy",
-        "admin",
-        "bulk-operations"
-      ]
+      "description": "Full access — org owners, lead devs",
+      "permissions": ["read", "write", "delete", "deploy", "admin", "bulk-operations"]
     },
     "developer": {
-      "description": "Standard dev access \u2014 code, tickets, deploys",
-      "permissions": [
-        "read",
-        "write",
-        "deploy"
-      ]
+      "description": "Standard dev access — code, tickets, deploys",
+      "permissions": ["read", "write", "deploy"]
     },
     "support": {
-      "description": "Support team \u2014 read-heavy, limited writes",
-      "permissions": [
-        "read",
-        "write-tickets",
-        "write-comments"
-      ]
+      "description": "Support team — read-heavy, limited writes",
+      "permissions": ["read", "write-tickets", "write-comments"]
     },
     "agent": {
-      "description": "Sibling agents (Kit, Trak, Scout) \u2014 cross-agent dispatch only",
-      "permissions": [
-        "read",
-        "write",
-        "deploy",
-        "cross-agent-dispatch"
-      ]
+      "description": "Sibling agents (Kit, Trak, Scout) — cross-agent dispatch only",
+      "permissions": ["read", "write", "cross-agent-dispatch"]
     }
   },
   "default_tier": "support",
@@ -50,10 +30,10 @@
     "U08FP393H4J": "support",
     "U084XE4S43G": "support",
     "U08NGTS8Y5B": "support",
+    "U08FAE33NE5": "support",
+    "U08A9B8065N": "support",
     "U0AKF614URE": "agent",
     "U0AJLT30KMG": "agent",
-    "U0AJEGUSELB": "agent",
-    "U08FAE33NE5": "support",
-    "U08A9B8065N": "support"
+    "U0AJEGUSELB": "agent"
   }
 }

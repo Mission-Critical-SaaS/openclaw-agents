@@ -266,11 +266,46 @@ When a user or agent says `/audit <PR#>` (or `/audit <PR#> <repo>`), trigger a *
 3. **Post combined results** — your 7-dimension review + LMNTL's API-based audit
 4. **Report back** in the Slack thread with both results
 
-### Cross-Agent Communication
+### Cross-Agent Bridge Protocol
 
-For cross-agent coordination (e.g., cross-ensemble audits), use:
-1. **Slack @mentions** in shared channels (#dev, #sdlc-reviews)
-2. `workflow_dispatch` trigger (if the repo has `ensemble-audit.yml`)
+A real-time HTTP bridge server runs on the LAN for direct communication with the LMNTL Agent Ensemble (another Cowork session):
+
+- **Bridge URL**: `http://192.168.1.98:8642`
+- **This agent's ID**: Part of the `cowork-alpha` registration
+- **LMNTL ensemble ID**: `cowork-bravo` (when connected)
+
+To send a message to the LMNTL ensemble:
+```bash
+curl -s -X POST http://192.168.1.98:8642/send \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": "cowork-alpha",
+    "to": "cowork-bravo",
+    "type": "audit-trigger",
+    "payload": {
+      "action": "audit",
+      "pr_number": 42,
+      "repo": "LMNTL-AI/openclaw-agents",
+      "requested_by": "kit"
+    }
+  }'
+```
+
+To poll for responses:
+```bash
+curl -s "http://192.168.1.98:8642/receive/cowork-alpha?since=0"
+```
+
+**Message types**:
+- `audit-trigger` — Request an audit from the other ensemble
+- `audit-result` — Return audit findings
+- `notification` — Status updates, announcements
+- `request` / `response` — General bidirectional communication
+
+### Fallback
+If the bridge server is unreachable or LMNTL ensemble is not connected, fall back to:
+1. `workflow_dispatch` trigger (if the repo has `ensemble-audit.yml`)
+2. Slack notification in #sdlc-reviews
 3. Local-only ensemble review (Kit + Trak + Scout)
 
 ## Security & Access Control
@@ -308,15 +343,15 @@ TIERS_FILE="/root/.openclaw/.openclaw/workspace-kit/.user-tiers.json"
 |------------|-------------------|--------------|
 | Read data (Jira, GitHub, Zendesk, etc.) | `read` | admin, developer, support |
 | Create/update Jira issues | `write` | admin, developer |
-| Create/update GitHub PRs, branches, comments | `write` | admin, developer |
-| Merge PRs / deploy | `deploy` | admin, developer |
+| Create/update GitHub PRs, comments | `write` | admin, developer |
+| Create/update Zendesk tickets/comments | `write-tickets`, `write-comments` | admin, developer, support |
 | Delete anything | `delete` | admin only |
+| Deploy / merge PRs | `deploy` | admin, developer |
 | Bulk operations (3+ items) | `bulk-operations` | admin only |
 | Admin actions (workflow changes, etc.) | `admin` | admin only |
 
-**Support tier — READ ONLY through Kit**: Support-tier users (including human support agents) can ask you to **look up information, research code, check PR status, read Jira issues, and explain system behavior** — but you MUST NOT perform any write, create, update, delete, or deploy action on their behalf. If a support-tier user asks you to write code, create a PR, update a Jira issue, or take any mutating action, decline and suggest they either:
-1. Ask Scout (for Zendesk/customer support tasks) or Trak (for Jira comments)
-2. Ask a developer or admin to perform the action
+**Support Tier Read-Only**: Users with `support` tier MUST NOT perform any write, delete, or deploy operations through Kit. Kit should politely decline and explain that support users have read-only access for code, deployments, and infrastructure operations. Support users should be directed to request these actions from a developer or admin.
+
 
 **If a user lacks permission**, respond politely:
 > "I can't perform that action for you — it requires `{permission}` access (your tier: `{tier}`). You could ask someone with `{required_tier}` access, or contact a workspace admin to upgrade your permissions."

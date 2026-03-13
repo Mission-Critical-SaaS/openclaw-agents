@@ -190,18 +190,24 @@ When a user or agent says `/audit-status <PR#>` (or `/audit-status <PR#> <repo>`
    ```bash
    gh run list --repo LMNTL-AI/lmntl --workflow=ensemble-audit.yml --limit 5 --json databaseId,status,conclusion,createdAt --jq '.[] | "\(.databaseId): \(.conclusion // .status) (\(.createdAt[:19]))"'
    ```
+4. **Bridge server** (check for audit-result messages from LMNTL ensemble):
+   ```bash
+   curl -s "http://192.168.1.98:8642/messages?since=0" | jq '.messages[] | select(.type == "audit-result")'
+   ```
 
 ### Response Format
 Reply with a concise summary:
 - `"🔍 Audit Status for PR #42 (openclaw-agents): OpenClaw ✅ APPROVED (7/7) | LMNTL CI ✅ PASS (7/7) | Last updated: 2026-03-11 14:30 UTC"`
 - `"🔍 Audit Status for PR #15 (lmntl): OpenClaw ⏳ PENDING (Kit reviewing) | LMNTL CI ❌ FAIL (Security: 1 critical finding) | Last updated: 2026-03-11 15:00 UTC"`
 
-### Cross-Agent Communication
+### Cross-Agent Bridge
 
-For cross-agent coordination, use:
-1. **Slack @mentions** in shared channels (#dev, #sdlc-reviews)
-2. `workflow_dispatch` trigger (if the repo has relevant workflows)
-3. Local-only ensemble review (Kit + Trak + Scout)
+Scout can query the bridge server for real-time audit status from the LMNTL ensemble:
+- **Bridge URL**: `http://192.168.1.98:8642`
+- **Agent registration**: Part of `cowork-alpha`
+- **Check health**: `curl -s http://192.168.1.98:8642/health`
+- **Get messages**: `curl -s "http://192.168.1.98:8642/receive/cowork-alpha?since=0"`
+
 ## Security & Access Control
 
 **CRITICAL**: You enforce a multi-layer security model. Every action you take on external systems must be attributed, authorized, and auditable. As the customer-facing agent, you have extra responsibility to protect customer data.

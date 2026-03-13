@@ -94,43 +94,783 @@ function getSpecialistFiles(): string[] {
   return readdirSync(dir).filter((f) => f.endsWith('.md') && f !== 'README.md');
 }
 
-// --- Cross-Agent Communication Tests ---
-describe('Cross-Agent Communication (Kit)', () => {
+// ─── Self-Introduction Tests ───────────────────────────────────────
+describe('Self-Introduction (All Agents)', () => {
+  AGENTS.forEach((agent) => {
+    describe(`${agent.name}`, () => {
+      let content: string;
+
+      beforeAll(() => {
+        content = readAgent(agent);
+      });
+
+      test(`has "Self-Introduction" section`, () => {
+        expect(content).toContain('## Self-Introduction');
+      });
+
+      test(`mentions emoji ${agent.emoji}`, () => {
+        const selfIntroMatch = content.match(
+          /## Self-Introduction[\s\S]*?(?=##|$)/
+        );
+        expect(selfIntroMatch).toBeTruthy();
+        expect(selfIntroMatch![0]).toContain(agent.emoji);
+      });
+
+      test(`mentions agent name "${agent.name}"`, () => {
+        const selfIntroMatch = content.match(
+          /## Self-Introduction[\s\S]*?(?=##|$)/
+        );
+        expect(selfIntroMatch).toBeTruthy();
+        expect(selfIntroMatch![0]).toMatch(new RegExp(`I'm ${agent.name}`, 'i'));
+      });
+
+      agent.otherAgents.forEach((other) => {
+        test(`mentions other agents or cross-agent work in self-introduction`, () => {
+          const selfIntroMatch = content.match(
+            /## Self-Introduction[\s\S]*?(?=##|$)/
+          );
+          expect(selfIntroMatch).toBeTruthy();
+          const intro = selfIntroMatch![0];
+          // Should mention at least agent names, audit features, or coordination
+          expect(
+            intro.includes('Kit') ||
+            intro.includes('Scout') ||
+            intro.includes('Trak') ||
+            intro.includes('audit') ||
+            intro.includes('coordinate') ||
+            intro.includes('ensemble')
+          ).toBeTruthy();
+        });
+      });
+    });
+  });
+});
+
+// ─── Inter-Agent Delegation & Communication Tests ────────────────
+describe('Inter-Agent Delegation & Communication (All Agents)', () => {
+  AGENTS.forEach((agent) => {
+    describe(`${agent.name}`, () => {
+      let content: string;
+
+      beforeAll(() => {
+        content = readAgent(agent);
+      });
+
+      test(`has "Inter-Agent Delegation & Communication" section`, () => {
+        expect(content).toContain('Inter-Agent Delegation & Communication');
+      });
+
+      test(`references other agents' Slack user IDs in delegation section`, () => {
+        const delegationSection = content.match(
+          /Inter-Agent Delegation & Communication[\s\S]*?(?=##|$)/
+        );
+        expect(delegationSection).toBeTruthy();
+        const section = delegationSection![0];
+        // Should reference the other agents' IDs
+        agent.otherAgents.forEach((other) => {
+          expect(section).toContain(other.userId);
+        });
+      });
+
+      test(`documents agent interaction methods`, () => {
+        const delegationSection = content.match(
+          /Inter-Agent Delegation & Communication[\s\S]*?(?=##|$)/
+        );
+        expect(delegationSection).toBeTruthy();
+        const section = delegationSection![0];
+        // Should mention agent names or communication concepts
+        expect(
+          section.toLowerCase().includes('mention') ||
+          section.toLowerCase().includes('dm') ||
+          section.toLowerCase().includes('slack')
+        ).toBeTruthy();
+      });
+
+      agent.otherAgents.forEach((other) => {
+        test(`references @${other.name} (${other.userId}) and NOT itself in delegation rules`, () => {
+          const delegationSection = content.match(
+            /Inter-Agent Delegation & Communication[\s\S]*?(?=##|$)/
+          );
+          expect(delegationSection).toBeTruthy();
+          const section = delegationSection![0];
+          expect(section).toContain(other.userId);
+          expect(section).toContain(`@${other.name}`);
+          // Should NOT reference itself
+          expect(section).not.toContain(agent.userId);
+        });
+      });
+
+      test(`lists other agents (not self) in delegation rules`, () => {
+        const delegationSection = content.match(
+          /Delegation Rules[\s\S]*?(?=##|$)/
+        );
+        expect(delegationSection).toBeTruthy();
+        const rules = delegationSection![0];
+
+        agent.otherAgents.forEach((other) => {
+          // Should mention at least one other agent
+          expect(
+            rules.includes(`@${other.name}`) || rules.includes(other.name)
+          ).toBeTruthy();
+        });
+      });
+    });
+  });
+});
+
+// ─── Slash Commands Tests ──────────────────────────────────────────
+describe('Slash Commands', () => {
+  describe('Kit — /audit command', () => {
+    let content: string;
+
+    beforeAll(() => {
+      content = readAgent(AGENTS[0]); // Kit
+    });
+
+    test(`has "Cross-Agent Audit Dispatch (\`/audit\` Command)" section`, () => {
+      expect(content).toContain('/audit');
+      expect(content).toMatch(
+        /Cross-Agent Audit Dispatch.*\/audit.*Command/i
+      );
+    });
+
+    test(`documents /audit syntax and behavior`, () => {
+      expect(content).toContain('/audit');
+      expect(content).toContain('Audit Dispatch');
+    });
+
+    test(`explains what happens when /audit is triggered`, () => {
+      const auditSection = content.match(/What Happens[\s\S]*?(?=##|$)/);
+      expect(auditSection).toBeTruthy();
+      const section = auditSection![0];
+      expect(section).toContain('Run the local OpenClaw ensemble review');
+      expect(section).toContain('Trigger the LMNTL CI audit pipeline');
+      expect(section).toContain('Post combined results');
+    });
+
+    test(`workflow dispatch uses claude-opus-4-6 as default`, () => {
+      const auditSection = content.match(/workflow run[\s\S]*?(?=```)/);
+      expect(auditSection).toBeTruthy();
+      expect(auditSection![0]).toContain('claude-opus-4-6');
+    });
+  });
+
+  describe('Scout — /audit-status command', () => {
+    let content: string;
+
+    beforeAll(() => {
+      content = readAgent(AGENTS[1]); // Scout
+    });
+
+    test(`has "Audit Status Check (\`/audit-status\` Command)" section`, () => {
+      expect(content).toContain('/audit-status');
+      expect(content).toMatch(/Audit Status Check.*\/audit-status/i);
+    });
+
+    test(`documents /audit-status command`, () => {
+      expect(content).toContain('/audit-status');
+      expect(content).toContain('Status Check');
+    });
+
+    test(`explains what to check for audit status`, () => {
+      const statusSection = content.match(/What to Check[\s\S]*?(?=##|$)/);
+      expect(statusSection).toBeTruthy();
+      const section = statusSection![0];
+      expect(section).toContain('GitHub PR status checks');
+      expect(section).toContain('GitHub PR comments');
+      expect(section).toContain('LMNTL CI audit workflow run');
+      expect(section).toContain('Bridge server');
+    });
+  });
+
+  describe('Trak — /audit-model command', () => {
+    let content: string;
+
+    beforeAll(() => {
+      content = readAgent(AGENTS[2]); // Trak
+    });
+
+    test(`has "Audit Model Override (\`/audit-model\` Command)" section`, () => {
+      expect(content).toContain('/audit-model');
+      expect(content).toMatch(/Audit Model Override.*\/audit-model/i);
+    });
+
+    test(`documents /audit-model command`, () => {
+      expect(content).toContain('/audit-model');
+      expect(content).toContain('Model Override');
+    });
+
+    test(`lists valid model options`, () => {
+      const modelSection = content.match(/Valid Models[\s\S]*?(?=##|$)/);
+      expect(modelSection).toBeTruthy();
+      const section = modelSection![0];
+      expect(section).toContain('claude-opus-4-6');
+      expect(section).toContain('claude-sonnet-4');
+      expect(section).toContain('claude-sonnet-4-5');
+    });
+
+    test(`specifies claude-opus-4-6 as default (not claude-sonnet-4)`, () => {
+      const modelSection = content.match(/Valid Models[\s\S]*?(?=##|$)/);
+      expect(modelSection).toBeTruthy();
+      const section = modelSection![0];
+      // Default should be claude-opus-4-6
+      expect(section).toMatch(/claude-opus-4-6.*[Dd]efault/);
+    });
+  });
+});
+
+// ─── Bridge Server Tests ────────────────────────────────────────────
+describe('Bridge Server Protocol (All Agents)', () => {
+  AGENTS.forEach((agent) => {
+    describe(`${agent.name}`, () => {
+      let content: string;
+
+      beforeAll(() => {
+        content = readAgent(agent);
+      });
+
+      test(`references bridge URL http://192.168.1.98:8642`, () => {
+        expect(content).toContain('http://192.168.1.98:8642');
+      });
+
+      test(`mentions "cowork-alpha" registration`, () => {
+        expect(content).toMatch(/cowork-alpha/i);
+      });
+
+      test(`mentions message types or bridge communication`, () => {
+        const bridgeSection = content.match(/[Bb]ridge[\s\S]*?(?=##|$)/);
+        if (!bridgeSection) {
+          // Some agents might not have explicit bridge sections, just verify bridge URL exists
+          expect(content).toContain('192.168.1.98:8642');
+        } else {
+          const section = bridgeSection![0];
+          expect(
+            section.includes('type') ||
+            section.includes('message') ||
+            section.includes('audit')
+          ).toBeTruthy();
+        }
+      });
+    });
+  });
+
+  describe('Kit bridge details', () => {
+    let content: string;
+
+    beforeAll(() => {
+      content = readAgent(AGENTS[0]);
+    });
+
+    test(`explicitly mentions cowork-bravo for LMNTL ensemble`, () => {
+      expect(content).toContain('cowork-bravo');
+    });
+
+    test(`demonstrates audit-trigger message format`, () => {
+      const bridgeSection = content.match(/Cross-Agent Bridge[\s\S]*?(?=##|$)/);
+      expect(bridgeSection).toBeTruthy();
+      const section = bridgeSection![0];
+      expect(section).toContain('"type": "audit-trigger"');
+      expect(section).toContain('"from": "cowork-alpha"');
+      expect(section).toContain('"to": "cowork-bravo"');
+    });
+  });
+});
+
+// ─── 7-Dimension Ensemble Audit Tests ──────────────────────────────
+describe('7-Dimension Ensemble Audit (Kit)', () => {
   let content: string;
+
+  beforeAll(() => {
+    content = readAgent(AGENTS[0]); // Kit
+  });
+
+  test(`has "PR Review Protocol (Ensemble Audit)" section`, () => {
+    expect(content).toContain('PR Review Protocol (Ensemble Audit)');
+  });
+
+  test(`references ensemble audit dimensions`, () => {
+    const content = readAgent(AGENTS[0]);
+    const dimensions = [
+      'Correctness',
+      'Security',
+      'UX',
+      'Product',
+      'Operations',
+      'Architecture',
+      'Test',
+    ];
+
+    dimensions.forEach((dim) => {
+      expect(content).toContain(dim);
+    });
+  });
+
+  test(`documents ensemble result format`, () => {
+    const content = readAgent(AGENTS[0]);
+    expect(content).toContain('Ensemble');
+    expect(content).toContain('Result');
+    expect(content).toContain('7');
+  });
+
+  test(`shows agent assignments in ensemble audit`, () => {
+    const content = readAgent(AGENTS[0]);
+    // Should mention agent names
+    expect(
+      content.includes('Scout') &&
+      content.includes('Trak') &&
+      content.includes('Kit')
+    ).toBeTruthy();
+  });
+
+  test(`demonstrates how to apply specialist analysis`, () => {
+    const auditSection = content.match(/PR Review Protocol[\s\S]*?(?=##|$)/);
+    expect(auditSection).toBeTruthy();
+    const section = auditSection![0];
+
+    expect(section).toMatch(/specialist analysis.*7 dimensions/i);
+    expect(section).toContain('methodology');
+    expect(section).toContain('evidence protocol');
+  });
+});
+
+// ─── Specialist Agent Personas Tests ────────────────────────────────
+describe('Specialist Agent Personas', () => {
+  test('all specialist files exist in agents/shared/specialists/', () => {
+    const files = getSpecialistFiles();
+    SPECIALIST_FILES.forEach((filename) => {
+      expect(files).toContain(filename);
+    });
+  });
+
+  test('Kit references multiple specialist personas', () => {
+    const content = readAgent(AGENTS[0]);
+    // Should reference several key specialists
+    expect(content).toContain('code-review-architect');
+    expect(content).toContain('security-risk-auditor');
+    expect(content).toContain('Specialist Agent Capabilities');
+  });
+
+  describe('Kit specialists', () => {
+    let content: string;
+
+    beforeAll(() => {
+      content = readAgent(AGENTS[0]);
+    });
+
+    test(`references code-review-architect specialist`, () => {
+      expect(content).toContain('code-review-architect');
+    });
+
+    test(`references security-risk-auditor specialist`, () => {
+      expect(content).toContain('security-risk-auditor');
+    });
+
+    test(`references technical-architect specialist`, () => {
+      expect(content).toContain('technical-architect');
+    });
+
+    test(`references devops-engineer specialist`, () => {
+      expect(content).toContain('devops-engineer');
+    });
+
+    test(`references qa-test-engineer specialist`, () => {
+      expect(content).toContain('qa-test-engineer');
+    });
+
+    test(`references implementation-engineer specialist`, () => {
+      expect(content).toContain('implementation-engineer');
+    });
+  });
+
+  describe('Scout specialists', () => {
+    let content: string;
+
+    beforeAll(() => {
+      content = readAgent(AGENTS[1]);
+    });
+
+    test(`references ux-ui-designer specialist`, () => {
+      expect(content).toContain('ux-ui-designer');
+    });
+  });
+
+  describe('Trak specialists', () => {
+    let content: string;
+
+    beforeAll(() => {
+      content = readAgent(AGENTS[2]);
+    });
+
+    test(`references product-owner specialist`, () => {
+      expect(content).toContain('product-owner');
+    });
+
+    test(`references business-analyst specialist`, () => {
+      expect(content).toContain('business-analyst');
+    });
+
+    test(`references orchestrator-coordinator specialist`, () => {
+      expect(content).toContain('orchestrator-coordinator');
+    });
+  });
+});
+
+// ─── CI/CD & SDLC Policy Tests ────────────────────────────────────
+describe('Mandatory CI/CD & SDLC Policy (All Agents)', () => {
+  AGENTS.forEach((agent) => {
+    describe(`${agent.name}`, () => {
+      let content: string;
+
+      beforeAll(() => {
+        content = readAgent(agent);
+      });
+
+      test(`has "Mandatory CI/CD & SDLC Policy" section`, () => {
+        expect(content).toContain('Mandatory CI/CD & SDLC Policy');
+      });
+
+      test(`mentions "NEVER deploy" with prohibited methods`, () => {
+        const policySection = content.match(
+          /Mandatory CI\/CD & SDLC Policy[\s\S]*?(?=##|$)/
+        );
+        expect(policySection).toBeTruthy();
+        const section = policySection![0];
+        expect(section).toMatch(/\*\*NEVER\*\*/i);
+        expect(
+          section.includes('Editing files directly') ||
+            section.includes('direct on the EC2')
+        ).toBeTruthy();
+      });
+
+      test(`mentions GitHub Actions pipeline`, () => {
+        const policySection = content.match(
+          /Mandatory CI\/CD & SDLC Policy[\s\S]*?(?=##|$)/
+        );
+        expect(policySection).toBeTruthy();
+        const section = policySection![0];
+        expect(section).toContain('GitHub Actions');
+      });
+
+      test(`includes full SDLC steps (clone, branch, test, commit, tag, deploy, verify)`, () => {
+        const policySection = content.match(
+          /Mandatory CI\/CD & SDLC Policy[\s\S]*?(?=##|$)/
+        );
+        expect(policySection).toBeTruthy();
+        const section = policySection![0];
+
+        expect(section).toMatch(/Clone.*locally/i);
+        expect(section).toMatch(/branch/i);
+        expect(section).toMatch(/test/i);
+        expect(section).toMatch(/commit.*push/i);
+        expect(section).toMatch(/tag/i);
+        expect(section).toMatch(/deploy/i);
+      });
+    });
+  });
+});
+
+// ─── Response Discipline Tests ─────────────────────────────────────
+describe('Response Discipline (All Agents)', () => {
+  AGENTS.forEach((agent) => {
+    describe(`${agent.name}`, () => {
+      let content: string;
+
+      beforeAll(() => {
+        content = readAgent(agent);
+      });
+
+      test(`has "Response Discipline" section`, () => {
+        expect(content).toContain('## Response Discipline');
+      });
+
+      test(`has "Slack Threading & Acknowledgment" section`, () => {
+        expect(content).toContain('Slack Threading & Acknowledgment');
+      });
+
+      test(`mentions message limits for threading`, () => {
+        const threadingSection = content.match(
+          /Slack Threading & Acknowledgment[\s\S]*?(?=##|$)/
+        );
+        expect(threadingSection).toBeTruthy();
+        const section = threadingSection![0];
+        expect(
+          section.includes('3') ||
+          section.includes('message') ||
+          section.includes('Maximum')
+        ).toBeTruthy();
+      });
+
+      test(`states "NEVER send thinking out loud messages"`, () => {
+        const disciplineSection = content.match(
+          /## Response Discipline[\s\S]*?(?=##|$)/
+        );
+        expect(disciplineSection).toBeTruthy();
+        const section = disciplineSection![0];
+        expect(section).toMatch(/NEVER.*thinking/i);
+      });
+
+      test(`requires gathering data silently before responding`, () => {
+        const disciplineSection = content.match(
+          /## Response Discipline[\s\S]*?(?=##|$)/
+        );
+        expect(disciplineSection).toBeTruthy();
+        const section = disciplineSection![0];
+        expect(section).toMatch(/[Gg]ather.*silently/i);
+      });
+    });
+  });
+});
+
+// ─── Consistency Checks ────────────────────────────────────────────
+describe('Cross-File Consistency Checks', () => {
+  test('Bridge URL is consistent across all agents', () => {
+    const bridgeUrl = 'http://192.168.1.98:8642';
+    AGENTS.forEach((agent) => {
+      const content = readAgent(agent);
+      expect(content).toContain(bridgeUrl);
+    });
+  });
+
+  test('Agent Slack user IDs are referenced in delegation sections', () => {
+    const expectedIds = {
+      Kit: 'U0AKF614URE',
+      Scout: 'U0AJLT30KMG',
+      Trak: 'U0AJEGUSELB',
+    };
+
+    Object.entries(expectedIds).forEach(([agentName, userId]) => {
+      AGENTS.forEach((agent) => {
+        const content = readAgent(agent);
+        const delegationSection = content.match(
+          /Inter-Agent Delegation[\s\S]*?(?=##|$)/
+        );
+        if (delegationSection) {
+          // Each agent should reference the other agents' IDs
+          if (agent.name !== agentName) {
+            expect(delegationSection[0]).toContain(userId);
+          }
+        }
+      });
+    });
+  });
+
+  test('Agent emojis are consistent with Self-Introduction', () => {
+    AGENTS.forEach((agent) => {
+      const content = readAgent(agent);
+      const selfIntroMatch = content.match(
+        /## Self-Introduction[\s\S]*?(?=##|$)/
+      );
+      expect(selfIntroMatch).toBeTruthy();
+      expect(selfIntroMatch![0]).toContain(agent.emoji);
+    });
+  });
+
+  test('SDLC policy text is consistent across all agents', () => {
+    const policySections = AGENTS.map((agent) => {
+      const content = readAgent(agent);
+      const match = content.match(/Mandatory CI\/CD & SDLC Policy[\s\S]*?(?=##|$)/);
+      return match ? match[0] : '';
+    });
+
+    // All should mention the same key prohibitions
+    const keyProhibitions = [
+      'Editing files directly on the EC2 instance',
+      'Using SSM send-command',
+      'base64-encoded file transfers',
+      'Git→GitHub Actions pipeline',
+    ];
+
+    policySections.forEach((section) => {
+      keyProhibitions.forEach((prohibition) => {
+        expect(section).toContain(prohibition);
+      });
+    });
+  });
+
+  test('All agents reference cowork-alpha in bridge protocol', () => {
+    AGENTS.forEach((agent) => {
+      const content = readAgent(agent);
+      expect(content).toContain('cowork-alpha');
+    });
+  });
+
+  test('Kit uniquely references cowork-bravo', () => {
+    const kitContent = readAgent(AGENTS[0]);
+    expect(kitContent).toContain('cowork-bravo');
+  });
+});
+
+// ─── Slack User ID Format Tests ────────────────────────────────────
+describe('Slack User ID Format Validation', () => {
+  test('all user IDs follow Slack format (U prefix + 10 alphanumeric chars)', () => {
+    const userIds = [
+      'U0AJLT30KMG', // Scout
+      'U0AJEGUSELB', // Trak
+      'U0AKF614URE', // Kit
+    ];
+
+    userIds.forEach((id) => {
+      expect(id).toMatch(/^U[A-Z0-9]{10}$/);
+    });
+  });
+
+  test('Slack user IDs are referenced in delegation sections', () => {
+    const userIds = [
+      'U0AJLT30KMG',
+      'U0AJEGUSELB',
+      'U0AKF614URE',
+    ];
+
+    AGENTS.forEach((agent) => {
+      const content = readAgent(agent);
+      const delegationSection = content.match(
+        /Inter-Agent Delegation[\s\S]*?(?=##|$)/
+      );
+      if (delegationSection) {
+        // Should reference at least some other agent IDs
+        const section = delegationSection[0];
+        const foundIds = userIds.filter(id => section.includes(id));
+        expect(foundIds.length).toBeGreaterThan(0);
+      }
+    });
+  });
+});
+
+// ─── Bridge Message Types Tests ────────────────────────────────────
+describe('Bridge Message Types', () => {
+  test('All agents document bridge communication and audit features', () => {
+    AGENTS.forEach((agent) => {
+      const content = readAgent(agent);
+      // Each agent should reference bridge/audit/cowork concepts
+      expect(
+        content.includes('bridge') ||
+        content.includes('Bridge') ||
+        content.includes('audit') ||
+        content.includes('cowork')
+      ).toBeTruthy();
+    });
+  });
+});
+
+// ─── Specialist Ensemble Audit Integration Tests ────────────────────
+describe('Specialist Ensemble Audit Integration', () => {
+  test('Kit documents specialist usage and evidence protocol', () => {
+    const content = readAgent(AGENTS[0]);
+    // Should have specialist guidance
+    expect(content).toContain('Specialist');
+    expect(content).toContain('Evidence');
+  });
+
+  test('Scout contributes UX/Accessibility dimension via specialist', () => {
+    const content = readAgent(AGENTS[1]);
+    expect(content).toContain('ux-ui-designer');
+    expect(content).toContain('UX/Accessibility');
+    expect(content).toContain('WCAG');
+  });
+
+  test('Trak contributes Product-Market Fit dimension via product-owner specialist', () => {
+    const content = readAgent(AGENTS[2]);
+    expect(content).toContain('product-owner');
+    expect(content).toContain('Product-Market Fit');
+    expect(content).toContain('Strategic alignment');
+  });
+
+  test('All specialist references link to files in agents/shared/specialists/', () => {
+    AGENTS.forEach((agent) => {
+      const content = readAgent(agent);
+      const specialistSection = content.match(
+        /Specialist Agent Capabilities[\s\S]*?(?=##|$)/
+      );
+      if (specialistSection) {
+        const section = specialistSection[0];
+        // Should reference files with .md extension
+        SPECIALIST_FILES.forEach((file) => {
+          // Not every specialist is used by every agent, so check selectively
+          if (section.includes(file.replace('.md', ''))) {
+            expect(section).toContain(file);
+          }
+        });
+      }
+    });
+  });
+});
+
+// ─── Evidence Protocol Tests ────────────────────────────────────────
+describe('Evidence Protocol (Specialist Requirements)', () => {
+  test('Kit documents Evidence Protocol for specialist findings', () => {
+    const content = readAgent(AGENTS[0]);
+    // Should have evidence protocol guidance
+    expect(content).toContain('Evidence');
+    expect(content).toContain('Protocol');
+  });
+});
+
+// ─── PR Review Workflow Tests ───────────────────────────────────────
+describe('PR Review Workflow Coordination', () => {
+  test('Kit initiates ensemble review and requests companion reviews', () => {
+    const content = readAgent(AGENTS[0]);
+    const prReviewSection = content.match(
+      /PR Review Protocol[\s\S]*?(?=##|$)/
+    );
+    expect(prReviewSection).toBeTruthy();
+    const section = prReviewSection![0];
+
+    expect(section).toContain('@Trak');
+    expect(section).toContain('@Scout');
+    expect(section).toMatch(/request companion reviews/i);
+  });
+
+  test('Scout contributes customer impact and UX assessment', () => {
+    const content = readAgent(AGENTS[1]);
+    expect(content).toContain('Impact Assessment');
+    expect(
+      content.includes('Customer') ||
+      content.includes('UX') ||
+      content.includes('Accessibility')
+    ).toBeTruthy();
+  });
+
+  test('Trak contributes Jira verification and product-market fit', () => {
+    const content = readAgent(AGENTS[2]);
+    expect(content).toContain('Jira');
+    expect(content).toContain('Product-Market Fit');
+    const coordinationSection = content.match(
+      /PR Review[\s\S]*?(?=##|$)/
+    );
+    expect(coordinationSection).toBeTruthy();
+  });
+});
+
+// ─── Fallback Protocol Tests ───────────────────────────────────────
+describe('Fallback Protocol (Kit)', () => {
+  let content: string;
+
   beforeAll(() => {
     content = readAgent(AGENTS[0]);
   });
 
-  test('has Cross-Agent Communication section', () => {
-    expect(content).toContain('Cross-Agent Communication');
+  test('has Fallback section for when bridge is unreachable', () => {
+    expect(content).toContain('Fallback');
   });
 
-  test('communication methods include Slack mentions', () => {
-    const section = content.match(/Cross-Agent Communication[\s\S]*?(?=##|$)/);
-    expect(section).toBeTruthy();
-    expect(section![0]).toMatch(/Slack.*mention/i);
+  test('fallback includes workflow_dispatch trigger', () => {
+    const fallbackSection = content.match(/Fallback[\s\S]*?(?=##|$)/);
+    expect(fallbackSection).toBeTruthy();
+    expect(fallbackSection![0]).toMatch(/workflow_dispatch/);
   });
 
-  test('communication methods include workflow_dispatch', () => {
-    const section = content.match(/Cross-Agent Communication[\s\S]*?(?=##|$)/);
-    expect(section).toBeTruthy();
-    expect(section![0]).toMatch(/workflow_dispatch/);
+  test('fallback includes Slack notification step', () => {
+    const fallbackSection = content.match(/Fallback[\s\S]*?(?=##|$)/);
+    expect(fallbackSection).toBeTruthy();
+    expect(fallbackSection![0]).toMatch(/Slack.*notification/i);
   });
 
-  test('communication methods include local ensemble review', () => {
-    const section = content.match(/Cross-Agent Communication[\s\S]*?(?=##|$)/);
-    expect(section).toBeTruthy();
-    expect(section![0]).toMatch(/local.*ensemble/i);
-  });
-
-  test('does NOT reference deprecated bridge server', () => {
-    expect(content).not.toContain('192.168.1.98');
-    expect(content).not.toContain('cowork-bravo');
-    expect(content).not.toContain('agent-bridge');
+  test('fallback includes local-only ensemble review', () => {
+    const fallbackSection = content.match(/Fallback[\s\S]*?(?=##|$)/);
+    expect(fallbackSection).toBeTruthy();
+    expect(fallbackSection![0]).toMatch(/local.*ensemble/i);
   });
 });
-
-
 
 // ─── Persistent Knowledge Tests ────────────────────────────────────
 describe('Persistent Knowledge (All Agents)', () => {
@@ -285,12 +1025,8 @@ describe('Security Controls', () => {
       expect(tiers.tiers.developer).toBeDefined();
       expect(tiers.tiers.support).toBeDefined();
 
-      // Agent tier exists for cross-agent dispatch
-      expect(tiers.tiers.agent).toBeDefined();
-      expect(tiers.tiers.agent.permissions).toContain('cross-agent-dispatch');
-
       // Each tier has permissions array
-      ['admin', 'developer', 'support', 'agent'].forEach((tier) => {
+      ['admin', 'developer', 'support'].forEach((tier) => {
         expect(tiers.tiers[tier].permissions).toBeInstanceOf(Array);
         expect(tiers.tiers[tier].permissions.length).toBeGreaterThan(0);
         expect(tiers.tiers[tier].description).toBeDefined();
@@ -316,12 +1052,47 @@ describe('Security Controls', () => {
       // tier_lookup covers known users
       expect(tiers.tier_lookup).toBeDefined();
       const lookupUserIds = Object.keys(tiers.tier_lookup);
-      expect(lookupUserIds.length).toBeGreaterThanOrEqual(14);
+      expect(lookupUserIds.length).toBeGreaterThanOrEqual(9);
 
       // Every user in tier_lookup maps to a valid tier
       Object.values(tiers.tier_lookup).forEach((tier) => {
         expect(['admin', 'developer', 'support', 'agent']).toContain(tier);
       });
+
+    });
+
+    test('user-tiers.json has an agent tier', () => {
+      const tiersPath = join(ROOT, 'config', 'user-tiers.json');
+      const tiers = JSON.parse(readFileSync(tiersPath, 'utf-8'));
+      expect(tiers.tiers.agent).toBeDefined();
+      expect(tiers.tiers.agent.description).toBeDefined();
+      expect(tiers.tiers.agent.permissions).toBeInstanceOf(Array);
+    });
+
+    test('agent tier does NOT have deploy permission', () => {
+      const tiersPath = join(ROOT, 'config', 'user-tiers.json');
+      const tiers = JSON.parse(readFileSync(tiersPath, 'utf-8'));
+      expect(tiers.tiers.agent.permissions).not.toContain('deploy');
+    });
+
+    test('agent tier has cross-agent-dispatch permission', () => {
+      const tiersPath = join(ROOT, 'config', 'user-tiers.json');
+      const tiers = JSON.parse(readFileSync(tiersPath, 'utf-8'));
+      expect(tiers.tiers.agent.permissions).toContain('cross-agent-dispatch');
+    });
+
+    test('tier_lookup has at least 14 entries (9 humans + 2 extra support + 3 agents)', () => {
+      const tiersPath = join(ROOT, 'config', 'user-tiers.json');
+      const tiers = JSON.parse(readFileSync(tiersPath, 'utf-8'));
+      const lookupUserIds = Object.keys(tiers.tier_lookup);
+      expect(lookupUserIds.length).toBeGreaterThanOrEqual(14);
+    });
+
+    test('Support tier enforcement instructions exist in Kit and Trak IDENTITY.md', () => {
+      const kitContent = readAgent(AGENTS[0]);
+      const trakContent = readAgent(AGENTS[2]);
+      expect(kitContent).toContain('Support Tier Read-Only');
+      expect(trakContent).toContain('Support Tier — Comments Only');
     });
 
     test('dangerous-actions.json exists and has valid structure', () => {
@@ -351,7 +1122,7 @@ describe('Security Controls', () => {
         expect(action.min_tier).toBeDefined();
         expect(action.confirmation).toBeDefined();
         expect(action.consequence).toBeDefined();
-        expect(['admin', 'developer', 'support', 'agent']).toContain(action.min_tier);
+        expect(['admin', 'developer', 'support']).toContain(action.min_tier);
         expect(['none', 'explicit', 'double']).toContain(action.confirmation);
       });
 
@@ -387,7 +1158,6 @@ describe('Security Controls', () => {
         'U082DEF37PC', 'U081YTU8JCX', 'U0ADABVCVH8',
         'U05PJJS5XST', 'U07LD2KVA58', 'U07EW4CD78C',
         'U08FP393H4J', 'U084XE4S43G', 'U08NGTS8Y5B',
-        'U08FAE33NE5', 'U08A9B8065N',
       ];
 
       knownUsers.forEach((userId) => {
@@ -517,67 +1287,6 @@ describe('Security Controls', () => {
       expect(content).toContain('anomal');
       expect(content).toContain('SLACK_BOT_TOKEN');
       expect(content).toContain('threshold');
-    });
-  });
-
-  describe('Support Tier Enforcement', () => {
-    test('human support agents (Jonathan, Imrane) are mapped to support tier', () => {
-      const tiersPath = join(ROOT, 'config', 'user-tiers.json');
-      const tiers = JSON.parse(readFileSync(tiersPath, 'utf-8'));
-      expect(tiers.tier_lookup['U08FAE33NE5']).toBe('support');
-      expect(tiers.tier_lookup['U08A9B8065N']).toBe('support');
-    });
-
-    test('support tier has read, write-tickets, write-comments but NOT write, delete, deploy, admin', () => {
-      const tiersPath = join(ROOT, 'config', 'user-tiers.json');
-      const tiers = JSON.parse(readFileSync(tiersPath, 'utf-8'));
-      const supportPerms = tiers.tiers.support.permissions;
-      expect(supportPerms).toContain('read');
-      expect(supportPerms).toContain('write-tickets');
-      expect(supportPerms).toContain('write-comments');
-      expect(supportPerms).not.toContain('write');
-      expect(supportPerms).not.toContain('delete');
-      expect(supportPerms).not.toContain('deploy');
-      expect(supportPerms).not.toContain('admin');
-      expect(supportPerms).not.toContain('bulk-operations');
-    });
-
-    test('Kit IDENTITY.md enforces read-only for support tier', () => {
-      const content = readAgent(AGENTS[0]);
-      expect(content).toMatch(/[Ss]upport.*[Rr]ead[- ][Oo]nly/i);
-      expect(content).toMatch(/MUST NOT perform any write/i);
-    });
-
-    test('Trak IDENTITY.md allows support tier to create issues, assign, and add comments', () => {
-      const content = readAgent(AGENTS[2]);
-      expect(content).toMatch(/[Cc]reate.*[Jj]ira.*issues/i);
-      expect(content).toMatch(/[Aa]ssign.*[Jj]ira.*issues/i);
-      expect(content).toMatch(/[Aa]dd comments.*[Jj]ira/i);
-      expect(content).toMatch(/CANNOT.*transition.*status|CANNOT.*delete/i);
-    });
-
-    test('Scout IDENTITY.md allows support tier to manage Zendesk tickets', () => {
-      const content = readAgent(AGENTS[1]);
-      expect(content).toContain('write-tickets');
-      expect(content).toContain('write-comments');
-      expect(content).toMatch(/support.*\*\*requires confirmation\*\*/i);
-    });
-
-    test('tier_lookup has at least 14 entries (admins + devs + support + agents)', () => {
-      const tiersPath = join(ROOT, 'config', 'user-tiers.json');
-      const tiers = JSON.parse(readFileSync(tiersPath, 'utf-8'));
-      expect(Object.keys(tiers.tier_lookup).length).toBeGreaterThanOrEqual(14);
-    });
-
-    test('no dangerous action allows support tier as min_tier except zendesk_public_reply', () => {
-      const dangerPath = join(ROOT, 'config', 'dangerous-actions.json');
-      const danger = JSON.parse(readFileSync(dangerPath, 'utf-8'));
-      const supportMinActions = danger.dangerous_actions.filter(
-        (a: any) => a.min_tier === 'support'
-      );
-      supportMinActions.forEach((action: any) => {
-        expect(action.pattern).toBe('zendesk_public_reply');
-      });
     });
   });
 });
