@@ -494,7 +494,7 @@ describe('.env.example', () => {
     envExample = readScript('.env.example');
   });
 
-  test('SLACK_ALLOW_FROM contains 12 user IDs', () => {
+  test('SLACK_ALLOW_FROM contains 12 IDs (3 LMNTL + 6 Spartan + 3 agents)', () => {
     const match = envExample.match(/SLACK_ALLOW_FROM=\[([^\]]+)\]/);
     expect(match).toBeTruthy();
     const ids = match![1].split(',').map(s => s.trim().replace(/"/g, ''));
@@ -518,6 +518,12 @@ describe('.env.example', () => {
     expect(envExample).toContain('U08FP393H4J'); // Nghia Le
     expect(envExample).toContain('U084XE4S43G'); // Dai Kong Nguyen
     expect(envExample).toContain('U08NGTS8Y5B'); // Duc Hoang
+  });
+
+  test('SLACK_ALLOW_FROM includes all three agent bot IDs for cross-agent dispatch', () => {
+    expect(envExample).toContain('U0AKF614URE'); // Kit bot
+    expect(envExample).toContain('U0AJLT30KMG'); // Scout bot
+    expect(envExample).toContain('U0AJEGUSELB'); // Trak bot
   });
 });
 
