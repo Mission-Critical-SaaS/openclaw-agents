@@ -28,18 +28,17 @@ jobs:
     steps:
       - name: Extract verdict from comment
         id: verdict
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
-          BODY=$(cat <<'COMMENT_EOF'
-          ${{ github.event.comment.body }}
-          COMMENT_EOF
-          )
-
+          # SECURITY: Comment body passed via env var, not ${{ }} interpolation,
+          # to prevent shell injection via crafted PR comments.
           # Extract verdict (approved, changes_requested, blocked)
-          VERDICT=$(echo "$BODY" | grep -oP '<!-- ENSEMBLE_VERDICT:\s*\K[a-z_]+' | head -1)
+          VERDICT=$(echo "$COMMENT_BODY" | grep -oP '<!-- ENSEMBLE_VERDICT:\s*\K[a-z_]+' | head -1)
           # Extract dimensions score
-          DIMENSIONS=$(echo "$BODY" | grep -oP '<!-- ENSEMBLE_DIMENSIONS:\s*\K[0-9]+/[0-9]+' | head -1)
+          DIMENSIONS=$(echo "$COMMENT_BODY" | grep -oP '<!-- ENSEMBLE_DIMENSIONS:\s*\K[0-9]+/[0-9]+' | head -1)
           # Extract reviewer name
-          REVIEWER=$(echo "$BODY" | grep -oP '<!-- ENSEMBLE_REVIEWER:\s*\K[a-z]+' | head -1)
+          REVIEWER=$(echo "$COMMENT_BODY" | grep -oP '<!-- ENSEMBLE_REVIEWER:\s*\K[a-z]+' | head -1)
 
           if [ -z "$VERDICT" ]; then
             echo "::error::Could not parse ENSEMBLE_VERDICT from comment"
@@ -69,65 +68,93 @@ jobs:
               exit 1
               ;;
           esac
-
           echo "Parsed verdict: $VERDICT ($DIMENSIONS) by $REVIEWER"
 
       - name: Get PR head SHA
         id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUM: ${{ github.event.issue.number }}
         run: |
-          PR_DATA=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }})
+          PR_DATA=$(gh api "repos/$GH_REPO/pulls/$PR_NUM")
           SHA=$(echo "$PR_DATA" | python3 -c "import sys,json; print(json.load(sys.stdin)['head']['sha'])")
           echo "sha=$SHA" >> $GITHUB_OUTPUT
-          echo "PR #${{ github.event.issue.number }} head SHA: $SHA"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo "PR #$PR_NUM head SHA: $SHA"
 
       - name: Set ensemble-review status check
-        run: |
-          gh api repos/${{ github.repository }}/statuses/${{ steps.pr.outputs.sha }} \
-            -f state=${{ steps.verdict.outputs.state }} \
-            -f description="${{ steps.verdict.outputs.description }}" \
-            -f context="ensemble-review" \
-            -f target_url="${{ github.event.comment.html_url }}"
-          echo "Status check set: ${{ steps.verdict.outputs.state }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_SHA: ${{ steps.pr.outputs.sha }}
+          VERDICT_STATE: ${{ steps.verdict.outputs.state }}
+          VERDICT_DESC: ${{ steps.verdict.outputs.description }}
+          COMMENT_URL: ${{ github.event.comment.html_url }}
+        run: |
+          gh api "repos/$GH_REPO/statuses/$PR_SHA" \
+            -f state="$VERDICT_STATE" \
+            -f description="$VERDICT_DESC" \
+            -f context="ensemble-review" \
+            -f target_url="$COMMENT_URL"
+          echo "Status check set: $VERDICT_STATE" 
+
+      - name: Check Slack token
+        id: slack_check
+        run: |
+          if [ -n "$TOKEN" ]; then
+            echo "has_token=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_token=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          TOKEN: ${{ secrets.SLACK_BOT_TOKEN_REVIEW }}
 
       - name: Post Slack follow-up
-        if: env.HAS_TOKEN == 'true'
+        if: steps.slack_check.outputs.has_token == 'true'
         env:
-          HAS_TOKEN: ${{ secrets.SLACK_BOT_TOKEN_REVIEW != '' }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN_REVIEW }}
           SDLC_CHANNEL: C0AKL3FMGR5
+          VERDICT: ${{ steps.verdict.outputs.verdict }}
+          DIMENSIONS: ${{ steps.verdict.outputs.dimensions }}
+          REVIEWER: ${{ steps.verdict.outputs.reviewer }}
+          STATE: ${{ steps.verdict.outputs.state }}
+          PR_NUM: ${{ github.event.issue.number }}
+          COMMENT_URL: ${{ github.event.comment.html_url }}
         run: |
-          VERDICT='${{ steps.verdict.outputs.verdict }}'
-          DIMENSIONS='${{ steps.verdict.outputs.dimensions }}'
-          REVIEWER='${{ steps.verdict.outputs.reviewer }}'
-          STATE='${{ steps.verdict.outputs.state }}'
-
           case "$VERDICT" in
             approved) ICON="✅" ;;
             changes_requested) ICON="🔄" ;;
             blocked) ICON="🚫" ;;
             *) ICON="❓" ;;
           esac
-
+          # Use jq to safely build JSON payload (prevents injection)
+          PAYLOAD=$(jq -n \
+            --arg channel "$SDLC_CHANNEL" \
+            --arg icon "$ICON" \
+            --arg verdict "$VERDICT" \
+            --arg dims "$DIMENSIONS" \
+            --arg reviewer "$REVIEWER" \
+            --arg state "$STATE" \
+            --arg pr_num "$PR_NUM" \
+            --arg comment_url "$COMMENT_URL" \
+            '{channel: $channel, text: ($icon + " *Ensemble Verdict — PR #" + $pr_num + "*\nVerdict: *" + $verdict + "* (" + $dims + ") by " + $reviewer + "\nStatus check: `ensemble-review` → `" + $state + "`\nComment: " + $comment_url)}')
           curl -s -X POST 'https://slack.com/api/chat.postMessage' \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
             -H 'Content-Type: application/json' \
-            -d "{
-              \"channel\": \"$SDLC_CHANNEL\",
-              \"text\": \"${ICON} *Ensemble Verdict — PR #${{ github.event.issue.number }}*\\nVerdict: *${VERDICT}* (${DIMENSIONS}) by ${REVIEWER}\\nStatus check: \`ensemble-review\` → \`${STATE}\`\\nComment: ${{ github.event.comment.html_url }}\"
-            }"
+            -d "$PAYLOAD"
 
       - name: Log verdict (no Slack configured)
-        if: env.HAS_TOKEN != 'true'
+        if: steps.slack_check.outputs.has_token == 'false'
         env:
-          HAS_TOKEN: ${{ secrets.SLACK_BOT_TOKEN_REVIEW != '' }}
+          PR_NUM: ${{ github.event.issue.number }}
+          VERDICT: ${{ steps.verdict.outputs.verdict }}
+          DIMENSIONS: ${{ steps.verdict.outputs.dimensions }}
+          REVIEWER: ${{ steps.verdict.outputs.reviewer }}
+          STATE: ${{ steps.verdict.outputs.state }}
         run: |
           echo "Verdict processed:"
-          echo "  PR: #${{ github.event.issue.number }}"
-          echo "  Verdict: ${{ steps.verdict.outputs.verdict }}"
-          echo "  Dimensions: ${{ steps.verdict.outputs.dimensions }}"
-          echo "  Reviewer: ${{ steps.verdict.outputs.reviewer }}"
-          echo "  Status: ${{ steps.verdict.outputs.state }}"
+          echo "  PR: #$PR_NUM"
+          echo "  Verdict: $VERDICT"
+          echo "  Dimensions: $DIMENSIONS"
+          echo "  Reviewer: $REVIEWER"
+          echo "  Status: $STATE"

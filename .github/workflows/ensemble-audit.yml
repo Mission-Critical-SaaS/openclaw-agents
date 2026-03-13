@@ -28,16 +28,17 @@ jobs:
       entrypoint_valid: ${{ steps.entrypoint_check.outcome }}
       jira_key: ${{ steps.jira.outputs.key }}
       pre_check_summary: ${{ steps.summary.outputs.text }}
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Extract Jira key
         id: jira
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BRANCH: ${{ github.head_ref }}
         run: |
-          TITLE="${{ github.event.pull_request.title }}"
-          BRANCH="${{ github.head_ref }}"
-          KEY=$(echo "$TITLE $BRANCH" | grep -oE '[A-Z]+-[0-9]+' | head -1 || true)
+          # SECURITY: Title/branch passed via env to prevent injection
+          KEY=$(echo "$PR_TITLE $PR_BRANCH" | grep -oE '[A-Z]+-[0-9]+' | head -1 || true)
           echo "key=${KEY:-none}" >> $GITHUB_OUTPUT
 
       - name: Validate JSON configs
@@ -127,15 +128,14 @@ jobs:
       - name: Build pre-check summary
         id: summary
         if: always()
+        env:
+          J: ${{ steps.json_check.outcome }}
+          S: ${{ steps.structure_check.outcome }}
+          C: ${{ steps.consistency_check.outcome }}
+          E: ${{ steps.entrypoint_check.outcome }}
+          JK: ${{ steps.jira.outputs.key }}
         run: |
-          J='${{ steps.json_check.outcome }}'
-          S='${{ steps.structure_check.outcome }}'
-          C='${{ steps.consistency_check.outcome }}'
-          E='${{ steps.entrypoint_check.outcome }}'
-          JK='${{ steps.jira.outputs.key }}'
-
           icon() { [ "$1" = "success" ] && echo "✅" || echo "❌"; }
-
           TEXT="$(icon $J) JSON configs | $(icon $S) Agent structure | $(icon $C) Config consistency | $(icon $E) Entrypoint loops | Jira: ${JK:-none}"
           echo "text=$TEXT" >> $GITHUB_OUTPUT
 
@@ -144,37 +144,59 @@ jobs:
     runs-on: ubuntu-latest
     needs: pre-checks
     if: always() && github.event.pull_request.draft == false
-
     steps:
       - name: Set ensemble-review to pending
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh api repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }} \
+          gh api "repos/$GH_REPO/statuses/$PR_SHA" \
             -f state=pending \
             -f description="Ensemble review: awaiting agent review" \
             -f context="ensemble-review" \
-            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            -f target_url="$RUN_URL" 
+
+      - name: Check Slack token
+        id: slack_check
+        run: |
+          if [ -n "$TOKEN" ]; then
+            echo "has_token=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_token=false" >> $GITHUB_OUTPUT
+          fi
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TOKEN: ${{ secrets.SLACK_BOT_TOKEN_REVIEW }}
 
       - name: Notify Slack
-        if: env.HAS_TOKEN == 'true'
+        if: steps.slack_check.outputs.has_token == 'true'
         env:
-          HAS_TOKEN: ${{ secrets.SLACK_BOT_TOKEN_REVIEW != '' }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN_REVIEW }}
           SDLC_CHANNEL: C0AKL3FMGR5
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          ACTIONS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PRECHECKS: ${{ needs.pre-checks.outputs.pre_check_summary }}
+          JIRA_KEY: ${{ needs.pre-checks.outputs.jira_key }}
         run: |
-          TITLE=$(echo '${{ github.event.pull_request.title }}' | sed 's/"/\\"/g')
-          PRECHECKS='${{ needs.pre-checks.outputs.pre_check_summary }}'
-          JIRA='${{ needs.pre-checks.outputs.jira_key }}'
-
+          # Use jq to safely build JSON payload (prevents shell injection via PR title)
+          PAYLOAD=$(jq -n \
+            --arg channel "$SDLC_CHANNEL" \
+            --arg title "$PR_TITLE" \
+            --arg author "$PR_AUTHOR" \
+            --arg jira "$JIRA_KEY" \
+            --arg prechecks "$PRECHECKS" \
+            --arg pr_url "$PR_URL" \
+            --arg actions_url "$ACTIONS_URL" \
+            --arg pr_num "$PR_NUMBER" \
+            '{channel: $channel, text: ("📋 *Ensemble Audit — PR #" + $pr_num + "*\n*Title*: " + $title + "\n*Author*: " + $author + "\n*Jira*: " + $jira + "\n*Pre-checks*: " + $prechecks + "\n*PR*: " + $pr_url + "\n*Actions*: " + $actions_url + "\n\n<@U0AKF614URE> please run ensemble review.")}')
           RESPONSE=$(curl -s -X POST 'https://slack.com/api/chat.postMessage' \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
             -H 'Content-Type: application/json' \
-            -d "{
-              \"channel\": \"$SDLC_CHANNEL\",
-              \"text\": \"📋 *Ensemble Audit — PR #${{ github.event.pull_request.number }}*\\n*Title*: ${TITLE}\\n*Author*: ${{ github.event.pull_request.user.login }}\\n*Jira*: ${JIRA}\\n*Pre-checks*: ${PRECHECKS}\\n*PR*: ${{ github.event.pull_request.html_url }}\\n*Actions*: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\\n\\n<@U0AKF614URE> please run ensemble review.\"
-            }")
-
+            -d "$PAYLOAD")
           OK=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('ok','false'))")
           if [ "$OK" = "True" ]; then
             echo "Posted to #sdlc-reviews"
@@ -184,12 +206,15 @@ jobs:
           fi
 
       - name: Log (no Slack configured)
-        if: env.HAS_TOKEN != 'true'
+        if: steps.slack_check.outputs.has_token == 'false'
         env:
-          HAS_TOKEN: ${{ secrets.SLACK_BOT_TOKEN_REVIEW != '' }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PRECHECKS: ${{ needs.pre-checks.outputs.pre_check_summary }}
+          JIRA_KEY: ${{ needs.pre-checks.outputs.jira_key }}
         run: |
           echo "No SLACK_BOT_TOKEN_REVIEW configured. Review request:"
-          echo "  PR: #${{ github.event.pull_request.number }} — ${{ github.event.pull_request.title }}"
-          echo "  Pre-checks: ${{ needs.pre-checks.outputs.pre_check_summary }}"
-          echo "  Jira: ${{ needs.pre-checks.outputs.jira_key }}"
+          echo "  PR: #$PR_NUMBER — $PR_TITLE"
+          echo "  Pre-checks: $PRECHECKS"
+          echo "  Jira: $JIRA_KEY"
           echo "  Add SLACK_BOT_TOKEN_REVIEW secret to enable notifications."

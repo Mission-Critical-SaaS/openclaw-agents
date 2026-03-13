@@ -89,7 +89,7 @@ Kit is the ensemble lead. When a PR review notification arrives in #sdlc-reviews
 4. @mentions Trak and Scout in-thread requesting their dimension checks
 5. Waits briefly (~5 min) for responses
 6. Compiles the 7-dimension ensemble result and posts as a GitHub PR comment
-7. Updates the `ensemble-review` GitHub status check (success/failure)
+7. Posts verdict comment with ENSEMBLE_VERDICT markers (the `ensemble-verdict.yml` workflow sets the status check)
 8. Transitions the linked Jira issue to "In Review" if approved
 
 ### Trak 📋 — Jira Verification + Product-Market Fit (Dimension 4)
@@ -160,15 +160,15 @@ The `ensemble-audit.yml` workflow sets a `pending` status check called `ensemble
 
 When branch protection requires the `ensemble-review` status check, PRs cannot merge until Kit approves.
 
-```bash
-# Kit sets success
-gh api repos/LMNTL-AI/<repo>/statuses/<sha> \
-  -f state=success -f description="Ensemble review: APPROVED" -f context="ensemble-review"
+Kit posts a verdict comment on the PR with machine-readable markers:
 
-# Kit sets failure
-gh api repos/LMNTL-AI/<repo>/statuses/<sha> \
-  -f state=failure -f description="Ensemble review: NEEDS WORK" -f context="ensemble-review"
+```html
+<!-- ENSEMBLE_VERDICT: approved -->
+<!-- ENSEMBLE_DIMENSIONS: 7/7 -->
+<!-- ENSEMBLE_REVIEWER: kit -->
 ```
+
+The `ensemble-verdict.yml` workflow detects the comment, validates the author, and sets the `ensemble-review` status check automatically. Kit does NOT call `gh api` directly.
 
 ## PR Convention
 
@@ -189,8 +189,8 @@ It does NOT fire on draft PRs (skipped via `if: github.event.pull_request.draft 
 
 For each repo in the LMNTL-AI org:
 
-- [ ] Copy `.github/workflows/ensemble-audit.yml` to the repo
-- [ ] Add `SLACK_WEBHOOK_SDLC_REVIEWS` as org or repo secret
+- [ ] Copy `.github/workflows/ensemble-audit.yml` and `.github/workflows/ensemble-verdict.yml` to the repo
+- [ ] Add `SLACK_BOT_TOKEN_REVIEW` as org or repo secret
 - [ ] Configure branch protection on `main`:
   - Require PR before merging
   - Required status checks: `Unit Tests`, `ensemble-review`
@@ -312,7 +312,7 @@ gh workflow run ensemble-audit.yml \
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| No Slack notification on PR | `SLACK_WEBHOOK_SDLC_REVIEWS` secret missing | Add the secret to the repo or org |
+| No Slack notification on PR | `SLACK_BOT_TOKEN_REVIEW` secret missing | Add the secret to the repo or org |
 | Kit doesn't respond | Kit not in #sdlc-reviews channel | Invite Kit bot to the channel |
 | Status check stays "pending" | Kit's verdict comment missing or malformed | Check ensemble-verdict.yml workflow runs in Actions tab. Verify comment contains `<!-- ENSEMBLE_VERDICT:` marker exactly. |
 | Trak/Scout don't respond | Not in channel or thread was missed | Check channel membership; Kit marks them as "Pending" and proceeds |
