@@ -156,7 +156,7 @@ If Trak or Scout don't respond within ~5 minutes, Kit marks them as "Pending" an
 
 ## GitHub Status Check
 
-The `pr-review-trigger.yml` workflow sets a `pending` status check called `ensemble-review` when a PR is opened. Kit updates it to `success` or `failure` after completing the review.
+The `ensemble-audit.yml` workflow sets a `pending` status check called `ensemble-review` when a PR is opened. Kit updates it to `success` or `failure` after completing the review.
 
 When branch protection requires the `ensemble-review` status check, PRs cannot merge until Kit approves.
 
@@ -178,7 +178,7 @@ For the Jira extraction to work, include the Jira issue key in either:
 
 ## Trigger Configuration
 
-The `pr-review-trigger.yml` GitHub Actions workflow fires on:
+The `ensemble-audit.yml` GitHub Actions workflow fires on:
 - `opened` — new PR
 - `synchronize` — new commits pushed to existing PR
 - `ready_for_review` — draft PR marked as ready
@@ -189,7 +189,7 @@ It does NOT fire on draft PRs (skipped via `if: github.event.pull_request.draft 
 
 For each repo in the LMNTL-AI org:
 
-- [ ] Copy `.github/workflows/pr-review-trigger.yml` to the repo
+- [ ] Copy `.github/workflows/ensemble-audit.yml` to the repo
 - [ ] Add `SLACK_WEBHOOK_SDLC_REVIEWS` as org or repo secret
 - [ ] Configure branch protection on `main`:
   - Require PR before merging
@@ -314,7 +314,7 @@ gh workflow run ensemble-audit.yml \
 |---------|-------|-----|
 | No Slack notification on PR | `SLACK_WEBHOOK_SDLC_REVIEWS` secret missing | Add the secret to the repo or org |
 | Kit doesn't respond | Kit not in #sdlc-reviews channel | Invite Kit bot to the channel |
-| Status check stays "pending" | Kit review didn't complete | Check #sdlc-reviews for errors; manually set status via `gh api` |
+| Status check stays "pending" | Kit's verdict comment missing or malformed | Check ensemble-verdict.yml workflow runs in Actions tab. Verify comment contains `<!-- ENSEMBLE_VERDICT:` marker exactly. |
 | Trak/Scout don't respond | Not in channel or thread was missed | Check channel membership; Kit marks them as "Pending" and proceeds |
 | PR can't merge despite approval | Branch protection requires additional checks | Verify required status check names match exactly |
 | Bridge server unreachable | Server not running or network issue | Check `curl http://192.168.1.98:8642/health`; restart with `python3 agent-bridge-server.py` |
