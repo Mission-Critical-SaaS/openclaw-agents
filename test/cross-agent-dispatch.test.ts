@@ -1387,4 +1387,97 @@ describe('Proactive Capabilities', () => {
 });
 
 
+
+describe('Ensemble Audit Workflows', () => {
+  describe('Workflow Files', () => {
+    test('ensemble-audit.yml exists', () => {
+      const workflowPath = join(ROOT, '.github', 'workflows', 'ensemble-audit.yml');
+      expect(existsSync(workflowPath)).toBe(true);
+    });
+
+    test('ensemble-verdict.yml exists', () => {
+      const workflowPath = join(ROOT, '.github', 'workflows', 'ensemble-verdict.yml');
+      expect(existsSync(workflowPath)).toBe(true);
+    });
+
+    test('pr-review-trigger.yml has been removed', () => {
+      const oldWorkflowPath = join(ROOT, '.github', 'workflows', 'pr-review-trigger.yml');
+      expect(existsSync(oldWorkflowPath)).toBe(false);
+    });
+
+    test('ensemble-audit.yml triggers on PR events', () => {
+      const content = readFileSync(join(ROOT, '.github', 'workflows', 'ensemble-audit.yml'), 'utf-8');
+      expect(content).toContain('pull_request');
+      expect(content).toContain('opened');
+      expect(content).toContain('synchronize');
+      expect(content).toContain('ready_for_review');
+    });
+
+    test('ensemble-audit.yml has pre-checks job', () => {
+      const content = readFileSync(join(ROOT, '.github', 'workflows', 'ensemble-audit.yml'), 'utf-8');
+      expect(content).toContain('pre-checks:');
+      expect(content).toContain('json_check');
+      expect(content).toContain('structure_check');
+      expect(content).toContain('consistency_check');
+      expect(content).toContain('entrypoint_check');
+    });
+
+    test('ensemble-audit.yml sets pending status and notifies Slack', () => {
+      const content = readFileSync(join(ROOT, '.github', 'workflows', 'ensemble-audit.yml'), 'utf-8');
+      expect(content).toContain('ensemble-review');
+      expect(content).toContain('state=pending');
+      expect(content).toContain('SLACK_BOT_TOKEN_REVIEW');
+      expect(content).toContain('C0AKL3FMGR5');
+    });
+
+    test('ensemble-verdict.yml triggers on issue_comment', () => {
+      const content = readFileSync(join(ROOT, '.github', 'workflows', 'ensemble-verdict.yml'), 'utf-8');
+      expect(content).toContain('issue_comment');
+      expect(content).toContain('ENSEMBLE_VERDICT');
+    });
+
+    test('ensemble-verdict.yml validates author_association', () => {
+      const content = readFileSync(join(ROOT, '.github', 'workflows', 'ensemble-verdict.yml'), 'utf-8');
+      expect(content).toContain('COLLABORATOR');
+      expect(content).toContain('MEMBER');
+      expect(content).toContain('OWNER');
+    });
+
+    test('ensemble-verdict.yml handles all verdict types', () => {
+      const content = readFileSync(join(ROOT, '.github', 'workflows', 'ensemble-verdict.yml'), 'utf-8');
+      expect(content).toContain('approved');
+      expect(content).toContain('changes_requested');
+      expect(content).toContain('blocked');
+      expect(content).toContain('state=success');
+      expect(content).toContain('state=failure');
+      expect(content).toContain('state=error');
+    });
+  });
+
+  describe('Verdict Marker Format', () => {
+    test('Kit IDENTITY.md uses verdict-comment protocol (not direct gh api)', () => {
+      const content = readFileSync(join(ROOT, 'agents', 'kit', 'workspace', 'IDENTITY.md'), 'utf-8');
+      expect(content).toContain('ENSEMBLE_VERDICT');
+      expect(content).toContain('ENSEMBLE_DIMENSIONS');
+      expect(content).toContain('ENSEMBLE_REVIEWER');
+      expect(content).toContain('ensemble-verdict');
+      expect(content).not.toMatch(/9\.\s+\*\*Update the GitHub status check\*\*/);
+    });
+
+    test('Kit Ensemble Result Format includes verdict markers', () => {
+      const content = readFileSync(join(ROOT, 'agents', 'kit', 'workspace', 'IDENTITY.md'), 'utf-8');
+      expect(content).toContain('<!-- ENSEMBLE_VERDICT:');
+      expect(content).toContain('<!-- ENSEMBLE_DIMENSIONS:');
+      expect(content).toContain('<!-- ENSEMBLE_REVIEWER:');
+    });
+
+    test('ensemble-audit.md references ensemble-verdict.yml for status checks', () => {
+      const content = readFileSync(join(ROOT, 'docs', 'playbooks', 'ensemble-audit.md'), 'utf-8');
+      expect(content).toContain('ensemble-verdict.yml');
+      expect(content).toContain('ENSEMBLE_VERDICT');
+      expect(content).not.toContain('pr-review-trigger.yml');
+    });
+  });
+});
+
 });

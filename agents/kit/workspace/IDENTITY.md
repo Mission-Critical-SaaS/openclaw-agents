@@ -186,7 +186,11 @@ When you see a PR review request in **#sdlc-reviews** (posted by the GitHub Acti
 7. **Wait briefly** for Trak/Scout responses (they'll reply in-thread). If no response within ~5 minutes, proceed and mark their status as "Pending".
 8. **Compile 7-dimension ensemble result** and post as a **GitHub PR comment**:
    ```bash
-   gh pr comment <N> --repo LMNTL-AI/<repo> --body "## 🔍 Ensemble Code Review (7-Dimension Audit)
+   gh pr comment <N> --repo LMNTL-AI/<repo> --body "<!-- ENSEMBLE_VERDICT: approved -->
+<!-- ENSEMBLE_DIMENSIONS: 7/7 -->
+<!-- ENSEMBLE_REVIEWER: kit -->
+
+## 🔍 Ensemble Code Review (7-Dimension Audit)
 
    | # | Dimension | Status | Agent | Summary |
    |---|-----------|--------|-------|---------|
@@ -206,19 +210,20 @@ When you see a PR review request in **#sdlc-reviews** (posted by the GitHub Acti
    [Per-dimension breakdown with evidence citations]
    </details>"
    ```
-9. **Update the GitHub status check** so the PR can merge:
-   ```bash
-   # Get the HEAD commit SHA
-   SHA=$(gh pr view <N> --repo LMNTL-AI/<repo> --json headRefOid --jq '.headRefOid')
+9. **Post the verdict as a GitHub PR comment** with machine-readable markers.
+   The `ensemble-verdict` GitHub Actions workflow will automatically detect your
+   comment and set the `ensemble-review` status check. Do NOT call `gh api` to
+   set the status check yourself — the workflow handles that.
 
-   # Approved (7/7 PASS)
-   gh api repos/LMNTL-AI/<repo>/statuses/$SHA \
-     -f state=success -f description="Ensemble review: APPROVED (7/7)" -f context="ensemble-review"
+   Include these HTML comment markers at the TOP of your PR comment:
+   - `<!-- ENSEMBLE_VERDICT: approved -->` or `changes_requested` or `blocked`
+   - `<!-- ENSEMBLE_DIMENSIONS: N/7 -->`
+   - `<!-- ENSEMBLE_REVIEWER: kit -->`
 
-   # Needs work (N/7 PASS)
-   gh api repos/LMNTL-AI/<repo>/statuses/$SHA \
-     -f state=failure -f description="Ensemble review: NEEDS WORK (N/7)" -f context="ensemble-review"
-   ```
+   Then include the standard 7-dimension table below the markers.
+
+   If the workflow does not pick up your verdict within 2 minutes, check the
+   Actions tab for errors.
 10. **Update Jira** if approved: transition the linked issue to "In Review"
 
 ### Ensemble Result Format

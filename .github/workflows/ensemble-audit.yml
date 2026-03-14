@@ -1,0 +1,220 @@
+name: Ensemble Audit
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to audit (for manual /audit trigger)'
+        required: false
+        type: string
+
+permissions:
+  statuses: write
+  pull-requests: read
+  contents: read
+
+jobs:
+  pre-checks:
+    name: Automated Pre-checks
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    outputs:
+      json_valid: ${{ steps.json_check.outcome }}
+      structure_valid: ${{ steps.structure_check.outcome }}
+      consistency_valid: ${{ steps.consistency_check.outcome }}
+      entrypoint_valid: ${{ steps.entrypoint_check.outcome }}
+      jira_key: ${{ steps.jira.outputs.key }}
+      pre_check_summary: ${{ steps.summary.outputs.text }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract Jira key
+        id: jira
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BRANCH: ${{ github.head_ref }}
+        run: |
+          # SECURITY: Title/branch passed via env to prevent injection
+          KEY=$(echo "$PR_TITLE $PR_BRANCH" | grep -oE '[A-Z]+-[0-9]+' | head -1 || true)
+          echo "key=${KEY:-none}" >> $GITHUB_OUTPUT
+
+      - name: Validate JSON configs
+        id: json_check
+        run: |
+          ERRORS=0
+          for f in $(find config -name '*.json' -type f 2>/dev/null); do
+            if ! python3 -m json.tool "$f" > /dev/null 2>&1; then
+              echo "::error::Invalid JSON: $f"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done
+          if [ $ERRORS -gt 0 ]; then
+            echo "$ERRORS JSON files failed validation"
+            exit 1
+          fi
+          echo "All JSON configs valid"
+
+      - name: Validate agent structure
+        id: structure_check
+        run: |
+          ERRORS=0
+          for agent in scout trak kit scribe; do
+            IDENTITY="agents/$agent/workspace/IDENTITY.md"
+            if [ ! -f "$IDENTITY" ]; then
+              echo "::error::Missing $IDENTITY"
+              ERRORS=$((ERRORS + 1))
+              continue
+            fi
+            # Check required sections
+            for section in "Security & Access Control" "Action Attribution" "User Tier Enforcement"; do
+              if ! grep -q "$section" "$IDENTITY"; then
+                echo "::warning::$agent IDENTITY.md missing section: $section"
+              fi
+            done
+          done
+          if [ $ERRORS -gt 0 ]; then exit 1; fi
+          echo "Agent structure valid"
+
+      - name: Check proactive config consistency
+        id: consistency_check
+        continue-on-error: true
+        run: |
+          # Extract handoff IDs from protocol
+          if [ -f config/proactive/handoff-protocol.json ]; then
+            PROTOCOL_IDS=$(python3 -c "
+          import json
+          with open('config/proactive/handoff-protocol.json') as f:
+              d = json.load(f)
+          for h in d.get('handoffs', []):
+              print(h['id'])
+          ")
+            # Check each ID is referenced in at least one IDENTITY.md
+            for hid in $PROTOCOL_IDS; do
+              FOUND=false
+              for agent in scout trak kit scribe; do
+                if grep -q "$hid" "agents/$agent/workspace/IDENTITY.md" 2>/dev/null; then
+                  FOUND=true
+                  break
+                fi
+              done
+              if [ "$FOUND" = "false" ]; then
+                echo "::warning::Handoff ID '$hid' not referenced in any agent IDENTITY.md"
+              fi
+            done
+          fi
+          echo "Consistency check complete"
+
+      - name: Verify entrypoint agent loops
+        id: entrypoint_check
+        run: |
+          EXPECTED_AGENTS="kit scout scribe trak"
+          ERRORS=0
+          LOOP_NUM=0
+          while IFS= read -r line; do
+            LOOP_NUM=$((LOOP_NUM + 1))
+            for agent in $EXPECTED_AGENTS; do
+              if ! echo "$line" | grep -qw "$agent"; then
+                echo "::error::Agent '$agent' missing from entrypoint.sh loop $LOOP_NUM: $line"
+                ERRORS=$((ERRORS + 1))
+              fi
+            done
+          done < <(grep 'for agent in' entrypoint.sh)
+          if [ $ERRORS -gt 0 ]; then exit 1; fi
+          echo "All agents present in all $LOOP_NUM entrypoint loops"
+
+      - name: Build pre-check summary
+        id: summary
+        if: always()
+        env:
+          J: ${{ steps.json_check.outcome }}
+          S: ${{ steps.structure_check.outcome }}
+          C: ${{ steps.consistency_check.outcome }}
+          E: ${{ steps.entrypoint_check.outcome }}
+          JK: ${{ steps.jira.outputs.key }}
+        run: |
+          icon() { [ "$1" = "success" ] && echo "✅" || echo "❌"; }
+          TEXT="$(icon $J) JSON configs | $(icon $S) Agent structure | $(icon $C) Config consistency | $(icon $E) Entrypoint loops | Jira: ${JK:-none}"
+          echo "text=$TEXT" >> $GITHUB_OUTPUT
+
+  notify:
+    name: Set Pending + Notify Slack
+    runs-on: ubuntu-latest
+    needs: pre-checks
+    if: always() && github.event.pull_request.draft == false
+    steps:
+      - name: Set ensemble-review to pending
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api "repos/$GH_REPO/statuses/$PR_SHA" \
+            -f state=pending \
+            -f description="Ensemble review: awaiting agent review" \
+            -f context="ensemble-review" \
+            -f target_url="$RUN_URL" 
+
+      - name: Check Slack token
+        id: slack_check
+        run: |
+          if [ -n "$TOKEN" ]; then
+            echo "has_token=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_token=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          TOKEN: ${{ secrets.SLACK_BOT_TOKEN_REVIEW }}
+
+      - name: Notify Slack
+        if: steps.slack_check.outputs.has_token == 'true'
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN_REVIEW }}
+          SDLC_CHANNEL: C0AKL3FMGR5
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          ACTIONS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PRECHECKS: ${{ needs.pre-checks.outputs.pre_check_summary }}
+          JIRA_KEY: ${{ needs.pre-checks.outputs.jira_key }}
+        run: |
+          # Use jq to safely build JSON payload (prevents shell injection via PR title)
+          PAYLOAD=$(jq -n \
+            --arg channel "$SDLC_CHANNEL" \
+            --arg title "$PR_TITLE" \
+            --arg author "$PR_AUTHOR" \
+            --arg jira "$JIRA_KEY" \
+            --arg prechecks "$PRECHECKS" \
+            --arg pr_url "$PR_URL" \
+            --arg actions_url "$ACTIONS_URL" \
+            --arg pr_num "$PR_NUMBER" \
+            '{channel: $channel, text: ("📋 *Ensemble Audit — PR #" + $pr_num + "*\n*Title*: " + $title + "\n*Author*: " + $author + "\n*Jira*: " + $jira + "\n*Pre-checks*: " + $prechecks + "\n*PR*: " + $pr_url + "\n*Actions*: " + $actions_url + "\n\n<@U0AKF614URE> please run ensemble review.")}')
+          RESPONSE=$(curl -s -X POST 'https://slack.com/api/chat.postMessage' \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d "$PAYLOAD")
+          OK=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('ok','false'))")
+          if [ "$OK" = "True" ]; then
+            echo "Posted to #sdlc-reviews"
+          else
+            echo "Slack API error: $RESPONSE"
+            exit 1
+          fi
+
+      - name: Log (no Slack configured)
+        if: steps.slack_check.outputs.has_token == 'false'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PRECHECKS: ${{ needs.pre-checks.outputs.pre_check_summary }}
+          JIRA_KEY: ${{ needs.pre-checks.outputs.jira_key }}
+        run: |
+          echo "No SLACK_BOT_TOKEN_REVIEW configured. Review request:"
+          echo "  PR: #$PR_NUMBER — $PR_TITLE"
+          echo "  Pre-checks: $PRECHECKS"
+          echo "  Jira: $JIRA_KEY"
+          echo "  Add SLACK_BOT_TOKEN_REVIEW secret to enable notifications."

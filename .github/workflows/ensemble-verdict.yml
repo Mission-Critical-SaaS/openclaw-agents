@@ -1,0 +1,160 @@
+name: Ensemble Verdict
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  statuses: write
+  pull-requests: read
+  contents: read
+
+jobs:
+  process-verdict:
+    name: Process Ensemble Verdict
+    runs-on: ubuntu-latest
+    # Only run when:
+    # 1. Comment is on a pull request (not a regular issue)
+    # 2. Comment contains the ENSEMBLE_VERDICT marker
+    # 3. Comment author has write access (COLLABORATOR, MEMBER, or OWNER)
+    if: >-
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '<!-- ENSEMBLE_VERDICT:') &&
+      (
+        github.event.comment.author_association == 'COLLABORATOR' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'OWNER'
+      )
+    steps:
+      - name: Extract verdict from comment
+        id: verdict
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          # SECURITY: Comment body passed via env var, not ${{ }} interpolation,
+          # to prevent shell injection via crafted PR comments.
+          # Extract verdict (approved, changes_requested, blocked)
+          VERDICT=$(echo "$COMMENT_BODY" | grep -oP '<!-- ENSEMBLE_VERDICT:\s*\K[a-z_]+' | head -1)
+          # Extract dimensions score
+          DIMENSIONS=$(echo "$COMMENT_BODY" | grep -oP '<!-- ENSEMBLE_DIMENSIONS:\s*\K[0-9]+/[0-9]+' | head -1)
+          # Extract reviewer name
+          REVIEWER=$(echo "$COMMENT_BODY" | grep -oP '<!-- ENSEMBLE_REVIEWER:\s*\K[a-z]+' | head -1)
+
+          if [ -z "$VERDICT" ]; then
+            echo "::error::Could not parse ENSEMBLE_VERDICT from comment"
+            exit 1
+          fi
+
+          echo "verdict=$VERDICT" >> $GITHUB_OUTPUT
+          echo "dimensions=${DIMENSIONS:-unknown}" >> $GITHUB_OUTPUT
+          echo "reviewer=${REVIEWER:-unknown}" >> $GITHUB_OUTPUT
+
+          # Map verdict to GitHub status check state
+          case "$VERDICT" in
+            approved)
+              echo "state=success" >> $GITHUB_OUTPUT
+              echo "description=Ensemble review: APPROVED (${DIMENSIONS:-?/?})" >> $GITHUB_OUTPUT
+              ;;
+            changes_requested)
+              echo "state=failure" >> $GITHUB_OUTPUT
+              echo "description=Ensemble review: CHANGES REQUESTED (${DIMENSIONS:-?/?})" >> $GITHUB_OUTPUT
+              ;;
+            blocked)
+              echo "state=error" >> $GITHUB_OUTPUT
+              echo "description=Ensemble review: BLOCKED (${DIMENSIONS:-?/?})" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "::error::Unknown verdict: $VERDICT (expected: approved, changes_requested, blocked)"
+              exit 1
+              ;;
+          esac
+          echo "Parsed verdict: $VERDICT ($DIMENSIONS) by $REVIEWER"
+
+      - name: Get PR head SHA
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUM: ${{ github.event.issue.number }}
+        run: |
+          PR_DATA=$(gh api "repos/$GH_REPO/pulls/$PR_NUM")
+          SHA=$(echo "$PR_DATA" | python3 -c "import sys,json; print(json.load(sys.stdin)['head']['sha'])")
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+          echo "PR #$PR_NUM head SHA: $SHA"
+
+      - name: Set ensemble-review status check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_SHA: ${{ steps.pr.outputs.sha }}
+          VERDICT_STATE: ${{ steps.verdict.outputs.state }}
+          VERDICT_DESC: ${{ steps.verdict.outputs.description }}
+          COMMENT_URL: ${{ github.event.comment.html_url }}
+        run: |
+          gh api "repos/$GH_REPO/statuses/$PR_SHA" \
+            -f state="$VERDICT_STATE" \
+            -f description="$VERDICT_DESC" \
+            -f context="ensemble-review" \
+            -f target_url="$COMMENT_URL"
+          echo "Status check set: $VERDICT_STATE" 
+
+      - name: Check Slack token
+        id: slack_check
+        run: |
+          if [ -n "$TOKEN" ]; then
+            echo "has_token=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_token=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          TOKEN: ${{ secrets.SLACK_BOT_TOKEN_REVIEW }}
+
+      - name: Post Slack follow-up
+        if: steps.slack_check.outputs.has_token == 'true'
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN_REVIEW }}
+          SDLC_CHANNEL: C0AKL3FMGR5
+          VERDICT: ${{ steps.verdict.outputs.verdict }}
+          DIMENSIONS: ${{ steps.verdict.outputs.dimensions }}
+          REVIEWER: ${{ steps.verdict.outputs.reviewer }}
+          STATE: ${{ steps.verdict.outputs.state }}
+          PR_NUM: ${{ github.event.issue.number }}
+          COMMENT_URL: ${{ github.event.comment.html_url }}
+        run: |
+          case "$VERDICT" in
+            approved) ICON="✅" ;;
+            changes_requested) ICON="🔄" ;;
+            blocked) ICON="🚫" ;;
+            *) ICON="❓" ;;
+          esac
+          # Use jq to safely build JSON payload (prevents injection)
+          PAYLOAD=$(jq -n \
+            --arg channel "$SDLC_CHANNEL" \
+            --arg icon "$ICON" \
+            --arg verdict "$VERDICT" \
+            --arg dims "$DIMENSIONS" \
+            --arg reviewer "$REVIEWER" \
+            --arg state "$STATE" \
+            --arg pr_num "$PR_NUM" \
+            --arg comment_url "$COMMENT_URL" \
+            '{channel: $channel, text: ($icon + " *Ensemble Verdict — PR #" + $pr_num + "*\nVerdict: *" + $verdict + "* (" + $dims + ") by " + $reviewer + "\nStatus check: `ensemble-review` → `" + $state + "`\nComment: " + $comment_url)}')
+          curl -s -X POST 'https://slack.com/api/chat.postMessage' \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d "$PAYLOAD"
+
+      - name: Log verdict (no Slack configured)
+        if: steps.slack_check.outputs.has_token == 'false'
+        env:
+          PR_NUM: ${{ github.event.issue.number }}
+          VERDICT: ${{ steps.verdict.outputs.verdict }}
+          DIMENSIONS: ${{ steps.verdict.outputs.dimensions }}
+          REVIEWER: ${{ steps.verdict.outputs.reviewer }}
+          STATE: ${{ steps.verdict.outputs.state }}
+        run: |
+          echo "Verdict processed:"
+          echo "  PR: #$PR_NUM"
+          echo "  Verdict: $VERDICT"
+          echo "  Dimensions: $DIMENSIONS"
+          echo "  Reviewer: $REVIEWER"
+          echo "  Status: $STATE"
