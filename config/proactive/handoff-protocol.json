@@ -62,7 +62,8 @@
       "to": [
         "kit",
         "trak",
-        "scout"
+        "scout",
+        "probe"
       ],
       "trigger": "Scribe detects documentation that's 90+ days stale and references active systems",
       "payload": "Document link, last updated date, systems referenced, suggested owner",
@@ -77,6 +78,51 @@
       "payload": "Bug description, affected customers count, reproduction steps, ticket links",
       "action": "Kit investigates the bug and creates a GitHub issue if confirmed",
       "priority": "high"
+    },
+    {
+      "id": "kit-to-probe-post-deploy",
+      "from": "kit",
+      "to": "probe",
+      "trigger": "A deployment completes (tag pushed, deploy hook fires)",
+      "payload": "Deploy tag, environment URL, list of merged PRs",
+      "action": "Probe runs post-deploy smoke tests against critical user flows",
+      "priority": "high"
+    },
+    {
+      "id": "trak-to-probe-bug-repro",
+      "from": "trak",
+      "to": "probe",
+      "trigger": "A Jira bug ticket has reproduction steps and needs verification",
+      "payload": "Jira ticket ID, reproduction steps, environment details",
+      "action": "Probe attempts browser-based reproduction and attaches evidence to ticket",
+      "priority": "medium"
+    },
+    {
+      "id": "probe-to-kit-bug-reproduced",
+      "from": "probe",
+      "to": "kit",
+      "trigger": "Probe successfully reproduces a reported bug",
+      "payload": "Jira ticket ID, screenshots, console logs, exact reproduction steps",
+      "action": "Kit investigates the root cause and creates a fix",
+      "priority": "high"
+    },
+    {
+      "id": "probe-to-trak-test-results",
+      "from": "probe",
+      "to": "trak",
+      "trigger": "Post-deploy smoke tests complete",
+      "payload": "Pass/fail summary, deploy tag, test execution report",
+      "action": "Trak updates the deployment tracking record with test results",
+      "priority": "medium"
+    },
+    {
+      "id": "probe-to-scribe-test-docs",
+      "from": "probe",
+      "to": "scribe",
+      "trigger": "Probe identifies missing test specifications or undocumented flows",
+      "payload": "Missing test specs, undocumented user flows, coverage gaps",
+      "action": "Scribe creates documentation for the missing test areas",
+      "priority": "low"
     }
   ],
   "protocol": {

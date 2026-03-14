@@ -1611,4 +1611,178 @@ describe('Ensemble Audit Workflows', () => {
     });
   });
 
+  // ============================================================
+  // PROBE AGENT & PROACTIVE INFRASTRUCTURE
+  // ============================================================
+  describe('Probe Agent', () => {
+    test('Probe IDENTITY.md exists with correct domain', () => {
+      const path = join(ROOT, 'agents', 'probe', 'workspace', 'IDENTITY.md');
+      expect(existsSync(path)).toBe(true);
+      const content = readFileSync(path, 'utf-8');
+      expect(content).toContain('Probe');
+      expect(content).toContain('Quality & Testing');
+      expect(content).toContain('QUALITY & TESTING');
+    });
+
+    test('Probe IDENTITY.md defines boundary rules', () => {
+      const content = readFileSync(join(ROOT, 'agents', 'probe', 'workspace', 'IDENTITY.md'), 'utf-8');
+      expect(content).toContain('NEVER write production code');
+      expect(content).toContain('NEVER manage Jira issues beyond');
+      expect(content).toContain('NEVER respond to customer');
+    });
+
+    test('Probe IDENTITY.md has smoke test, bug reproduction, and performance sections', () => {
+      const content = readFileSync(join(ROOT, 'agents', 'probe', 'workspace', 'IDENTITY.md'), 'utf-8');
+      expect(content).toContain('Post-Deploy Smoke Tests');
+      expect(content).toContain('Bug Reproduction');
+      expect(content).toContain('Performance Monitoring');
+      expect(content).toContain('Exploratory Bug Hunting');
+    });
+
+    test('Probe IDENTITY.md references handoff protocols', () => {
+      const content = readFileSync(join(ROOT, 'agents', 'probe', 'workspace', 'IDENTITY.md'), 'utf-8');
+      expect(content).toContain('probe-to-kit-bug-reproduced');
+      expect(content).toContain('probe-to-trak-test-results');
+      expect(content).toContain('kit-to-probe-post-deploy');
+    });
+
+    test('Probe KNOWLEDGE.md exists', () => {
+      const path = join(ROOT, 'agents', 'probe', 'workspace', 'KNOWLEDGE.md');
+      expect(existsSync(path)).toBe(true);
+    });
+
+    test('Probe is configured in openclaw.json.tpl', () => {
+      const content = readFileSync(join(ROOT, 'config', 'openclaw.json.tpl'), 'utf-8');
+      expect(content).toContain('"id": "probe"');
+      expect(content).toContain('"accountId": "probe"');
+    });
+
+    test('Probe is configured in entrypoint.sh', () => {
+      const content = readFileSync(join(ROOT, 'entrypoint.sh'), 'utf-8');
+      expect(content).toContain('SLACK_BOT_TOKEN_PROBE');
+      expect(content).toContain('SLACK_APP_TOKEN_PROBE');
+      expect(content).toContain("'probe'");
+    });
+
+    test('Probe workspace volumes are in docker-compose.yml', () => {
+      const content = readFileSync(join(ROOT, 'docker-compose.yml'), 'utf-8');
+      expect(content).toContain('/opt/openclaw/agents/probe/workspace');
+      expect(content).toContain('/opt/openclaw-persist/workspace-probe');
+    });
+
+    test('Probe is in deploy.sh persistent workspace creation', () => {
+      const content = readFileSync(join(ROOT, 'deploy.sh'), 'utf-8');
+      expect(content).toContain('scout trak kit scribe probe');
+    });
+
+    test('Probe tokens are in .env.example', () => {
+      const content = readFileSync(join(ROOT, '.env.example'), 'utf-8');
+      expect(content).toContain('SLACK_BOT_TOKEN_PROBE');
+      expect(content).toContain('SLACK_APP_TOKEN_PROBE');
+    });
+  });
+
+  describe('Proactive Infrastructure', () => {
+    test('proactive-scheduler.sh exists and is executable', () => {
+      const path = join(ROOT, 'scripts', 'proactive-scheduler.sh');
+      expect(existsSync(path)).toBe(true);
+      const stat = statSync(path);
+      expect(stat.mode & 0o111).toBeTruthy();
+    });
+
+    test('proactive-scheduler.sh defines all Phase 1 tasks', () => {
+      const content = readFileSync(join(ROOT, 'scripts', 'proactive-scheduler.sh'), 'utf-8');
+      expect(content).toContain('trak-sprint-health');
+      expect(content).toContain('trak-stale-work');
+      expect(content).toContain('scout-sla-watchdog');
+      expect(content).toContain('scout-bug-correlator');
+      expect(content).toContain('scribe-doc-staleness');
+    });
+
+    test('proactive-scheduler.sh defines Phase 2 and 3 tasks', () => {
+      const content = readFileSync(join(ROOT, 'scripts', 'proactive-scheduler.sh'), 'utf-8');
+      expect(content).toContain('kit-ci-triage');
+      expect(content).toContain('trak-deploy-tracker');
+      expect(content).toContain('scribe-changelog');
+      expect(content).toContain('probe-smoke-test');
+      expect(content).toContain('probe-perf-canary');
+    });
+
+    test('proactive-scheduler.sh has kill switch support', () => {
+      const content = readFileSync(join(ROOT, 'scripts', 'proactive-scheduler.sh'), 'utf-8');
+      expect(content).toContain('PROACTIVE_PAUSE');
+      expect(content).toContain('.proactive-pause');
+      expect(content).toContain('PAUSED');
+    });
+
+    test('proactive-scheduler.sh routes tasks to correct agents', () => {
+      const content = readFileSync(join(ROOT, 'scripts', 'proactive-scheduler.sh'), 'utf-8');
+      // Each task case calls send_to_agent with the correct agent name
+      // trak-sprint-health sends to "trak"
+      expect(content).toMatch(/trak-sprint-health\)[\s\S]*?send_to_agent\s+"trak"/);
+      // scout-sla-watchdog sends to "scout"
+      expect(content).toMatch(/scout-sla-watchdog\)[\s\S]*?send_to_agent\s+"scout"/);
+      // scribe-doc-staleness sends to "scribe"
+      expect(content).toMatch(/scribe-doc-staleness\)[\s\S]*?send_to_agent\s+"scribe"/);
+      // kit-ci-triage sends to "kit"
+      expect(content).toMatch(/kit-ci-triage\)[\s\S]*?send_to_agent\s+"kit"/);
+      // probe-smoke-test sends to "probe"
+      expect(content).toMatch(/probe-smoke-test\)[\s\S]*?send_to_agent\s+"probe"/);
+    });
+
+    test('setup-proactive-cron.sh exists and is executable', () => {
+      const path = join(ROOT, 'scripts', 'setup-proactive-cron.sh');
+      expect(existsSync(path)).toBe(true);
+      const stat = statSync(path);
+      expect(stat.mode & 0o111).toBeTruthy();
+    });
+
+    test('setup-proactive-cron.sh defines weekday schedules for Phase 1', () => {
+      const content = readFileSync(join(ROOT, 'scripts', 'setup-proactive-cron.sh'), 'utf-8');
+      expect(content).toContain('trak-sprint-health');
+      expect(content).toContain('scout-sla-watchdog');
+      expect(content).toContain('scout-bug-correlator');
+      expect(content).toContain('scribe-doc-staleness');
+      expect(content).toContain('trak-stale-work');
+    });
+
+    test('deploy.sh triggers post-deploy proactive tasks', () => {
+      const content = readFileSync(join(ROOT, 'deploy.sh'), 'utf-8');
+      expect(content).toContain('proactive-scheduler.sh');
+      expect(content).toContain('scribe-changelog');
+      expect(content).toContain('trak-deploy-tracker');
+      expect(content).toContain('probe-smoke-test');
+    });
+
+    test('budget-caps.json includes Probe agent', () => {
+      const content = readFileSync(join(ROOT, 'config', 'proactive', 'budget-caps.json'), 'utf-8');
+      const caps = JSON.parse(content);
+      expect(caps.caps.probe).toBeDefined();
+      expect(caps.caps.probe.daily.browser_sessions).toBeDefined();
+    });
+
+    test('handoff-protocol.json includes Probe handoffs', () => {
+      const content = readFileSync(join(ROOT, 'config', 'proactive', 'handoff-protocol.json'), 'utf-8');
+      const protocol = JSON.parse(content);
+      const handoffIds = protocol.handoffs.map((h: any) => h.id);
+      expect(handoffIds).toContain('kit-to-probe-post-deploy');
+      expect(handoffIds).toContain('probe-to-kit-bug-reproduced');
+      expect(handoffIds).toContain('probe-to-trak-test-results');
+      expect(handoffIds).toContain('trak-to-probe-bug-repro');
+    });
+
+    test('all five agents are in entrypoint.sh workspace loops', () => {
+      const content = readFileSync(join(ROOT, 'entrypoint.sh'), 'utf-8');
+      // All workspace injection loops should include all 5 agents
+      const loops = content.match(/for agent in [^;]+;/g) || [];
+      for (const loop of loops) {
+        expect(loop).toContain('scout');
+        expect(loop).toContain('trak');
+        expect(loop).toContain('kit');
+        expect(loop).toContain('scribe');
+        expect(loop).toContain('probe');
+      }
+    });
+  });
+
 });

@@ -16,6 +16,7 @@ services:
       - /opt/openclaw/agents/trak/workspace:/tmp/agents/trak/workspace
       - /opt/openclaw/agents/kit/workspace:/tmp/agents/kit/workspace
       - /opt/openclaw/agents/scribe/workspace:/tmp/agents/scribe/workspace
+      - /opt/openclaw/agents/probe/workspace:/tmp/agents/probe/workspace
       # Persistent runtime workspace (survives deploys + restarts).
       # OpenClaw creates workspace files here on first boot; bind mount
       # ensures they persist. Path matches OpenClaw's actual runtime
@@ -24,6 +25,7 @@ services:
       - /opt/openclaw-persist/workspace-trak:/root/.openclaw/.openclaw/workspace-trak
       - /opt/openclaw-persist/workspace-kit:/root/.openclaw/.openclaw/workspace-kit
       - /opt/openclaw-persist/workspace-scribe:/root/.openclaw/.openclaw/workspace-scribe
+      - /opt/openclaw-persist/workspace-probe:/root/.openclaw/.openclaw/workspace-probe
       # Memory database (agent knowledge, virtual FS state).
       # Without this mount, agent file edits (e.g. KNOWLEDGE.md updates)
       # are lost on container restart because the virtual FS stores

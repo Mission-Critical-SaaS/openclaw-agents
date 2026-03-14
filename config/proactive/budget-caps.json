@@ -65,6 +65,25 @@
         "max_pages_per_batch": 5,
         "max_knowledge_articles_per_day": 3
       }
+    },
+    "probe": {
+      "daily": {
+        "browser_sessions": 10,
+        "slack_messages": 20,
+        "jira_updates": 15,
+        "screenshots": 50
+      },
+      "monthly": {
+        "browser_sessions": 200,
+        "slack_messages": 400,
+        "jira_updates": 300,
+        "screenshots": 1000
+      },
+      "per_action": {
+        "max_pages_per_smoke_test": 10,
+        "max_screenshots_per_session": 20,
+        "max_bug_tickets_per_day": 5
+      }
     }
   },
   "enforcement": "advisory",

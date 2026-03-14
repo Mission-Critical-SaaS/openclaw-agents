@@ -85,7 +85,7 @@ NEW_COMMIT=$(git rev-parse HEAD)
 log "Now at: $NEW_COMMIT"
 # Ensure persistent runtime workspace dirs exist (outside git repo, survives checkouts).
 # Path matches OpenClaw's runtime workspace: /root/.openclaw/.openclaw/workspace-{agent}
-for agent in scout trak kit scribe; do
+for agent in scout trak kit scribe probe; do
   mkdir -p "/opt/openclaw-persist/workspace-${agent}"
 done
 mkdir -p "/opt/openclaw-persist/memory"
@@ -128,3 +128,15 @@ docker logs "$CONTAINER_NAME" 2>&1 | grep -i "socket mode" | tail -6 | while IFS
 log "Previous: $CURRENT_COMMIT | Deployed: $NEW_COMMIT"
 log "Log: $DEPLOY_LOG"
 log "SUCCESS: Deployment complete!"
+
+# ============================================================
+# Post-deploy proactive triggers (non-blocking, fire-and-forget)
+# These run in background so the SSM command can return immediately.
+# ============================================================
+if [ -x "$DEPLOY_DIR/scripts/proactive-scheduler.sh" ] && [ ! -f "$DEPLOY_DIR/.proactive-pause" ]; then
+    log "Triggering post-deploy proactive tasks..."
+    nohup bash "$DEPLOY_DIR/scripts/proactive-scheduler.sh" scribe-changelog >> "$LOG_DIR/proactive.log" 2>&1 &
+    nohup bash "$DEPLOY_DIR/scripts/proactive-scheduler.sh" trak-deploy-tracker >> "$LOG_DIR/proactive.log" 2>&1 &
+    nohup bash "$DEPLOY_DIR/scripts/proactive-scheduler.sh" probe-smoke-test >> "$LOG_DIR/proactive.log" 2>&1 &
+    log "Post-deploy tasks triggered (running in background)."
+fi
