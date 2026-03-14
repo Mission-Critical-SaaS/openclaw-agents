@@ -15,7 +15,7 @@
  * - Response discipline requirements
  */
 
-import { readFileSync, existsSync, readdirSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 
 const ROOT = join(__dirname, '..');
@@ -1479,5 +1479,136 @@ describe('Ensemble Audit Workflows', () => {
     });
   });
 });
+
+  // ============================================================
+  // DATA PERSISTENCE & BACKUP INFRASTRUCTURE
+  // ============================================================
+  describe('Data Persistence & Backup', () => {
+    describe('Docker Volume Mounts', () => {
+      test('docker-compose.yml mounts persistent workspace volumes', () => {
+        const content = readFileSync(join(ROOT, 'docker-compose.yml'), 'utf-8');
+        for (const agent of ['scout', 'trak', 'kit', 'scribe']) {
+          expect(content).toContain(`/opt/openclaw-persist/workspace-${agent}`);
+        }
+      });
+
+      test('docker-compose.yml mounts persistent memory volume', () => {
+        const content = readFileSync(join(ROOT, 'docker-compose.yml'), 'utf-8');
+        expect(content).toContain('/opt/openclaw-persist/memory');
+      });
+    });
+
+    describe('Backup Scripts', () => {
+      test('backup-agent-data.sh exists and is executable', () => {
+        const path = join(ROOT, 'scripts', 'backup-agent-data.sh');
+        expect(existsSync(path)).toBe(true);
+        const stat = statSync(path);
+        expect(stat.mode & 0o111).toBeTruthy(); // executable
+      });
+
+      test('backup-agent-data.sh targets correct S3 bucket and persist dir', () => {
+        const content = readFileSync(join(ROOT, 'scripts', 'backup-agent-data.sh'), 'utf-8');
+        expect(content).toContain('openclaw-agent-backups');
+        expect(content).toContain('/opt/openclaw-persist');
+        expect(content).toContain('--pre-deploy');
+        expect(content).toContain('--cron');
+      });
+
+      test('backup-agent-data.sh performs SQLite WAL checkpoint for consistency', () => {
+        const content = readFileSync(join(ROOT, 'scripts', 'backup-agent-data.sh'), 'utf-8');
+        expect(content).toContain('wal_checkpoint');
+        expect(content).toContain('TRUNCATE');
+      });
+
+      test('backup-agent-data.sh creates timestamped snapshots', () => {
+        const content = readFileSync(join(ROOT, 'scripts', 'backup-agent-data.sh'), 'utf-8');
+        expect(content).toContain('snapshots/');
+        expect(content).toContain('tar -czf');
+      });
+
+      test('backup-agent-data.sh prunes old snapshots', () => {
+        const content = readFileSync(join(ROOT, 'scripts', 'backup-agent-data.sh'), 'utf-8');
+        expect(content).toMatch(/Prun/i);
+        expect(content).toContain('s3 rm');
+      });
+
+      test('restore-agent-data.sh exists and is executable', () => {
+        const path = join(ROOT, 'scripts', 'restore-agent-data.sh');
+        expect(existsSync(path)).toBe(true);
+        const stat = statSync(path);
+        expect(stat.mode & 0o111).toBeTruthy();
+      });
+
+      test('restore-agent-data.sh supports --list, --snapshot, --dry-run modes', () => {
+        const content = readFileSync(join(ROOT, 'scripts', 'restore-agent-data.sh'), 'utf-8');
+        expect(content).toContain('--list');
+        expect(content).toContain('--snapshot');
+        expect(content).toContain('--dry-run');
+      });
+
+      test('restore-agent-data.sh stops container before restore to prevent corruption', () => {
+        const content = readFileSync(join(ROOT, 'scripts', 'restore-agent-data.sh'), 'utf-8');
+        expect(content).toContain('docker stop');
+        expect(content).toContain('docker start');
+      });
+
+      test('restore-agent-data.sh creates safety backup before overwriting', () => {
+        const content = readFileSync(join(ROOT, 'scripts', 'restore-agent-data.sh'), 'utf-8');
+        expect(content).toContain('safety');
+        expect(content).toContain('pre-restore');
+      });
+
+      test('ebs-snapshot.sh exists and is executable', () => {
+        const path = join(ROOT, 'scripts', 'ebs-snapshot.sh');
+        expect(existsSync(path)).toBe(true);
+        const stat = statSync(path);
+        expect(stat.mode & 0o111).toBeTruthy();
+      });
+
+      test('ebs-snapshot.sh tags snapshots for lifecycle management', () => {
+        const content = readFileSync(join(ROOT, 'scripts', 'ebs-snapshot.sh'), 'utf-8');
+        expect(content).toContain('ManagedBy');
+        expect(content).toContain('openclaw-backup');
+        expect(content).toContain('Project');
+      });
+
+      test('ebs-snapshot.sh prunes snapshots beyond retention', () => {
+        const content = readFileSync(join(ROOT, 'scripts', 'ebs-snapshot.sh'), 'utf-8');
+        expect(content).toContain('RETENTION_DAYS');
+        expect(content).toContain('delete-snapshot');
+      });
+    });
+
+    describe('Deploy Integration', () => {
+      test('deploy.sh runs pre-deploy backup before git checkout', () => {
+        const content = readFileSync(join(ROOT, 'deploy.sh'), 'utf-8');
+        expect(content).toContain('backup-agent-data.sh');
+        expect(content).toContain('--pre-deploy');
+      });
+
+      test('deploy.sh creates persistent workspace directories', () => {
+        const content = readFileSync(join(ROOT, 'deploy.sh'), 'utf-8');
+        expect(content).toContain('/opt/openclaw-persist/workspace-');
+        expect(content).toContain('/opt/openclaw-persist/memory');
+      });
+    });
+
+    describe('Entrypoint Workspace Persistence', () => {
+      test('entrypoint.sh seeds KNOWLEDGE.md to persist dir on first boot', () => {
+        const content = readFileSync(join(ROOT, 'entrypoint.sh'), 'utf-8');
+        expect(content).toContain('PERSIST');
+        expect(content).toContain('KNOWLEDGE.md');
+        expect(content).toMatch(/if \[ ! -f.*PERSIST.*KNOWLEDGE/);
+      });
+
+      test('entrypoint.sh overwrites IDENTITY.md from git on each deploy', () => {
+        const content = readFileSync(join(ROOT, 'entrypoint.sh'), 'utf-8');
+        expect(content).toContain('IDENTITY.md');
+        // IDENTITY.md should be copied unconditionally (always from git)
+        expect(content).toMatch(/cp.*IDENTITY\.md.*CFG/);
+        expect(content).toMatch(/cp.*IDENTITY\.md.*PERSIST/);
+      });
+    });
+  });
 
 });

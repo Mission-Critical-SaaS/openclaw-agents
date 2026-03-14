@@ -58,6 +58,13 @@ if ! $NO_BACKUP; then
     echo "$(date -Iseconds)" >> "$BACKUP_FILE"
     log "Backup saved: $CURRENT_COMMIT"
 fi
+
+# Back up agent data to S3 before deploy (safety net)
+if [ -x "$DEPLOY_DIR/scripts/backup-agent-data.sh" ]; then
+    log "Backing up agent data to S3 (pre-deploy)..."
+    bash "$DEPLOY_DIR/scripts/backup-agent-data.sh" --pre-deploy || log "WARNING: Pre-deploy backup failed (non-fatal)"
+fi
+
 # Safety: discard local changes to tracked files before checkout.
 # deploy.sh writes .last_deploy (above) which may still be tracked in older
 # commits, causing git checkout to fail with "local changes would be overwritten".
