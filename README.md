@@ -83,6 +83,8 @@ Access is controlled via the `SLACK_ALLOW_FROM` secret (JSON array of Slack user
 | Nghia | U08FP393H4J |
 | Dai Kong | U084XE4S43G |
 | Duc | U08NGTS8Y5B |
+| Jonathan De Luca | U08FAE33NE5 |
+| Imrane Hajoui | U08A9B8065N |
 
 To update: modify `SLACK_ALLOW_FROM` in AWS Secrets Manager and redeploy.
 
