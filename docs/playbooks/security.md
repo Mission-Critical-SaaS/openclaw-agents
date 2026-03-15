@@ -2,7 +2,7 @@
 
 ## Overview
 
-The OpenClaw agent ensemble (Kit, Trak, Scout) implements a 5-layer security model to protect against unauthorized actions, accidents, and abuse. This playbook covers day-to-day security operations.
+The OpenClaw agent ensemble (Scout, Trak, Kit, Scribe, Probe) implements a 5-layer security model to protect against unauthorized actions, accidents, and abuse. This playbook covers day-to-day security operations.
 
 ## Security Architecture
 

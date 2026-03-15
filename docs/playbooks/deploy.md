@@ -61,9 +61,9 @@ docker-compose down && docker-compose up -d
 
 ### 3. Verify
 ```bash
-# Wait ~90s for startup + bootstrap, then:
+# Wait ~180s for startup + bootstrap, then:
 docker exec openclaw-agents openclaw status
-docker logs openclaw-agents 2>&1 | grep -i "socket mode" | tail -6
+docker logs openclaw-agents 2>&1 | grep -i "socket mode" | tail -10
 docker logs openclaw-agents 2>&1 | grep "BOOTSTRAP_OK"
 ```
 

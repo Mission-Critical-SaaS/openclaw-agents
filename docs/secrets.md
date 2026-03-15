@@ -17,6 +17,10 @@ The secret is a JSON object with these keys:
 | `SLACK_APP_TOKEN_TRAK` | Trak app-level token (xapp-...) | Slack App: A0AJLU847U2 |
 | `SLACK_BOT_TOKEN_KIT` | Kit bot OAuth token (xoxb-...) | Slack App: A0AKF8212BA |
 | `SLACK_APP_TOKEN_KIT` | Kit app-level token (xapp-...) | Slack App: A0AKF8212BA |
+| `SLACK_BOT_TOKEN_SCRIBE` | Scribe bot OAuth token (xoxb-...) | Slack App (Scribe) |
+| `SLACK_APP_TOKEN_SCRIBE` | Scribe app-level token (xapp-...) | Slack App (Scribe) |
+| `SLACK_BOT_TOKEN_PROBE` | Probe bot OAuth token (xoxb-...) | Slack App (Probe) |
+| `SLACK_APP_TOKEN_PROBE` | Probe app-level token (xapp-...) | Slack App (Probe) |
 | `SLACK_ALLOW_FROM` | JSON array of allowed Slack user IDs | Slack workspace |
 | `ATLASSIAN_SITE_NAME` | Jira/Confluence site (e.g., `lmntl`) | Atlassian admin |
 | `ATLASSIAN_USER_EMAIL` | Atlassian service account email | Atlassian admin |
@@ -69,7 +73,7 @@ aws ssm send-command \
 ## Rotating Slack Tokens
 
 1. Go to [api.slack.com/apps](https://api.slack.com/apps)
-2. Select the app (Scout/Trak/Kit)
+2. Select the app (Scout/Trak/Kit/Scribe/Probe)
 3. Regenerate the bot token under **OAuth & Permissions**
 4. Regenerate the app token under **Basic Information > App-Level Tokens**
 5. Update both tokens in Secrets Manager

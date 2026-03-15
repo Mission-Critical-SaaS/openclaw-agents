@@ -1,12 +1,12 @@
 # OpenClaw Agent Capability Matrix
 
-Comprehensive reference for the three agents running in the OpenClaw gateway, documenting roles, tool access, and integration points.
+Comprehensive reference for the five agents running in the OpenClaw gateway, documenting roles, tool access, and integration points.
 
 ---
 
 ## Agent Overview
 
-Three agents run in the OpenClaw gateway, each with distinct roles:
+Five agents run in the OpenClaw gateway, each with distinct roles:
 
 ### Scout — Customer Support Specialist
 - **Slack Bot User ID**: U0AJLT30KMG
@@ -37,18 +37,37 @@ Three agents run in the OpenClaw gateway, each with distinct roles:
 - **Key repos**: lmntl, service-platform, web-platform, mobile-platform, web-admin-dashboard, infra-*, tools, e2e-test, marketing-site, brand-system
 - **Key behaviors**: Reviews PRs, checks CI status, searches code, links Jira issues to PRs
 
+### Scribe — Knowledge & Documentation Specialist
+- **Slack Bot User ID**: U0AM170694Z
+- **DM Channel**: D0ALL7Z0ZL6
+- **Primary tools**: Notion (MCP)
+- **Secondary tools**: Jira (MCP, limited — for linking docs to issues)
+- **Personality**: Thorough, organized, detail-oriented
+- **Focus areas**: Knowledge base management, documentation creation and maintenance, meeting notes, process documentation
+- **Key behaviors**: Creates and updates Notion pages, links documentation to Jira issues, maintains knowledge base structure
+
+### Probe — Quality Assurance & Testing Specialist
+- **Slack Bot User ID**: U0ALRTLF752
+- **DM Channel**: D0ALJT5LSLV
+- **Primary tools**: GitHub (gh CLI, full access)
+- **Secondary tools**: Jira (MCP, limited — for test-related issues)
+- **Personality**: Methodical, skeptical, quality-focused
+- **Focus areas**: Test planning, QA verification, regression testing, test coverage analysis
+- **Key behaviors**: Validates PR test coverage, runs test suites, flags regressions, creates test-related Jira issues
+
 ---
 
 ## Tool Access Matrix
 
-| Tool | Scout | Trak | Kit |
-|------|-------|------|-----|
-| **Jira** (MCP) | ✅ Full — ticket lookup, creation, search | ✅ Full (primary) — sprint tracking, issue management | ⚠️ Limited — issue lookup only |
-| **Zendesk** (MCP) | ✅ Full — ticket search, create, update, comments | ❌ Not configured | ❌ Not configured |
-| **Notion** (MCP) | ❌ Not configured | ❌ Not configured | ❌ Not configured |
-| **GitHub** (gh CLI) | ⚠️ Limited — issue search only | ✅ Full — PRs, issues, repos | ✅ Full (primary) — PRs, CI, code review |
+| Tool | Scout | Trak | Kit | Scribe | Probe |
+|------|-------|------|-----|--------|-------|
+| **Jira** (MCP) | ✅ Full — ticket lookup, creation, search | ✅ Full (primary) — sprint tracking, issue management | ⚠️ Limited — issue lookup only | ⚠️ Limited — doc-related issues | ⚠️ Limited — test-related issues |
+| **Zendesk** (MCP) | ✅ Full — ticket search, create, update, comments | ❌ Not configured | ❌ Not configured | ❌ Not configured | ❌ Not configured |
+| **Notion** (MCP) | ❌ Not configured | ❌ Not configured | ❌ Not configured | ✅ Full (primary) — knowledge base | ❌ Not configured |
+| **GitHub** (gh CLI) | ⚠️ Limited — issue search only | ✅ Full — PRs, issues, repos | ✅ Full (primary) — PRs, CI, code review | ❌ Not configured | ✅ Full — test suites, CI |
+| **Zoho** (MCP) | ✅ Full — CRM access | ❌ Not configured | ❌ Not configured | ❌ Not configured | ❌ Not configured |
 
-**Note**: Notion is available as an MCP server but not yet assigned to any agent's identity. All three agents CAN access it if their IDENTITY.md is updated.
+**Note**: All MCP servers are available to all agents via the shared configuration. Tool access is controlled by each agent's IDENTITY.md — agents self-select based on their identity instructions.
 
 ---
 
@@ -57,7 +76,7 @@ Three agents run in the OpenClaw gateway, each with distinct roles:
 Tool access is controlled at TWO levels:
 
 ### 1. MCP Server Level
-All MCP servers (Jira, Zendesk, Notion) are available to all agents via the shared MCP server configuration. The inner entrypoint (`docker/entrypoint.sh`) generates this config at `/root/.mcporter/mcporter.json` on each container start.
+All MCP servers (Jira, Zendesk, Notion) are available to all agents via the shared MCP server configuration. The inner entrypoint (`docker/entrypoint.sh`) generates this config at `/home/openclaw/.mcporter/mcporter.json` on each container start.
 
 ### 2. Agent Identity Level
 Each agent's `IDENTITY.md` file defines which tools the agent should USE. The gateway doesn't restrict tool access — agents self-select based on their identity instructions. An agent without Zendesk in its IDENTITY.md can technically access Zendesk tools but won't know to do so.
@@ -115,6 +134,8 @@ Tool access changes require:
 Scout: "Search Zendesk for open tickets"
 Trak: "Show me the top 5 open bugs in the LMNTL project"
 Kit: "Check the CI status for the latest PR on lmntl repo"
+Scribe: "Search the Notion knowledge base for onboarding docs"
+Probe: "Check test coverage on the latest PR in openclaw-agents"
 ```
 
 ### Integration Verification
@@ -124,11 +145,11 @@ docker exec openclaw-agents bash -c '
     while IFS= read -r -d "" line; do export "$line"; done < /proc/1/environ
     openclaw status
 '
-# Expected: 3 servers, all healthy
+# Expected: 4+ servers, all healthy
 
 # Verify each agent's identity is loaded
-for agent in scout trak kit; do
-  docker exec openclaw-agents head -3 /root/.openclaw/agents/$agent/workspace/IDENTITY.md
+for agent in scout trak kit scribe probe; do
+  docker exec openclaw-agents head -3 /home/openclaw/.openclaw/agents/$agent/workspace/IDENTITY.md
 done
 ```
 
@@ -149,7 +170,7 @@ done
 
 ## Specialist Agent Integration
 
-All three agents have access to 13 specialist agent personas in `agents/shared/specialists/`. These provide deep domain expertise for the 7-dimension ensemble audit protocol.
+All five agents have access to 13 specialist agent personas in `agents/shared/specialists/`. These provide deep domain expertise for the 7-dimension ensemble audit protocol.
 
 ### Specialist-to-Dimension Mapping
 
@@ -202,14 +223,30 @@ Specialists are NOT separate processes. They are expertise profiles (stored as m
 - Technical implementation details and code changes
 - **Ensemble PR review**: Lead reviewer — 5 dimensions (correctness, security, operations, architecture, test coverage) using 6+ specialist personas
 
+### When to Use Scribe
+- Knowledge base creation and maintenance in Notion
+- Meeting notes and process documentation
+- Linking documentation to Jira issues
+- Searching for existing documentation or knowledge articles
+- Maintaining style guides and content standards
+
+### When to Use Probe
+- Verifying test coverage on PRs
+- Analyzing test suites and identifying gaps
+- Creating test-related Jira issues
+- Checking CI/CD pipeline status and test results
+- Regression testing and quality validation
+
 ---
 
 ## Quick Reference: Agent Identities
 
 Each agent loads its capabilities from:
-- **Scout**: `/root/.openclaw/agents/scout/workspace/IDENTITY.md`
-- **Trak**: `/root/.openclaw/agents/trak/workspace/IDENTITY.md`
-- **Kit**: `/root/.openclaw/agents/kit/workspace/IDENTITY.md`
+- **Scout**: `/home/openclaw/.openclaw/agents/scout/workspace/IDENTITY.md`
+- **Trak**: `/home/openclaw/.openclaw/agents/trak/workspace/IDENTITY.md`
+- **Kit**: `/home/openclaw/.openclaw/agents/kit/workspace/IDENTITY.md`
+- **Scribe**: `/home/openclaw/.openclaw/agents/scribe/workspace/IDENTITY.md`
+- **Probe**: `/home/openclaw/.openclaw/agents/probe/workspace/IDENTITY.md`
 
 The IDENTITY.md file contains:
 - Tool availability declarations

@@ -35,8 +35,8 @@ Plan → Develop → Test → Deploy (CI/CD) → Verify → Document
 | CDK infrastructure | `lib/openclaw-agents-stack.ts` | CDK deploy required |
 | Deploy tooling | `deploy.sh`, `scripts/` | No |
 | Docs/playbooks | `docs/**` | No |
-| MCP server config | `/root/.mcporter/mcporter.json` (generated) | Ephemeral — regenerated on restart |
-| npx package cache | `/root/.npm/_npx/` | Ephemeral — can be manually cleared |
+| MCP server config | `/home/openclaw/.mcporter/mcporter.json` (generated) | Ephemeral — regenerated on restart |
+| npx package cache | `/home/openclaw/.npm/_npx/` | Ephemeral — can be manually cleared |
 
 ## 2. Develop
 
@@ -162,12 +162,12 @@ See [deploy.md](deploy.md) for full deployment details.
 - **Symptom**: All three agents responded in DMs but completely ignored @mentions in channels. No errors in logs.
 - **Root cause**: `groupPolicy` was set to `"allowlist"` with an empty `allowChannels` list in the outer entrypoint. This silently drops all channel messages.
 - **Fix**: Changed `groupPolicy` to `"open"` in `/opt/openclaw/entrypoint.sh` (host file, persists across restarts).
-- **Prevention**: Always verify groupPolicy setting after deployment. Use `openclaw config get` to check, or inspect the generated config at `/root/.openclaw/openclaw.json`.
+- **Prevention**: Always verify groupPolicy setting after deployment. Use `openclaw config get` to check, or inspect the generated config at `/home/openclaw/.openclaw/openclaw.json`.
 
 ### npx Cache Corruption (Session 2)
 - **Symptom**: Zendesk MCP server showing `MCP error -32000: Connection closed`. `openclaw status` shows zendesk as "offline".
-- **Root cause**: Corrupted npx cache at `/root/.npm/_npx/`. Running `npx -y zd-mcp-server --help` directly revealed `Cannot find module 'ajv'` error.
-- **Fix**: Deleted corrupted cache directory: `rm -rf /root/.npm/_npx/<hash>`. Then restarted container so agents pick up the now-working server.
+- **Root cause**: Corrupted npx cache at `/home/openclaw/.npm/_npx/`. Running `npx -y zd-mcp-server --help` directly revealed `Cannot find module 'ajv'` error.
+- **Fix**: Deleted corrupted cache directory: `rm -rf /home/openclaw/.npm/_npx/<hash>`. Then restarted container so agents pick up the now-working server.
 - **Prevention**: When an MCP server goes offline, always check the npx cache first by running the npx command directly with `--help`.
 
 ### Agent Session Tool Caching (Session 2)
@@ -211,11 +211,11 @@ The script runs via SSM — it checks out the target ref, rebuilds the container
 1. Check logs: `docker logs openclaw-agents 2>&1 | tail -50`
 2. If error found, fix and redeploy via CI/CD
 3. For urgent recovery: use SSM to restart the container directly
-4. Wait 90 seconds, test again via DM
+4. Wait 180 seconds for config and bootstrap, test again via DM
 
 ### MCP server offline
 1. Check server health via SSM: `docker exec openclaw-agents openclaw status`
-2. If offline, check npx cache: `rm -rf /root/.npm/_npx/*`
+2. If offline, check npx cache: `rm -rf /home/openclaw/.npm/_npx/*`
 3. Restart container: `docker restart openclaw-agents`
 4. Verify via DM: Send tool test message
 
@@ -224,7 +224,7 @@ The script runs via SSM — it checks out the target ref, rebuilds the container
 | Resource | Location | Accessed Via |
 |----------|----------|--------------|
 | Container logs | Docker daemon | `docker logs openclaw-agents` |
-| Agent config | Container at `/root/.openclaw/openclaw.json` | `docker exec openclaw-agents cat /root/.openclaw/openclaw.json` |
+| Agent config | Container at `/home/openclaw/.openclaw/openclaw.json` | `docker exec openclaw-agents cat /home/openclaw/.openclaw/openclaw.json` |
 | MCP server status | Container | `docker exec openclaw-agents openclaw status` |
 | Source code | Host at `/opt/openclaw/` | GitHub: LMNTL-AI/openclaw-agents |
 | EC2 instance | i-0acd7169101e93388 | AWS SSM Session Manager |
@@ -234,7 +234,7 @@ The script runs via SSM — it checks out the target ref, rebuilds the container
 | Symptom | Likely Cause | Quick Fix | See |
 |---------|-------------|-----------|-----|
 | Agent ignores @mentions in channels but works in DMs | groupPolicy = "allowlist" with empty list | Set groupPolicy to "open" in outer entrypoint | Lessons Learned §1 |
-| MCP server offline, `Connection closed` | Corrupted npx cache | `rm -rf /root/.npm/_npx/*` + restart | mcp-troubleshooting.md |
+| MCP server offline, `Connection closed` | Corrupted npx cache | `rm -rf /home/openclaw/.npm/_npx/*` + restart | mcp-troubleshooting.md |
 | `openclaw status` healthy but agent can't see tools | Agent session cached stale tool list | `docker restart openclaw-agents` | Lessons Learned §3 |
 | Agent responds with wrong/outdated identity | Container using cached IDENTITY.md | Full restart: `docker-compose down && up -d` | restart.md |
 | Agent posts streaming updates as top-level messages | `streaming` config rejected (using invalid value) | Use `'off'` not `'none'` + check for "Normalized" in logs | Lessons Learned §6 |

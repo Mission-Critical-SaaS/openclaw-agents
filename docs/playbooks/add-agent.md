@@ -32,7 +32,7 @@ To add a new agent to the OpenClaw gateway, you need to:
 
 ### 2. Update Gateway Config
 
-Edit config/openclaw.json.tpl and add the new agent configuration, following the same pattern as Scout/Trak/Kit.
+Edit config/openclaw.json.tpl and add the new agent configuration, following the same pattern as Scout/Trak/Kit/Scribe/Probe.
 
 ### 3. Create Agent Workspace
 
@@ -54,7 +54,11 @@ Update AWS Secrets Manager (`openclaw/agents`) with:
 
 ### 5. Update Entrypoint
 
-If the outer entrypoint (`entrypoint.sh`) explicitly lists environment variables for each agent, add the new agent's tokens.
+If the outer entrypoint (`entrypoint.sh`) explicitly lists environment variables for each agent, add the new agent's tokens. Ensure the new agent is included in all `for agent in` loops.
+
+### 5b. Configure HMAC Handoff Authentication
+
+If the new agent participates in cross-agent handoffs, ensure the HMAC shared secret is configured. The outer entrypoint derives `HMAC_HANDOFF_KEY` from `ANTHROPIC_API_KEY` — no additional secrets needed, but the agent's IDENTITY.md must include the handoff protocol instructions.
 
 ### 6. Update Documentation
 
@@ -63,6 +67,7 @@ Following the [SDLC playbook](sdlc.md#6-document):
 - **architecture.md** — Update the MCP Tool Access section (agent count)
 - **secrets.md** — Add the new token entries
 - **agent-capability-matrix.md** — Add the new agent's tool access
+- **ensemble-audit.md** — Add the agent's Slack User ID if it participates in reviews
 
 ### 7. Deploy
 

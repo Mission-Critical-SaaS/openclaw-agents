@@ -1,26 +1,26 @@
 # OpenClaw Agents — LMNTL Multi-Agent Platform
 
-Production deployment of three AI agents (Scout, Trak, Kit) on AWS, connected to Slack via the OpenClaw gateway with native MCP tool integrations (Jira, Zendesk, Notion, GitHub).
+Production deployment of five AI agents (Scout, Trak, Kit, Scribe, Probe) on AWS, connected to Slack via the OpenClaw gateway with native MCP tool integrations (Jira, Zendesk, Notion, GitHub, Zoho).
 
 ## Architecture
 
-EC2 t3.xlarge instance in AWS account 122015479852 (us-east-1) running a Docker container with the OpenClaw gateway. Three agents connect via Slack Socket Mode. All deployments go through GitHub Actions CI/CD.
+EC2 t3.xlarge instance in AWS account 122015479852 (us-east-1) running a Docker container with the OpenClaw gateway. Five agents connect via Slack Socket Mode. All deployments go through GitHub Actions CI/CD.
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  EC2 Instance (i-0acd7169101e93388, t3.xlarge)          │
-│                                                         │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │  Docker: openclaw-agents                        │    │
-│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐        │    │
-│  │  │  Scout  │  │  Trak   │  │   Kit   │        │    │
-│  │  │ (sales) │  │ (PM)    │  │  (ops)  │        │    │
-│  │  └────┬────┘  └────┬────┘  └────┬────┘        │    │
-│  │       └──────┬──────┴──────┬─────┘             │    │
-│  │         OpenClaw Gateway (Socket Mode)          │    │
-│  │         MCP: Jira · Zendesk · Notion · GitHub   │    │
-│  └─────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│  EC2 Instance (i-0acd7169101e93388, t3.xlarge)                       │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐    │
+│  │  Docker: openclaw-agents (runs as openclaw user, UID 1000)  │    │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌────────┐ ┌───────┐ │    │
+│  │  │  Scout  │ │  Trak   │ │   Kit   │ │ Scribe │ │ Probe │ │    │
+│  │  │ (sales) │ │ (PM)    │ │  (ops)  │ │ (docs) │ │ (QA)  │ │    │
+│  │  └────┬────┘ └────┬────┘ └────┬────┘ └───┬────┘ └───┬───┘ │    │
+│  │       └─────┬─────┴─────┬─────┴─────┬────┴─────┬────┘     │    │
+│  │         OpenClaw Gateway (Socket Mode, gosu non-root)       │    │
+│  │         MCP: Jira · Zendesk · Notion · GitHub · Zoho        │    │
+│  └──────────────────────────────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────────────────────┘
          ▲                                   ▲
          │ SSM SendCommand                   │ Slack Socket Mode
     GitHub Actions CI/CD              lmntlai.slack.com
@@ -52,6 +52,7 @@ Streaming is **disabled** (`streaming: 'off'`, `nativeStreaming: false`). This i
 | Zendesk | zd-mcp-server | Ticket management, customer support |
 | Notion | @notionhq/notion-mcp-server | Knowledge base, documentation |
 | GitHub | @anthropic/mcp-server-github | Repository access, PRs, issues |
+| Zoho | @macnishio/zoho-mcp-server | CRM, contact management |
 
 MCP tools are loaded by the OpenClaw gateway on demand. Agents access them natively through the gateway's MCP bridge — not via CLI.
 
@@ -62,6 +63,8 @@ MCP tools are loaded by the OpenClaw gateway on demand. Agents access them nativ
 | Scout | Customer support and lead qualification | A0AJ5DNRR6K | U0AJLT30KMG |
 | Trak | Project management and tracking | A0AJLU847U2 | U0AJEGUSELB |
 | Kit | Engineering operations and internal tooling | A0AKF8212BA | U0AKF614URE |
+| Scribe | Knowledge management and documentation | — | U0AM170694Z |
+| Probe | Quality assurance and testing | — | U0ALRTLF752 |
 
 See [docs/agent-capability-matrix.md](docs/agent-capability-matrix.md) for detailed tool access per agent.
 
@@ -126,7 +129,7 @@ See [docs/secrets.md](docs/secrets.md) for where to obtain each token.
 ### Running Tests Locally
 
 ```bash
-# Unit + CDK infrastructure tests (156 tests, ~6s)
+# Unit + CDK infrastructure tests (340 tests, ~4s)
 npx jest test/entrypoint.test.ts test/openclaw-agents.test.ts
 
 # End-to-end tests (requires AWS CLI + live credentials)
@@ -137,8 +140,9 @@ npx jest test/e2e/e2e.test.ts
 
 | Suite | File | Tests | What It Covers |
 |-------|------|-------|----------------|
-| Entrypoint | `test/entrypoint.test.ts` | 134 | Outer entrypoint: secret extraction, env var derivation, Slack config, MCP setup, streaming config, channel injection, bootstrap logic, .env.example completeness |
+| Entrypoint | `test/entrypoint.test.ts` | 318 | Outer entrypoint: secret extraction, env var derivation, Slack config, MCP setup, streaming config, channel injection, bootstrap logic, HMAC auth, gosu user, logrotate, .env.example completeness |
 | CDK Infrastructure | `test/openclaw-agents.test.ts` | 22 | AWS resources: VPC, EC2, IAM roles, security groups, CloudWatch alarms, SSM permissions, OIDC federation |
+| Cross-Agent Dispatch | `test/cross-agent-dispatch.test.ts` | — | Cross-agent handoff protocol, HMAC validation, dispatch routing |
 | E2E Integration | `test/e2e/e2e.test.ts` | 6 | Live deployment: secrets reachable, container running, agents responsive via Slack DM (requires AWS credentials) |
 
 ### Test Tiers
@@ -172,8 +176,8 @@ All secrets stored in AWS Secrets Manager under key `openclaw/agents` in us-east
 | Secret | Purpose |
 |--------|---------|
 | ANTHROPIC_API_KEY | Claude API access |
-| SLACK_BOT_TOKEN_{SCOUT,TRAK,KIT} | Slack bot tokens per agent |
-| SLACK_APP_TOKEN_{SCOUT,TRAK,KIT} | Slack app tokens per agent |
+| SLACK_BOT_TOKEN_{SCOUT,TRAK,KIT,SCRIBE,PROBE} | Slack bot tokens per agent |
+| SLACK_APP_TOKEN_{SCOUT,TRAK,KIT,SCRIBE,PROBE} | Slack app tokens per agent |
 | ATLASSIAN_SITE_NAME / USER_EMAIL / API_TOKEN | Jira authentication |
 | ZENDESK_SUBDOMAIN / EMAIL / API_TOKEN | Zendesk authentication |
 | NOTION_API_TOKEN | Notion integration token |
@@ -195,8 +199,10 @@ openclaw-agents/
 ├── agents/
 │   ├── scout/workspace/           # Scout IDENTITY.md + KNOWLEDGE.md
 │   ├── trak/workspace/            # Trak IDENTITY.md + KNOWLEDGE.md
-│   └── kit/workspace/             # Kit IDENTITY.md + KNOWLEDGE.md
-├── config/openclaw.json.tpl       # Gateway config template (envsubst at runtime)
+│   ├── kit/workspace/             # Kit IDENTITY.md + KNOWLEDGE.md
+│   ├── scribe/workspace/          # Scribe IDENTITY.md + KNOWLEDGE.md
+│   ├── probe/workspace/           # Probe IDENTITY.md + KNOWLEDGE.md
+│   └── shared/specialists/        # 13 specialist personas for ensemble audit
 ├── bin/openclaw-agents.ts         # CDK app entry point
 ├── lib/openclaw-agents-stack.ts   # CDK infrastructure stack
 ├── scripts/
@@ -206,10 +212,25 @@ openclaw-agents/
 │   ├── setup-secrets.sh           # Secrets provisioning
 │   ├── create-slack-apps.sh       # Slack app creation guide
 │   ├── github-app-token.sh        # GitHub App installation token generator
-│   └── github-token-refresh.sh    # Background GitHub token refresh loop
+│   ├── github-token-refresh.sh    # Background GitHub token refresh loop
+│   ├── dangerous-action-audit.sh  # Security: dangerous action audit runner
+│   ├── audit-query.sh             # Audit trail query tool
+│   ├── anomaly-alert.sh           # Anomaly detection cron job
+│   ├── apply-branch-protection.sh # GitHub branch protection setup
+│   ├── backup-agent-data.sh       # Agent workspace backup
+│   ├── restore-agent-data.sh      # Agent workspace restore
+│   ├── ebs-snapshot.sh            # EBS volume snapshot
+│   ├── proactive-scheduler.sh     # Proactive agent scheduling
+│   ├── setup-proactive-cron.sh    # Proactive cron installation
+│   └── run-tests.sh               # Test runner helper
+├── config/
+│   ├── openclaw.json.tpl          # Gateway config template (envsubst at runtime)
+│   ├── user-tiers.json            # RBAC user tier definitions
+│   └── dangerous-actions.json     # Dangerous action registry
 ├── test/
-│   ├── entrypoint.test.ts         # Entrypoint unit tests (134 tests)
+│   ├── entrypoint.test.ts         # Entrypoint unit tests (318 tests)
 │   ├── openclaw-agents.test.ts    # CDK infrastructure tests (22 tests)
+│   ├── cross-agent-dispatch.test.ts # Cross-agent handoff tests
 │   └── e2e/e2e.test.ts           # End-to-end integration tests (6 tests)
 ├── docs/                          # Architecture, playbooks, runbooks
 └── package.json                   # Dependencies (aws-cdk, jest, ts-jest)
@@ -240,6 +261,8 @@ All resources in LMNTL Agent Automation (122015479852), us-east-1:
 | [troubleshoot.md](docs/playbooks/troubleshoot.md) | General troubleshooting |
 | [mcp-troubleshooting.md](docs/playbooks/mcp-troubleshooting.md) | MCP server issues |
 | [add-agent.md](docs/playbooks/add-agent.md) | Adding a new agent to the platform |
+| [security.md](docs/playbooks/security.md) | Security operations, RBAC, audit trail |
+| [ensemble-audit.md](docs/playbooks/ensemble-audit.md) | PR ensemble review protocol |
 | [restart.md](docs/runbooks/restart.md) | Restart procedures |
 
 ## Quick Troubleshooting
