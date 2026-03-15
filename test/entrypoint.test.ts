@@ -131,9 +131,10 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
   });
 
   // --- Gateway restart messaging ---
-  test('gateway restart message explains this is expected behavior', () => {
-    expect(script).toContain('This is expected');
-    expect(script).toContain('initial gateway generated config');
+  test('gateway restart message is clean without excuses', () => {
+    expect(script).toContain('Restarting gateway to apply injected Slack channel config');
+    // Should NOT contain hedging language like "This is expected"
+    expect(script).not.toContain('This is expected');
   });
 
   // --- Gateway restart (critical fix) ---
@@ -167,6 +168,53 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(doctorIdx).toBeGreaterThan(-1);
     expect(doctorIdx).toBeGreaterThan(injectIdx);
   });
+  // --- Cold-start cleanliness (v1.3.77) ---
+  test('pre-creates session store dir before doctor runs', () => {
+    const sessionDirIdx = script.indexOf('agents/main/sessions');
+    const doctorIdx = script.indexOf('openclaw doctor --fix');
+    expect(sessionDirIdx).toBeGreaterThan(-1);
+    expect(sessionDirIdx).toBeLessThan(doctorIdx);
+  });
+
+  test('sets gateway.mode local before doctor and bootstrap', () => {
+    expect(script).toContain('openclaw config set gateway.mode local');
+    const modeIdx = script.indexOf('gateway.mode local');
+    const doctorIdx = script.indexOf('openclaw doctor --fix');
+    const bootstrapIdx = script.indexOf('Bootstrap health check');
+    expect(modeIdx).toBeLessThan(doctorIdx);
+    expect(modeIdx).toBeLessThan(bootstrapIdx);
+  });
+
+  test('disables memory search embedding before doctor runs', () => {
+    expect(script).toContain('memorySearch.enabled false');
+    const searchIdx = script.indexOf('memorySearch.enabled false');
+    const doctorIdx = script.indexOf('openclaw doctor --fix');
+    expect(searchIdx).toBeLessThan(doctorIdx);
+  });
+
+  test('doctor output is redirected to log file, not stdout', () => {
+    expect(script).toContain('doctor-output.log');
+    expect(script).toContain('Normalizing gateway config');
+  });
+
+  test('bootstrap filters out duplicate-gateway noise from output', () => {
+    expect(script).toContain('Gateway failed to start');
+    // The grep -v filter should suppress the noise
+    expect(script).toContain('grep -v');
+  });
+
+  test('channels.slack does not set enabled:True at top level', () => {
+    // The channels.slack top-level should NOT have enabled:True
+    // (causes doctor to "fix" it every startup by creating unwanted default account)
+    expect(script).not.toContain("'slack': {'enabled': True, 'accounts': accounts}");
+    expect(script).toContain("'slack': {'accounts': accounts}");
+  });
+
+  test('gateway live message includes config summary', () => {
+    expect(script).toContain('sessions.visibility=all');
+    expect(script).toContain('gateway.mode=local');
+  });
+
 
   // --- Liveness check (verify gateway actually started) ---
   test('verifies gateway process is alive after restart', () => {
