@@ -197,6 +197,24 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(script).toContain('Normalizing gateway config');
   });
 
+  test('openclaw config set commands redirect both stdout and stderr', () => {
+    // openclaw CLI commands print doctor box-drawing to stdout, not just stderr
+    // so we must redirect both: > /dev/null 2>&1
+    expect(script).toContain('openclaw config set gateway.mode local > /dev/null 2>&1');
+    expect(script).toContain('openclaw config set agents.defaults.memorySearch.enabled false > /dev/null 2>&1');
+  });
+
+  test('gateway kill happens before logrotate setup', () => {
+    const killIdx = script.indexOf('kill -- -');
+    const logrotateIdx = script.indexOf('logrotate');
+    expect(killIdx).toBeGreaterThan(-1);
+    expect(killIdx).toBeLessThan(logrotateIdx);
+  });
+
+  test('residual gateway processes are killed after main kill', () => {
+    expect(script).toContain('pkill -9 -f "openclaw gateway"');
+  });
+
   test('bootstrap filters out duplicate-gateway noise from output', () => {
     expect(script).toContain('Gateway failed to start');
     // The grep -v filter should suppress the noise

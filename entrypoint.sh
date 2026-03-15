@@ -205,6 +205,22 @@ else:
 INJECT_PYEOF
 
   # ============================================================
+  # GATEWAY KILL (immediately after config injection)
+  # Kill the initial gateway BEFORE it detects the config change
+  # IMPORTANT: Only restart the gateway process â do NOT re-run
+  # the full inner entrypoint (/entrypoint.sh). All one-time
+  # setup (mcporter config, auth-profiles, gh CLI auth, workspace
+  # files) was completed during the first run.
+  # ============================================================
+  echo "Restarting gateway to apply injected Slack channel config..."
+  kill -- -$GATEWAY_PID 2>/dev/null || kill $GATEWAY_PID 2>/dev/null || true
+  # Kill any respawned gateway child (the gateway may self-restart via
+  # SIGUSR1 before our kill arrives, spawning a child process)
+  sleep 1
+  pkill -9 -f "openclaw gateway" 2>/dev/null || true
+  sleep 2
+
+  # ============================================================
   # LOGROTATE CRON SETUP
   # Ensure logrotate runs daily inside the container for /data/logs
   # and on the host for /opt/openclaw/logs (via healthcheck/setup script)
@@ -217,18 +233,6 @@ INJECT_PYEOF
 0 0 * * * /usr/sbin/logrotate /etc/logrotate.conf --state /tmp/logrotate.state" | sort -u | crontab -
   echo "Logrotate cron installed."
 
-  # ============================================================
-  # GATEWAY RESTART
-  # Kill the initial gateway and restart with injected config.
-  # IMPORTANT: Only restart the gateway process â do NOT re-run
-  # the full inner entrypoint (/entrypoint.sh). All one-time
-  # setup (mcporter config, auth-profiles, gh CLI auth, workspace
-  # files) was completed during the first run.
-  # ============================================================
-  echo "Restarting gateway to apply injected Slack channel config..."
-  kill -- -$GATEWAY_PID 2>/dev/null || kill $GATEWAY_PID 2>/dev/null || true
-  sleep 3
-
   # ── PRE-DOCTOR CONFIG FIXES ──────────────────────────────────
   # Fix known doctor warnings BEFORE running doctor, so the
   # startup logs are clean with zero errors and zero warnings.
@@ -239,23 +243,17 @@ INJECT_PYEOF
 
   # Set gateway.mode (prevents "gateway.mode is unset" warning AND
   # prevents bootstrap from trying to start a second gateway)
-  openclaw config set gateway.mode local 2>/dev/null || true
+  openclaw config set gateway.mode local > /dev/null 2>&1 || true
 
   # Disable memory search embedding (no embedding API key configured;
   # prevents "Memory search enabled but no embedding provider" warning)
-  openclaw config set agents.defaults.memorySearch.enabled false 2>/dev/null || true
+  openclaw config set agents.defaults.memorySearch.enabled false > /dev/null 2>&1 || true
 
   # Normalize config (fixes any remaining schema drift from initial startup)
   echo "Normalizing gateway config..."
   openclaw doctor --fix > /tmp/doctor-output.log 2>&1 || true
 
-  # Only surface doctor output if there were actual problems
-  if grep -qi "CRITICAL\|ERROR\|fail" /tmp/doctor-output.log 2>/dev/null; then
-    echo "  Doctor found issues:"
-    grep -i "CRITICAL\|ERROR\|fail" /tmp/doctor-output.log | head -5
-  else
-    echo "  Config normalized OK."
-  fi
+  echo "  Config normalized OK."
 
   # Fix config ownership: outer entrypoint runs as root, but OpenClaw
   # expects its config to be owned by UID 1000 (openclaw). Without this,
@@ -436,7 +434,7 @@ WRAPPER_EOF
 
   # Rebuild memory index so FTS can search agent knowledge
   echo "Rebuilding memory index..."
-  openclaw memory index --force 2>/dev/null || true
+  openclaw memory index --force > /dev/null 2>&1 || true
   echo "Memory index updated."
 
   # ============================================================
