@@ -227,6 +227,11 @@ INJECT_PYEOF
   echo "Running openclaw doctor --fix to normalize config..."
   openclaw doctor --fix 2>/dev/null || true
 
+  # Fix config ownership: outer entrypoint runs as root, but OpenClaw
+  # expects its config to be owned by UID 1000 (openclaw). Without this,
+  # the restarted gateway gets EACCES reading its own config file.
+  chown -R openclaw:openclaw /home/openclaw/.openclaw 2>/dev/null || true
+
   # Authenticate gh CLI with the GitHub App installation token
   if command -v gh &> /dev/null && [ -n "${GITHUB_TOKEN:-}" ]; then
     echo "${GITHUB_TOKEN}" | gh auth login --with-token 2>/dev/null || true
