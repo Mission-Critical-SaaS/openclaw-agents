@@ -1859,3 +1859,60 @@ describe('Startup runbook', () => {
     expect(runbook).toContain('Agent bootstrap');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Cross-agent handoff configuration
+// ---------------------------------------------------------------------------
+describe('Cross-agent handoff configuration', () => {
+  let outerEntrypoint: string;
+  let handoffProtocol: string;
+
+  beforeAll(() => {
+    outerEntrypoint = readScript('entrypoint.sh');
+    handoffProtocol = readScript('config/proactive/handoff-protocol.json');
+  });
+
+  test('entrypoint enables tools.sessions.visibility=all for cross-agent messaging', () => {
+    expect(outerEntrypoint).toContain("sessions");
+    expect(outerEntrypoint).toContain("visibility");
+    expect(outerEntrypoint).toContain("all");
+    // Must be in the Python injection block
+    expect(outerEntrypoint).toContain("cross-agent handoffs");
+  });
+
+  test('handoff protocol specifies sessions_send as primary delivery', () => {
+    const parsed = JSON.parse(handoffProtocol);
+    expect(parsed.protocol.delivery_methods).toBeDefined();
+    expect(parsed.protocol.delivery_methods.primary.method).toBe('sessions_send');
+    expect(parsed.protocol.delivery_methods.fallback.method).toBe('channel_mention');
+    expect(parsed.protocol.delivery_methods.blocked.method).toBe('slack_dm');
+  });
+
+  test('handoff protocol marks bot-to-bot DMs as blocked', () => {
+    const parsed = JSON.parse(handoffProtocol);
+    expect(parsed.protocol.delivery_methods.blocked.status).toBe('blocked_by_slack_api');
+    expect(parsed.protocol.delivery_methods.blocked.description).toContain('cannot_dm_bot');
+  });
+
+  test('handoff protocol includes fallback channel ID for #dev', () => {
+    const parsed = JSON.parse(handoffProtocol);
+    expect(parsed.protocol.delivery_methods.fallback.channel_id).toBe('C086N5031LZ');
+  });
+
+  test('handoff protocol retains HMAC authentication', () => {
+    const parsed = JSON.parse(handoffProtocol);
+    expect(parsed.protocol.authentication.method).toBe('hmac-sha256');
+    expect(parsed.protocol.authentication.key_env).toBe('HANDOFF_HMAC_KEY');
+  });
+
+  test('all agent IDENTITY.md files have cross-agent handoff protocol', () => {
+    for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe']) {
+      const identity = readScript(`agents/${agent}/workspace/IDENTITY.md`);
+      expect(identity).toContain('Cross-Agent Handoff Protocol');
+      expect(identity).toContain('sessions_send');
+      expect(identity).toContain('cannot_dm_bot');
+      expect(identity).toContain('agent:kit:main');
+      expect(identity).toContain('HMAC');
+    }
+  });
+});

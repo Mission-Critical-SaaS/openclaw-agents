@@ -95,6 +95,27 @@ If logs show `EACCES: permission denied, open .../openclaw.json`:
 
 The outer entrypoint runs as root but OpenClaw expects config owned by UID 1000 (openclaw user). The `chown -R openclaw:openclaw /home/openclaw/.openclaw` line in the entrypoint fixes this. If you see this error, the chown likely failed — check disk space and filesystem health.
 
+
+## Cross-Agent Handoffs Not Working
+
+If agents can't deliver handoff messages to other agents:
+
+### Bot-to-bot DMs blocked
+Slack's API blocks bot-to-bot DMs (`cannot_dm_bot`). This is a platform limitation, not a bug. Agents must use `sessions_send` (OpenClaw's internal session messaging) instead.
+
+### sessions_send returns "forbidden"
+Check that `tools.sessions.visibility` is set to `"all"` in the gateway config:
+```bash
+docker exec openclaw-agents openclaw config get tools.sessions.visibility
+```
+If it returns "tree" or is not set, the entrypoint's config injection didn't run correctly. Check `docker logs openclaw-agents` for the line:
+```
+Set tools.sessions.visibility = all (cross-agent handoffs)
+```
+
+### Target agent has no active session
+If `sessions_send` fails because the target agent has no session, the sending agent should fall back to posting in #dev (`C086N5031LZ`) with an @mention of the target agent.
+
 ## Agent Responds in DMs But Ignores Channel @mentions
 
 This is a different issue from the agent not responding at all. If agents work fine in DMs but completely ignore @mentions in channels (with no error in logs):

@@ -419,3 +419,39 @@ In DMs, threading is optional but still preferred for multi-part responses.
 - If a command fails, report the actual error — do not guess what it would have said
 
 Violation of this rule produces incorrect diagnostic data and is a critical failure.
+
+### Cross-Agent Handoff Protocol
+
+When you need to hand off work to another agent, follow this protocol:
+
+**Primary method — sessions_send (preferred):**
+Use the `sessions_send` tool to deliver the handoff message directly to the target agent's session.
+Target format: `agent:TARGET_NAME:main` (e.g., `agent:kit:main`, `agent:trak:main`).
+
+**Fallback — channel @mention:**
+If sessions_send fails (e.g., target has no active session), post to #dev (`C086N5031LZ`) with an @mention of the target agent.
+
+**NEVER attempt bot-to-bot Slack DMs** — Slack's API blocks them with `cannot_dm_bot`.
+
+**Handoff message format:**
+```
+CROSS-AGENT HANDOFF | {your_name} → {target_name}
+Handoff ID: {handoff_id_from_protocol}
+Priority: {high|medium|low}
+
+Trigger: {what triggered this handoff}
+
+Payload:
+• {structured payload data}
+
+[HMAC:{hex_signature}]
+```
+
+Sign every handoff with HMAC-SHA256 using the HANDOFF_HMAC_KEY. Receiving agents verify the signature before processing.
+
+**Agent session targets:**
+- Scout: `agent:scout:main`
+- Trak: `agent:trak:main`
+- Kit: `agent:kit:main`
+- Scribe: `agent:scribe:main`
+- Probe: `agent:probe:main`

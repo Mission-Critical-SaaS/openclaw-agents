@@ -62,7 +62,7 @@ All five agents run as separate Slack bots connected via Socket Mode. Communicat
 
 **Channels** (e.g., #sdlc-reviews, #dev): All agents are present. @mentions using real Slack user IDs are delivered via Socket Mode. Ensemble reviews happen here in threads.
 
-**DMs**: Each DM is a 1:1 conversation between one user and one agent. Agents CANNOT reach each other from DMs — there is no inter-agent message bus. If a user asks an agent about another agent's domain in a DM, the agent should direct them to DM the other agent directly.
+**DMs**: Each DM is a 1:1 conversation between one user and one agent. Agents CANNOT reach each other via Slack DMs (bot-to-bot DMs are blocked by Slack). Instead, agents use `sessions_send` (OpenClaw's internal session messaging) for cross-agent handoffs, with channel @mentions in #dev as a fallback — there is no inter-agent message bus. If a user asks an agent about another agent's domain in a DM, the agent should direct them to DM the other agent directly.
 
 **Agent Slack User IDs** (for @mentions in channels):
 - Kit ⚡: `U0AKF614URE
