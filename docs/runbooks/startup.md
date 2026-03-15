@@ -78,6 +78,27 @@ docker exec openclaw-agents openclaw status
 | Agent bootstrap (2 attempts max) | 30–120s per attempt |
 | **Total** | **~2–5 minutes** |
 
+
+
+## Workspace File Copy
+
+During startup, the entrypoint copies agent workspace files from bind mounts to persistent volumes:
+
+| File | Copy Behavior | Why |
+|------|---------------|-----|
+| `IDENTITY.md` | Always overwritten | Deploy may update instructions, handoff routing, sibling lists |
+| `KNOWLEDGE.md` | Seeded only if missing | Preserves agent memory across restarts |
+| `BOOTSTRAP.md` | Seeded only if missing | Preserves bootstrap state |
+
+**Source:** `/tmp/agents/{name}/workspace/` (bind-mounted from `/opt/openclaw/agents/{name}/workspace/` on host)
+
+**Destination:** `/home/openclaw/.openclaw/.openclaw/workspace-{name}/` (persistent volume from `/opt/openclaw-persist/workspace-{name}/`)
+
+If IDENTITY.md changes from a deploy aren't taking effect:
+1. Verify the host file is updated: `cat /opt/openclaw/agents/{agent}/workspace/IDENTITY.md | head -5`
+2. Restart the container: `docker restart openclaw-agents`
+3. Verify the persistent copy: `docker exec openclaw-agents head -5 /home/openclaw/.openclaw/.openclaw/workspace-{agent}/IDENTITY.md`
+
 ## Troubleshooting
 
 If the container is not healthy after 5 minutes:

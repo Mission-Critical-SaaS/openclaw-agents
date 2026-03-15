@@ -128,6 +128,26 @@ To make persistent changes to gateway or agent configuration:
 
 This design ensures that the source of truth is always the host entrypoint scripts, not ephemeral container state.
 
+
+
+### Workspace File Deploy Lifecycle
+
+When code changes include updates to agent IDENTITY.md files, the deploy path is:
+
+1. `git pull` on EC2 host updates `/opt/openclaw/agents/{name}/workspace/IDENTITY.md`
+2. These are bind-mounted into the container at `/tmp/agents/{name}/workspace/IDENTITY.md`
+3. On container startup, the outer entrypoint copies files to persistent workspace:
+   - `IDENTITY.md` — **always overwritten** from bind mount (deploy may update instructions)
+   - `KNOWLEDGE.md` — seeded only if missing (preserves agent memory)
+   - `BOOTSTRAP.md` — seeded only if missing
+4. Agents read from persistent workspace at `/home/openclaw/.openclaw/.openclaw/workspace-{name}/`
+
+**Key implication:** After a `git pull`, you MUST `docker restart openclaw-agents` for IDENTITY.md changes to take effect. The restart triggers the entrypoint, which copies the updated file from the bind mount to the persistent workspace.
+
+**Verification:**
+```bash
+docker exec openclaw-agents grep "expected_content" /home/openclaw/.openclaw/.openclaw/workspace-{agent}/IDENTITY.md
+```
 ## Network Architecture
 
 The EC2 instance lives in the default VPC with a public IP. Security group `openclaw-sg` controls access:

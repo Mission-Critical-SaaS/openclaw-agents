@@ -218,3 +218,29 @@ The IDENTITY.md file contains:
 - Personality and communication style
 - Context about the agent's role and responsibilities
 - Specific Jira projects or GitHub orgs the agent focuses on
+
+
+## Cross-Agent Handoff Routing
+
+Agents use a two-tier delivery system for cross-agent handoffs:
+
+| Priority | Method | How | When |
+|----------|--------|-----|------|
+| Primary | `sessions_send` | Target: `agent:{name}:main` | Target agent has active session |
+| Fallback | #dev @mention | Post to `C086N5031LZ` with `<@USER_ID>` | Target has no active session |
+| Blocked | Slack DM | N/A — Slack returns `cannot_dm_bot` | Never use |
+
+**Configuration required:**
+- `tools.sessions.visibility` must be `all` in gateway config (set by entrypoint.sh)
+- Each IDENTITY.md must have a **Fallback @mention lookup** table with all sibling Slack user IDs
+- `config/proactive/handoff-protocol.json` must have `agent_slack_ids` map with all agents
+
+**Agent Slack User IDs (authoritative):**
+
+| Agent | User ID | Session Target |
+|-------|---------|----------------|
+| Scout | `U0AJLT30KMG` | `agent:scout:main` |
+| Trak | `U0AJEGUSELB` | `agent:trak:main` |
+| Kit | `U0AKF614URE` | `agent:kit:main` |
+| Scribe | `U0AM170694Z` | `agent:scribe:main` |
+| Probe | `U0ALRTLF752` | `agent:probe:main` |

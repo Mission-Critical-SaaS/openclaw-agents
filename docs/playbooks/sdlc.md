@@ -194,6 +194,17 @@ See [deploy.md](deploy.md) for full deployment details.
 - **Fix**: Changed `'streaming': 'none'` to `'streaming': 'off'` in the outer entrypoint.
 - **Prevention**: After any streaming config change, check container logs for "Normalized" warnings: `docker logs openclaw-agents 2>&1 | grep Normalized`. Zero matches = config accepted.
 
+
+### 8. Cross-Agent Routing Requires Complete Sibling Mappings (v1.3.75)
+
+**What happened:** Scribe's fallback handoff @mentioned Scout instead of Trak in #dev.
+
+**Root cause:** Scribe and Probe had no Inter-Agent Delegation section or Slack user ID mappings. Scout, Kit, and Trak only listed 2 of 4 siblings. When `sessions_send` failed (target had no active session) and agents fell back to #dev channel @mentions, they couldn't resolve the correct Slack user ID.
+
+**Fix:** Added mandatory **Fallback @mention lookup** table with all sibling Slack user IDs to every agent's Cross-Agent Handoff Protocol section. Added **Inter-Agent Delegation & Communication** section to Scribe and Probe. Updated Scout/Kit/Trak from 2→4 siblings. Added authoritative `agent_slack_ids` map to `handoff-protocol.json`.
+
+**Rule:** When adding or modifying agents, ALWAYS update ALL sibling IDENTITY.md files with the complete agent roster. See the [add-agent playbook](add-agent.md) steps 3a and 3b. The `agent_slack_ids` map in `handoff-protocol.json` is the single source of truth for agent Slack user IDs.
+
 ## Emergency Procedures
 
 ### Rollback to a previous version

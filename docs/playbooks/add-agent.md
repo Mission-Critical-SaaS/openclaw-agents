@@ -42,6 +42,61 @@ mkdir -p agents/newagent/workspace
 
 Create `agents/newagent/workspace/IDENTITY.md` with the agent's role, personality, and MCP tool access.
 
+**IDENTITY.md Mandatory Sections** — every agent MUST have all of these:
+
+| Section | Purpose |
+|---------|---------|
+| Identity & Role | Agent name, emoji, domain, personality |
+| Inter-Agent Delegation & Communication | Lists ALL sibling agents with Slack user IDs, @mention syntax, delegation rules |
+| Cross-Agent Handoff Protocol | `sessions_send` targets, **Fallback @mention lookup** table with Slack user IDs for all siblings |
+| Handoff Protocol | Instructions for triggering handoffs — must reference `sessions_send` + #dev fallback, NEVER Slack DMs |
+| Security & Access Control | Action attribution, user tier enforcement, dangerous action guards, audit logging |
+| Budget Awareness | Action count limits from `.budget-caps.json` |
+
+> **Why this matters:** If the Inter-Agent Delegation section or Fallback @mention lookup is missing, the agent has no way to resolve sibling Slack user IDs. When `sessions_send` fails (common — target must have an active session), the agent falls back to #dev channel @mention but will @mention the **wrong agent** or fail entirely. This was the root cause of a production routing bug fixed in v1.3.75.
+
+### 3a. Update ALL Sibling Agent IDENTITY.md Files
+
+**CRITICAL** — this step is easy to forget and causes silent routing failures:
+
+1. Add the new agent to the **Inter-Agent Delegation** section of every existing agent's IDENTITY.md:
+   ```
+   - **@NewAgent** (user ID: `U0XXXXXXXXX`) — domain description
+   ```
+
+2. Add the new agent to the **Fallback @mention lookup** table in every existing agent's Cross-Agent Handoff Protocol:
+   ```
+   - NewAgent: `<@U0XXXXXXXXX>` — domain description
+   ```
+
+3. Update "You work alongside **four** other agents" → "**five** other agents" (or whatever the new count is) in all sibling IDENTITY.md files.
+
+4. Update the **Slack mention examples** line in all siblings to include the new agent.
+
+5. Add the new agent to the **Delegation Rules** in all siblings.
+
+Files to update (for a 6th agent added to the current 5):
+```
+agents/scout/workspace/IDENTITY.md
+agents/trak/workspace/IDENTITY.md
+agents/kit/workspace/IDENTITY.md
+agents/scribe/workspace/IDENTITY.md
+agents/probe/workspace/IDENTITY.md
+```
+
+### 3b. Update handoff-protocol.json
+
+Add the new agent to the `agent_slack_ids` map in `config/proactive/handoff-protocol.json`:
+
+```json
+"newagent": {
+  "user_id": "U0XXXXXXXXX",
+  "session_target": "agent:newagent:main"
+}
+```
+
+Also add any handoff definitions for the new agent to the `handoffs` array.
+
 ### 4. Store Tokens in Secrets Manager
 
 Update AWS Secrets Manager (`openclaw/agents`) with:

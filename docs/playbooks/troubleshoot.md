@@ -116,6 +116,22 @@ Set tools.sessions.visibility = all (cross-agent handoffs)
 ### Target agent has no active session
 If `sessions_send` fails because the target agent has no session, the sending agent should fall back to posting in #dev (`C086N5031LZ`) with an @mention of the target agent.
 
+
+### Handoff @mentions Wrong Agent in #dev Fallback
+
+**Symptom:** Agent posts handoff to #dev but @mentions the wrong sibling agent.
+
+**Root cause:** The sending agent's IDENTITY.md is missing the **Fallback @mention lookup** table or the **Inter-Agent Delegation** section, so it can't resolve the target's Slack user ID.
+
+**Fix checklist:**
+1. Check `agents/{agent}/workspace/IDENTITY.md` for these mandatory sections:
+   - `## Inter-Agent Delegation & Communication` — must list ALL siblings with user IDs
+   - `**Fallback @mention lookup**` — must list ALL siblings with `<@UXXXXXXXXX>` syntax
+2. Check `config/proactive/handoff-protocol.json` has the target in `agent_slack_ids`
+3. After fixing, deploy and restart — the entrypoint copies IDENTITY.md from bind mount to persistent workspace on startup
+
+**Prevention:** When adding a new agent, always follow the [add-agent playbook](add-agent.md) steps 3a and 3b to update ALL sibling IDENTITY.md files and handoff-protocol.json.
+
 ## Agent Responds in DMs But Ignores Channel @mentions
 
 This is a different issue from the agent not responding at all. If agents work fine in DMs but completely ignore @mentions in channels (with no error in logs):
