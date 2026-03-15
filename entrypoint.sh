@@ -134,6 +134,9 @@ done
 
 if [ -f "$CONF" ]; then
   echo "Gateway config found, injecting Slack channels..."
+  # Freeze the gateway process group so it cannot detect the config file
+  # change and auto-restart (which would spawn a child with doctor output)
+  kill -STOP -- -$GATEWAY_PID 2>/dev/null || kill -STOP $GATEWAY_PID 2>/dev/null || true
   python3 << 'INJECT_PYEOF'
 import json, os
 
@@ -213,7 +216,7 @@ INJECT_PYEOF
   # files) was completed during the first run.
   # ============================================================
   echo "Restarting gateway to apply injected Slack channel config..."
-  kill -- -$GATEWAY_PID 2>/dev/null || kill $GATEWAY_PID 2>/dev/null || true
+  kill -9 -- -$GATEWAY_PID 2>/dev/null || kill -9 $GATEWAY_PID 2>/dev/null || true
   # Kill any respawned gateway child (the gateway may self-restart via
   # SIGUSR1 before our kill arrives, spawning a child process)
   sleep 1

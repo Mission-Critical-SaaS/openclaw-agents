@@ -205,7 +205,7 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
   });
 
   test('gateway kill happens before logrotate setup', () => {
-    const killIdx = script.indexOf('kill -- -');
+    const killIdx = script.indexOf('kill -9 -- -');
     const logrotateIdx = script.indexOf('logrotate');
     expect(killIdx).toBeGreaterThan(-1);
     expect(killIdx).toBeLessThan(logrotateIdx);
