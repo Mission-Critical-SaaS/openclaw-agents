@@ -30,8 +30,8 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(script).toMatch(/aws secretsmanager get-secret-value.*--secret-id openclaw\/agents/);
   });
 
-  test('exports all required Slack bot tokens', () => {
-    for (const agent of ['SCOUT', 'TRAK', 'KIT']) {
+  test('exports all required Slack bot tokens (all 5 agents)', () => {
+    for (const agent of ['SCOUT', 'TRAK', 'KIT', 'SCRIBE', 'PROBE']) {
       expect(script).toContain(`SLACK_BOT_TOKEN_${agent}`);
       expect(script).toContain(`SLACK_APP_TOKEN_${agent}`);
     }
@@ -81,8 +81,8 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
   });
 
   // --- Slack injection ---
-  test('injects all three Slack accounts (scout, trak, kit)', () => {
-    for (const name of ['scout', 'trak', 'kit']) {
+  test('injects all five Slack accounts (scout, trak, kit, scribe, probe)', () => {
+    for (const name of ['scout', 'trak', 'kit', 'scribe', 'probe']) {
       expect(script).toContain(`'${name}'`);
     }
   });
@@ -446,6 +446,7 @@ describe('deploy.yml', () => {
 // Agent IDENTITY.md files
 // ---------------------------------------------------------------------------
 describe('Agent IDENTITY.md files', () => {
+  // Original 3 agents have full CI/CD mandate and self-seeding KNOWLEDGE.md
   for (const agent of ['scout', 'trak', 'kit']) {
     describe(`${agent} IDENTITY.md`, () => {
       let identity: string;
@@ -486,13 +487,54 @@ describe('Agent IDENTITY.md files', () => {
       });
     });
   }
+
+  // Phase 3 agents (scribe, probe) have different IDENTITY structure
+  for (const agent of ['scribe', 'probe']) {
+    describe(`${agent} IDENTITY.md`, () => {
+      let identity: string;
+
+      beforeAll(() => {
+        identity = readScript(`agents/${agent}/workspace/IDENTITY.md`);
+      });
+
+      test('exists and is non-trivial (>500 chars)', () => {
+        expect(identity.length).toBeGreaterThan(500);
+      });
+
+      test('has "Who You Are" section', () => {
+        expect(identity).toContain('## Who You Are');
+      });
+
+      test('has core behaviors section', () => {
+        expect(identity).toContain('Core Behaviors');
+      });
+
+      test('has budget awareness section', () => {
+        expect(identity).toContain('Budget Awareness');
+        expect(identity).toContain('.budget-caps.json');
+      });
+
+      test('has security & access control section', () => {
+        expect(identity).toContain('Security & Access Control');
+      });
+
+      test('has KNOWLEDGE.md section', () => {
+        expect(identity).toContain('KNOWLEDGE.md');
+      });
+
+      test('has handoff protocol section', () => {
+        expect(identity).toContain('Handoff Protocol');
+        expect(identity).toContain('.handoff-protocol.json');
+      });
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
 // Agent KNOWLEDGE.md files
 // ---------------------------------------------------------------------------
 describe('Agent KNOWLEDGE.md files', () => {
-  for (const agent of ['scout', 'trak', 'kit']) {
+  for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe']) {
     test(`${agent} KNOWLEDGE.md exists and is non-empty`, () => {
       const knowledge = readScript(`agents/${agent}/workspace/KNOWLEDGE.md`);
       expect(knowledge.length).toBeGreaterThan(50);

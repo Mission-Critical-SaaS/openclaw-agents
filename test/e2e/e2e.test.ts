@@ -11,11 +11,13 @@
 import { execSync } from 'child_process';
 
 const EC2_INSTANCE_ID = 'i-0acd7169101e93388';
-const EXPECTED_AGENTS = ['scout', 'trak', 'kit'];
-const AGENT_BOT_IDS = {
+const EXPECTED_AGENTS = ['scout', 'trak', 'kit', 'scribe', 'probe'];
+const AGENT_BOT_IDS: Record<string, string> = {
   scout: 'U0AJLT30KMG',
   trak: 'U0AJEGUSELB',
   kit: 'U0AKF614URE',
+  // Scribe and Probe bot user IDs — populated after first Slack API call
+  // (we verify them via app presence rather than hardcoded IDs)
 };
 
 function awsCli(cmd: string): string {
@@ -116,12 +118,12 @@ describe('Container Health', () => {
     expect(output).toContain('BOOTSTRAP_OK');
   });
 
-  test('All 3 Slack socket mode connections established', () => {
+  test('All 5 Slack socket mode connections established (5 agents)', () => {
     const output = ssmExec(
       'docker logs openclaw-agents 2>&1 | grep -c "socket mode connected" || echo 0'
     );
     const count = parseInt(output.trim(), 10);
-    expect(count).toBeGreaterThanOrEqual(3);
+    expect(count).toBeGreaterThanOrEqual(5);
   });
 
   test('No streaming normalization warnings', () => {
@@ -133,7 +135,7 @@ describe('Container Health', () => {
   });
 
   test('Gateway process is alive', () => {
-    const output = ssmExec('docker exec openclaw-agents pgrep -f "openclaw gateway" | head -1');
+    const output = ssmExec('docker exec openclaw-agents pgrep -f openclaw.gateway | head -1');
     expect(output.trim()).toMatch(/^\d+$/);
   });
 });
@@ -143,21 +145,22 @@ describe('Container Health', () => {
 describe('Slack Agent Connectivity', () => {
   const hasToken = !!process.env.SLACK_TEST_TOKEN;
 
-  (hasToken ? test : test.skip)('Scout bot is active in Slack', () => {
-    const result = slackApi('users.info', { user: AGENT_BOT_IDS.scout });
-    expect(result.ok).toBe(true);
-    expect(result.user?.deleted).toBe(false);
-  });
+  // Original 3 agents with known bot user IDs
+  for (const [name, userId] of Object.entries(AGENT_BOT_IDS)) {
+    (hasToken ? test : test.skip)(`${name} bot is active in Slack`, () => {
+      const result = slackApi('users.info', { user: userId });
+      expect(result.ok).toBe(true);
+      expect(result.user?.deleted).toBe(false);
+    });
+  }
 
-  (hasToken ? test : test.skip)('Trak bot is active in Slack', () => {
-    const result = slackApi('users.info', { user: AGENT_BOT_IDS.trak });
-    expect(result.ok).toBe(true);
-    expect(result.user?.deleted).toBe(false);
-  });
-
-  (hasToken ? test : test.skip)('Kit bot is active in Slack', () => {
-    const result = slackApi('users.info', { user: AGENT_BOT_IDS.kit });
-    expect(result.ok).toBe(true);
-    expect(result.user?.deleted).toBe(false);
-  });
+  // Scribe and Probe — verify via gateway config that their accounts are configured
+  for (const agent of ['scribe', 'probe']) {
+    test(`${agent} is configured in gateway Slack accounts`, () => {
+      const output = ssmExec(
+        `docker exec openclaw-agents grep -c ${agent} /root/.openclaw/.openclaw/openclaw.json || echo 0`
+      );
+      expect(parseInt(output.trim(), 10)).toBeGreaterThan(0);
+    });
+  }
 });
