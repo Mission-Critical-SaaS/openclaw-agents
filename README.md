@@ -1,29 +1,29 @@
 # OpenClaw Agents — LMNTL Multi-Agent Platform
 
-Production deployment of three AI agents (Scout, Trak, Kit) on AWS, connected to Slack via the OpenClaw gateway with native MCP tool integrations (Jira, Zendesk, Notion, GitHub).
+Production deployment of five AI agents (Scout, Trak, Kit, Scribe, Probe) on AWS, connected to Slack via the OpenClaw gateway with native MCP tool integrations (Jira, Zendesk, Notion, Zoho, GitHub).
 
 ## Architecture
 
-EC2 t3.xlarge instance in AWS account 122015479852 (us-east-1) running a Docker container with the OpenClaw gateway. Three agents connect via Slack Socket Mode. All deployments go through GitHub Actions CI/CD.
+EC2 t3.xlarge instance in AWS account 122015479852 (us-east-1) running a Docker container with the OpenClaw gateway. Five agents connect via Slack Socket Mode. All deployments go through GitHub Actions CI/CD.
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  EC2 Instance (i-0acd7169101e93388, t3.xlarge)          │
-│                                                         │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │  Docker: openclaw-agents                        │    │
-│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐        │    │
-│  │  │  Scout  │  │  Trak   │  │   Kit   │        │    │
-│  │  │ (sales) │  │ (PM)    │  │  (ops)  │        │    │
-│  │  └────┬────┘  └────┬────┘  └────┬────┘        │    │
-│  │       └──────┬──────┴──────┬─────┘             │    │
-│  │         OpenClaw Gateway (Socket Mode)          │    │
-│  │         MCP: Jira · Zendesk · Notion · GitHub   │    │
-│  └─────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────┘
-         ▲                                   ▲
-         │ SSM SendCommand                   │ Slack Socket Mode
-    GitHub Actions CI/CD              lmntlai.slack.com
+┌───────────────────────────────────────────────────────────────────┐
+│  EC2 Instance (i-0acd7169101e93388, t3.xlarge)                    │
+│                                                                   │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │  Docker: openclaw-agents                                      │    │
+│  │  ┌─────────┐ ┌─────────┐ ┌────────┐ ┌─────────┐ ┌─────────┐  │    │
+│  │  │  Scout  │ │  Trak   │ │  Kit  │ │ Scribe  │ │  Probe  │  │    │
+│  │  │ (sales) │ │ (PM)    │ │ (ops) │ │ (docs)  │ │ (QA)    │  │    │
+│  │  └────┬────┘ └────┬────┘ └───┬────┘ └────┬────┘ └────┬────┘  │    │
+│  │       └─────┬─────┴────┬─────┴─────┬─────┴────┘              │    │
+│  │              OpenClaw Gateway (Socket Mode)                    │    │
+│  │         MCP: Jira · Zendesk · Notion · Zoho · GitHub          │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+└───────────────────────────────────────────────────────────────────┘
+         ▲                                              ▲
+         │ SSM SendCommand                              │ Slack Socket Mode
+    GitHub Actions CI/CD                         lmntlai.slack.com
 ```
 
 For the full system design, see [docs/architecture.md](docs/architecture.md).
@@ -52,6 +52,7 @@ Streaming is **disabled** (`streaming: 'off'`, `nativeStreaming: false`). This i
 | Zendesk | zd-mcp-server | Ticket management, customer support |
 | Notion | @notionhq/notion-mcp-server | Knowledge base, documentation |
 | GitHub | @anthropic/mcp-server-github | Repository access, PRs, issues |
+| Zoho CRM | zoho-crm-mcp-server | CRM contacts, leads, deals |
 
 MCP tools are loaded by the OpenClaw gateway on demand. Agents access them natively through the gateway's MCP bridge — not via CLI.
 
@@ -62,6 +63,8 @@ MCP tools are loaded by the OpenClaw gateway on demand. Agents access them nativ
 | Scout | Customer support and lead qualification | A0AJ5DNRR6K | U0AJLT30KMG |
 | Trak | Project management and tracking | A0AJLU847U2 | U0AJEGUSELB |
 | Kit | Engineering operations and internal tooling | A0AKF8212BA | U0AKF614URE |
+| Scribe | Knowledge management and documentation | A0ALRDJ9Y2K | U0AM170694Z |
+| Probe | Quality assurance and testing | A0ALLS1ER8F | U0ALRTLF752 |
 
 See [docs/agent-capability-matrix.md](docs/agent-capability-matrix.md) for detailed tool access per agent.
 
@@ -126,7 +129,7 @@ See [docs/secrets.md](docs/secrets.md) for where to obtain each token.
 ### Running Tests Locally
 
 ```bash
-# Unit + CDK infrastructure tests (156 tests, ~6s)
+# Unit + CDK infrastructure tests (331+ tests, ~4s)
 npx jest test/entrypoint.test.ts test/openclaw-agents.test.ts
 
 # End-to-end tests (requires AWS CLI + live credentials)
@@ -137,7 +140,7 @@ npx jest test/e2e/e2e.test.ts
 
 | Suite | File | Tests | What It Covers |
 |-------|------|-------|----------------|
-| Entrypoint | `test/entrypoint.test.ts` | 134 | Outer entrypoint: secret extraction, env var derivation, Slack config, MCP setup, streaming config, channel injection, bootstrap logic, .env.example completeness |
+| Entrypoint | `test/entrypoint.test.ts` | 331 | Outer entrypoint: secret extraction, env var derivation, Slack config, MCP setup, streaming config, channel injection, bootstrap logic, .env.example completeness |
 | CDK Infrastructure | `test/openclaw-agents.test.ts` | 22 | AWS resources: VPC, EC2, IAM roles, security groups, CloudWatch alarms, SSM permissions, OIDC federation |
 | E2E Integration | `test/e2e/e2e.test.ts` | 6 | Live deployment: secrets reachable, container running, agents responsive via Slack DM (requires AWS credentials) |
 
@@ -172,8 +175,8 @@ All secrets stored in AWS Secrets Manager under key `openclaw/agents` in us-east
 | Secret | Purpose |
 |--------|---------|
 | ANTHROPIC_API_KEY | Claude API access |
-| SLACK_BOT_TOKEN_{SCOUT,TRAK,KIT} | Slack bot tokens per agent |
-| SLACK_APP_TOKEN_{SCOUT,TRAK,KIT} | Slack app tokens per agent |
+| SLACK_BOT_TOKEN_{SCOUT,TRAK,KIT,SCRIBE,PROBE} | Slack bot tokens per agent |
+| SLACK_APP_TOKEN_{SCOUT,TRAK,KIT,SCRIBE,PROBE} | Slack app tokens per agent |
 | ATLASSIAN_SITE_NAME / USER_EMAIL / API_TOKEN | Jira authentication |
 | ZENDESK_SUBDOMAIN / EMAIL / API_TOKEN | Zendesk authentication |
 | NOTION_API_TOKEN | Notion integration token |
@@ -195,7 +198,9 @@ openclaw-agents/
 ├── agents/
 │   ├── scout/workspace/           # Scout IDENTITY.md + KNOWLEDGE.md
 │   ├── trak/workspace/            # Trak IDENTITY.md + KNOWLEDGE.md
-│   └── kit/workspace/             # Kit IDENTITY.md + KNOWLEDGE.md
+│   ├── kit/workspace/             # Kit IDENTITY.md + KNOWLEDGE.md
+│   ├── scribe/workspace/          # Scribe IDENTITY.md + KNOWLEDGE.md
+│   └── probe/workspace/           # Probe IDENTITY.md + KNOWLEDGE.md
 ├── config/openclaw.json.tpl       # Gateway config template (envsubst at runtime)
 ├── bin/openclaw-agents.ts         # CDK app entry point
 ├── lib/openclaw-agents-stack.ts   # CDK infrastructure stack
@@ -241,6 +246,7 @@ All resources in LMNTL Agent Automation (122015479852), us-east-1:
 | [mcp-troubleshooting.md](docs/playbooks/mcp-troubleshooting.md) | MCP server issues |
 | [add-agent.md](docs/playbooks/add-agent.md) | Adding a new agent to the platform |
 | [restart.md](docs/runbooks/restart.md) | Restart procedures |
+| [startup.md](docs/runbooks/startup.md) | Container startup sequence and expected log messages |
 
 ## Quick Troubleshooting
 

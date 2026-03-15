@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Every pull request to `main` on any LMNTL-AI repository gets a structured review from all three agents before it can merge. This document defines the ensemble audit protocol — who does what, when, and how.
+Every pull request to `main` on any LMNTL-AI repository gets a structured review from all five agents before it can merge. This document defines the ensemble audit protocol — who does what, when, and how.
 
 ## How It Works
 
@@ -19,7 +19,7 @@ OpenClaw agents run on Slack Socket Mode — there are no webhooks or HTTP endpo
 
 ## Specialist Agent Integration
 
-All three agents have access to **13 specialist agent personas** stored in `agents/shared/specialists/`. These specialists originate from the LMNTL ensemble audit system and provide deep domain expertise across 7 audit dimensions.
+All five agents have access to **13 specialist agent personas** stored in `agents/shared/specialists/`. These specialists originate from the LMNTL ensemble audit system and provide deep domain expertise across 7 audit dimensions.
 
 ### 7-Dimension Audit Model
 
@@ -58,14 +58,16 @@ Historical false positive rate is ~40-50%. Always verify findings against actual
 
 ## Cross-Agent Communication Model
 
-All three agents run as separate Slack bots connected via Socket Mode. Communication constraints:
+All five agents run as separate Slack bots connected via Socket Mode. Communication constraints:
 
 **Channels** (e.g., #sdlc-reviews, #dev): All agents are present. @mentions using real Slack user IDs are delivered via Socket Mode. Ensemble reviews happen here in threads.
 
 **DMs**: Each DM is a 1:1 conversation between one user and one agent. Agents CANNOT reach each other from DMs — there is no inter-agent message bus. If a user asks an agent about another agent's domain in a DM, the agent should direct them to DM the other agent directly.
 
 **Agent Slack User IDs** (for @mentions in channels):
-- Kit ⚡: `U0AKF614URE`
+- Kit ⚡: `U0AKF614URE
+- Scribe: `U0AM170694Z`
+- Probe: `U0ALRTLF752``
 - Scout 🔍: `U0AJLT30KMG`
 - Trak 📋: `U0AJEGUSELB`
 

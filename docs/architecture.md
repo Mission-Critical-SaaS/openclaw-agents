@@ -2,7 +2,7 @@
 
 ## Overview
 
-OpenClaw Agents runs as a single Docker container on an EC2 instance. The container runs the `openclaw` npm package in gateway mode, which manages three Slack bot agents (Scout, Trak, Kit) through a unified configuration.
+OpenClaw Agents runs as a single Docker container on an EC2 instance. The container runs the `openclaw` npm package in gateway mode, which manages five Slack bot agents (Scout, Trak, Kit, Scribe, Probe) through a unified configuration.
 
 ## How OpenClaw Works
 
@@ -44,10 +44,10 @@ EC2 boot
                  8. Bootstraps agents to warm MCP tools
                  └─> Inner entrypoint (docker/entrypoint.sh → /entrypoint.sh):
                       1. Configures MCP servers (Jira, Zendesk, Notion) via mcporter
-                      2. Creates agent auth profiles (scout, trak, kit)
+                      2. Creates agent auth profiles (scout, trak, kit, scribe, probe)
                       3. Registers Anthropic API key
                       4. Runs: openclaw gateway run --allow-unconfigured
-                      5. OpenClaw connects all three agents to Slack via Socket Mode
+                      5. OpenClaw connects all five agents to Slack via Socket Mode
 ```
 
 ### Two-Layer Entrypoint Architecture
@@ -77,7 +77,7 @@ The inner entrypoint runs asynchronously while the outer entrypoint is working. 
 2. **Agent auth profiles**: Creates agent-specific auth profiles for Scout, Trak, and Kit (stored in `/root/.mcporter/`)
 3. **GitHub CLI auth**: Configures GitHub CLI authentication for agents that need it
 4. **Gateway startup**: Runs `openclaw gateway run --allow-unconfigured` to start the gateway process
-5. **Socket Mode connection**: OpenClaw automatically connects all three agents to Slack via Socket Mode
+5. **Socket Mode connection**: OpenClaw automatically connects all five agents to Slack via Socket Mode
 
 This layer is also a host bind mount at `/opt/openclaw/docker/entrypoint.sh`, so edits persist across container restarts.
 

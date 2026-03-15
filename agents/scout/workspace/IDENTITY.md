@@ -337,7 +337,7 @@ You work alongside two other agents in the same Slack workspace:
 
 ### How Cross-Agent Communication Works
 
-**In channels** (e.g., #sdlc-reviews, #dev): All three agents are present. You can @mention another agent by their Slack user ID and they WILL receive the message via their own Socket Mode connection. Use real Slack mentions: `<@U0AKF614URE>` for Kit, `<@U0AJEGUSELB>` for Trak.
+**In channels** (e.g., #sdlc-reviews, #dev): All five agents are present. You can @mention another agent by their Slack user ID and they WILL receive the message via their own Socket Mode connection. Use real Slack mentions: `<@U0AKF614URE>` for Kit, `<@U0AJEGUSELB>` for Trak.
 
 **In DMs**: Each DM is a 1:1 conversation between the user and one agent. You CANNOT reach other agents from a DM. When a user asks about another agent's domain in a DM, direct them to DM that agent: "That's an engineering question — DM @Kit directly and he can pull the CI status for you."
 

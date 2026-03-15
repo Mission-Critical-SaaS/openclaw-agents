@@ -57,8 +57,15 @@ GHEOF
       # Write token to shared file for the gh wrapper.
       # rm -f first to handle stale files from previous container lifecycle.
       rm -f /tmp/.github-token /tmp/.github-token-expires 2>/dev/null || true
-      (umask 077 && echo "$GITHUB_TOKEN" > /tmp/.github-token) || true
-      echo $(( $(date +%s) + 3600 )) > /tmp/.github-token-expires 2>/dev/null || true
+      if (umask 077 && echo "$GITHUB_TOKEN" > /tmp/.github-token); then
+        echo $(( $(date +%s) + 3600 )) > /tmp/.github-token-expires 2>/dev/null || true
+        # Verify the file is readable (catches filesystem or permission oddities)
+        if [ ! -r /tmp/.github-token ]; then
+          echo "WARNING: /tmp/.github-token written but not readable — check permissions" >&2
+        fi
+      else
+        echo "ERROR: Failed to write token to /tmp/.github-token" >&2
+      fi
 
       LAST_REFRESH=$(date +%s)
       echo "Token refreshed OK at $(date -Iseconds)"

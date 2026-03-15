@@ -130,6 +130,12 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(script).toContain("'requireMention': True");
   });
 
+  // --- Gateway restart messaging ---
+  test('gateway restart message explains this is expected behavior', () => {
+    expect(script).toContain('This is expected');
+    expect(script).toContain('initial gateway generated config');
+  });
+
   // --- Gateway restart (critical fix) ---
   test('kills gateway process group for clean restart (not openclaw gateway stop)', () => {
     // Must NOT use "openclaw gateway stop" as an actual command — it disables the service manager
@@ -143,7 +149,7 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     // After the initial "$@" & to start the inner entrypoint, the restart
     // section must use "openclaw gateway run" directly — NOT "$@" which
     // would re-run the full inner entrypoint (re-installing mcporter, gh, etc.)
-    const restartIdx = script.indexOf('Restarting gateway to apply channel config');
+    const restartIdx = script.indexOf('Restarting gateway to apply injected Slack channel config');
     expect(restartIdx).toBeGreaterThan(-1);
     // The restart section should contain a direct gateway run command
     const afterRestart = script.substring(restartIdx);
@@ -183,6 +189,18 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(script).toContain('Bootstrapping agents');
     expect(script).toContain('openclaw agent --agent main');
     expect(script).toContain('BOOTSTRAP_OK');
+  });
+
+  test('bootstrap retries once if first attempt does not confirm', () => {
+    expect(script).toContain('BOOT_ATTEMPT in 1 2');
+    expect(script).toContain('First attempt did not confirm');
+  });
+
+  test('bootstrap timeout is at least 120 seconds', () => {
+    const match = script.match(/--timeout\s+(\d+)/);
+    expect(match).toBeTruthy();
+    const timeout = parseInt(match![1], 10);
+    expect(timeout).toBeGreaterThanOrEqual(120);
   });
 
   test('bootstrap runs AFTER gateway liveness check', () => {
@@ -1612,6 +1630,13 @@ describe('Non-root Docker user (#44)', () => {
     expect(tokenRefresh).toContain('/root/.config/gh');
   });
 
+  test('github-token-refresh validates token file after write', () => {
+    // Must check the file is readable after writing
+    expect(tokenRefresh).toContain('-r /tmp/.github-token');
+    // Must log errors on write failure
+    expect(tokenRefresh).toContain('ERROR: Failed to write token');
+  });
+
   test('no /root/ references in any shell script or config (except gh config)', () => {
     const files = [outerEntrypoint, innerEntrypoint, healthcheck, tokenRefresh, compose];
     for (const content of files) {
@@ -1795,5 +1820,42 @@ describe('Dangerous action enforcement (#56)', () => {
   test('Dockerfile copies scripts including audit script', () => {
     expect(dockerfile).toContain('COPY scripts/ /app/scripts/');
     expect(dockerfile).toContain('chmod +x');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Documentation: Startup runbook exists
+// ---------------------------------------------------------------------------
+describe('Startup runbook', () => {
+  let runbook: string;
+
+  beforeAll(() => {
+    runbook = readScript('docs/runbooks/startup.md');
+  });
+
+  test('documents the two-stage startup sequence', () => {
+    expect(runbook).toContain('Two-Stage Startup');
+    expect(runbook).toContain('Inner Entrypoint');
+    expect(runbook).toContain('Outer Entrypoint');
+  });
+
+  test('explains the "already listening" message is expected', () => {
+    expect(runbook).toContain('already listening');
+    expect(runbook).toContain('Normal: brief overlap');
+  });
+
+  test('documents expected log messages', () => {
+    expect(runbook).toContain('Expected Log Messages');
+    expect(runbook).toContain('Restarting gateway');
+  });
+
+  test('includes verification steps', () => {
+    expect(runbook).toContain('Verification After Startup');
+    expect(runbook).toContain('docker ps');
+  });
+
+  test('includes timing table', () => {
+    expect(runbook).toContain('Timing');
+    expect(runbook).toContain('Agent bootstrap');
   });
 });
