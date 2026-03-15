@@ -82,7 +82,7 @@ docker exec openclaw-agents openclaw status
 
 
 
-## Clean Startup Expectations (v1.3.77+)
+## Clean Startup Expectations (v1.3.78+)
 
 A healthy startup should produce **zero ERRORs and zero WARNINGs** in `docker logs`. The expected output is:
 
@@ -101,9 +101,9 @@ Gateway config found, injecting Slack channels...
   Added Slack account: probe
   Set tools.sessions.visibility = all (cross-agent handoffs)
 Injected 5 Slack accounts + bindings
+Restarting gateway to apply injected Slack channel config...
 Setting up logrotate cron for log file rotation...
 Logrotate cron installed.
-Restarting gateway to apply injected Slack channel config...
 Normalizing gateway config...
   Config normalized OK.
 gh CLI authenticated with GitHub App token
@@ -138,6 +138,9 @@ These prevent known doctor warnings from appearing:
 | `memorySearch.enabled false` | "Memory search enabled but no embedding provider" |
 | Channels injected without top-level `enabled` key | "Moved channels.slack single-account top-level values" |
 | Doctor output redirected to `/tmp/doctor-output.log` | Noisy box-drawing output in container logs |
+| `openclaw config set` uses `> /dev/null 2>&1` | CLI commands print doctor boxes to stdout (not just stderr) |
+| Gateway killed immediately after config injection | Prevents auto-restart from spawning child with doctor output |
+| `pkill -9 -f "openclaw gateway"` after main kill | Catches respawned gateway child processes |
 
 ## Workspace File Copy
 
