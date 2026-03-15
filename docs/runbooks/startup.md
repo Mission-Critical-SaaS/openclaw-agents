@@ -80,6 +80,65 @@ docker exec openclaw-agents openclaw status
 
 
 
+
+
+## Clean Startup Expectations (v1.3.77+)
+
+A healthy startup should produce **zero ERRORs and zero WARNINGs** in `docker logs`. The expected output is:
+
+```
+Secrets fetched and validated as JSON.
+Validating Slack tokens...
+Token validation complete.
+GitHub App token generated (expires: ...)
+Handoff HMAC key derived and validated.
+Waiting for gateway config...
+Gateway config found, injecting Slack channels...
+  Added Slack account: scout
+  Added Slack account: trak
+  Added Slack account: kit
+  Added Slack account: scribe
+  Added Slack account: probe
+  Set tools.sessions.visibility = all (cross-agent handoffs)
+Injected 5 Slack accounts + bindings
+Setting up logrotate cron for log file rotation...
+Logrotate cron installed.
+Restarting gateway to apply injected Slack channel config...
+Normalizing gateway config...
+  Config normalized OK.
+gh CLI authenticated with GitHub App token
+gh wrapper installed at /usr/local/bin/gh (delegates to /usr/bin/gh.real)
+Injecting workspace files into agent workspaces...
+  [5 agents]: IDENTITY.md updated, KNOWLEDGE.md copied
+Injecting security configs into agent workspaces...
+  [5 agents]: security configs injected
+Injecting proactive capability configs into agent workspaces...
+  [5 agents]: proactive configs injected
+Populating main workspace for memory indexing...
+Memory index updated.
+Starting gateway with injected channel config...
+Gateway is running (PID ...).
+GitHub token refresh loop started in background.
+Bootstrapping agents (warming MCP tools)...
+  Bootstrap attempt 1/2...
+Agent bootstrap succeeded — MCP tools confirmed warm.
+OpenClaw gateway is live. Config: sessions.visibility=all, gateway.mode=local
+```
+
+**If you see any ERROR or WARNING lines**, something is wrong — check the troubleshooting guide.
+
+### Pre-doctor config fixes (applied automatically)
+
+These prevent known doctor warnings from appearing:
+
+| Fix | What it prevents |
+|-----|-----------------|
+| `mkdir -p agents/main/sessions` | "CRITICAL: Session store dir missing" |
+| `gateway.mode local` | "gateway.mode is unset" + bootstrap duplicate gateway error |
+| `memorySearch.enabled false` | "Memory search enabled but no embedding provider" |
+| Channels injected without top-level `enabled` key | "Moved channels.slack single-account top-level values" |
+| Doctor output redirected to `/tmp/doctor-output.log` | Noisy box-drawing output in container logs |
+
 ## Workspace File Copy
 
 During startup, the entrypoint copies agent workspace files from bind mounts to persistent volumes:

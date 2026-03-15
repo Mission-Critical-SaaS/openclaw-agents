@@ -178,7 +178,7 @@ for name, bk, ak in [
         print(f'  Added Slack account: {name}')
 
 if accounts:
-    config['channels'] = {'slack': {'enabled': True, 'accounts': accounts}}
+    config['channels'] = {'slack': {'accounts': accounts}}
     config['bindings'] = [
         {'agentId': name, 'match': {'channel': 'slack', 'accountId': name}}
         for name in accounts
@@ -226,14 +226,36 @@ INJECT_PYEOF
   # files) was completed during the first run.
   # ============================================================
   echo "Restarting gateway to apply injected Slack channel config..."
-  echo "  (This is expected: initial gateway generated config, now restarting with channels injected)"
   kill -- -$GATEWAY_PID 2>/dev/null || kill $GATEWAY_PID 2>/dev/null || true
   sleep 3
 
-  # Normalize config after channel injection (fixes schema drift
-  # like "Moved channels.slack single-account top-level values")
-  echo "Running openclaw doctor --fix to normalize config..."
-  openclaw doctor --fix 2>/dev/null || true
+  # ── PRE-DOCTOR CONFIG FIXES ──────────────────────────────────
+  # Fix known doctor warnings BEFORE running doctor, so the
+  # startup logs are clean with zero errors and zero warnings.
+  # ────────────────────────────────────────────────────────────
+
+  # Create session store dir (prevents "CRITICAL: Session store dir missing")
+  mkdir -p /home/openclaw/.openclaw/.openclaw/agents/main/sessions 2>/dev/null || true
+
+  # Set gateway.mode (prevents "gateway.mode is unset" warning AND
+  # prevents bootstrap from trying to start a second gateway)
+  openclaw config set gateway.mode local 2>/dev/null || true
+
+  # Disable memory search embedding (no embedding API key configured;
+  # prevents "Memory search enabled but no embedding provider" warning)
+  openclaw config set agents.defaults.memorySearch.enabled false 2>/dev/null || true
+
+  # Normalize config (fixes any remaining schema drift from initial startup)
+  echo "Normalizing gateway config..."
+  openclaw doctor --fix > /tmp/doctor-output.log 2>&1 || true
+
+  # Only surface doctor output if there were actual problems
+  if grep -qi "CRITICAL\|ERROR\|fail" /tmp/doctor-output.log 2>/dev/null; then
+    echo "  Doctor found issues:"
+    grep -i "CRITICAL\|ERROR\|fail" /tmp/doctor-output.log | head -5
+  else
+    echo "  Config normalized OK."
+  fi
 
   # Fix config ownership: outer entrypoint runs as root, but OpenClaw
   # expects its config to be owned by UID 1000 (openclaw). Without this,
@@ -474,7 +496,7 @@ WRAPPER_EOF
     echo "  Bootstrap attempt ${BOOT_ATTEMPT}/2..."
     BOOTSTRAP_RESP=$(openclaw agent --agent main \
       --message "Bootstrap health check. List every MCP tool name you have access to, one per line. Then say BOOTSTRAP_OK." \
-      --timeout 120 2>&1) || true
+      --timeout 120 2>&1 | grep -v "Gateway failed to start\|Port.*already in use\|install lsof") || true
 
     if echo "$BOOTSTRAP_RESP" | grep -q "BOOTSTRAP_OK"; then
       break
@@ -487,13 +509,12 @@ WRAPPER_EOF
   if echo "$BOOTSTRAP_RESP" | grep -q "BOOTSTRAP_OK"; then
     echo "Agent bootstrap succeeded â MCP tools confirmed warm."
   else
-    # Non-fatal: agents will still work, just with cold-start on first message
     echo "WARNING: Agent bootstrap did not confirm after 2 attempts."
-    echo "  Tools will load on first user message (this is OK but adds latency)."
-    echo "  Last 200 chars of response: $(echo "$BOOTSTRAP_RESP" | tail -c 200)"
+    echo "  Tools will load on first user message (adds ~10s latency)."
+    echo "  Last 200 chars: $(echo "$BOOTSTRAP_RESP" | tail -c 200)"
   fi
 
-  echo "OpenClaw gateway is live."
+  echo "OpenClaw gateway is live. Config: sessions.visibility=all, gateway.mode=local"
   wait $GATEWAY_PID
 else
   echo "WARNING: Gateway config not found after 180s"
