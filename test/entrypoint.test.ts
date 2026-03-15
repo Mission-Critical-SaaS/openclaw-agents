@@ -1535,15 +1535,14 @@ describe('Non-root Docker user (#44)', () => {
     expect(dockerfile).not.toContain('OPENCLAW_HOME=/root');
   });
 
-  test('Dockerfile sets USER openclaw before EXPOSE', () => {
-    const userIdx = dockerfile.indexOf('USER openclaw');
-    const exposeIdx = dockerfile.indexOf('EXPOSE');
-    expect(userIdx).toBeGreaterThan(-1);
-    expect(exposeIdx).toBeGreaterThan(userIdx);
+  test('inner entrypoint drops to openclaw user via gosu', () => {
+    expect(innerEntrypoint).toContain('gosu openclaw');
+    expect(innerEntrypoint).toContain('chown -R openclaw:openclaw /home/openclaw');
   });
 
-  test('Dockerfile sets ownership of home directory', () => {
+  test('Dockerfile sets ownership of home directory and installs gosu', () => {
     expect(dockerfile).toContain('chown -R openclaw:openclaw /home/openclaw');
+    expect(dockerfile).toContain('gosu');
   });
 
   test('docker-compose.yml uses /home/openclaw paths for container mounts', () => {

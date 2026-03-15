@@ -3,6 +3,23 @@ set -euo pipefail
 OPENCLAW_HOME="${OPENCLAW_HOME:-/home/openclaw/.openclaw}"
 echo "OpenClaw Multi-Agent Gateway starting..."
 
+# ── Fix bind-mount permissions ─────────────────────────────────
+# Host-mounted volumes are typically owned by root. Fix ownership
+# so the openclaw user can write to them. This runs as root (the
+# Dockerfile does not set USER), then the gateway process itself
+# is started as openclaw via gosu at the end.
+if [ "$(id -u)" = "0" ]; then
+  echo "Fixing bind-mount permissions for openclaw user..."
+  chown -R openclaw:openclaw /home/openclaw /data/logs /tmp/agents 2>/dev/null || true
+  chown -R openclaw:openclaw /opt/openclaw/logs 2>/dev/null || true
+  # Fix npm global dirs that need writes (Zoho token cache, npx cache)
+  chown -R openclaw:openclaw /usr/lib/node_modules/@macnishio 2>/dev/null || true
+  # Run the rest of this script as openclaw
+  exec gosu openclaw "$0" "$@"
+fi
+
+echo "Running as user: $(whoami) ($(id -u))"
+
 echo "Configuring from template..."
 envsubst < ${OPENCLAW_HOME}/openclaw.json.tpl > ${OPENCLAW_HOME}/openclaw.json
 

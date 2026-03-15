@@ -7,7 +7,7 @@ ARG TARGETARCH=amd64
 ENV DEBIAN_FRONTEND=noninteractive
 ENV OPENCLAW_HOME=/home/openclaw/.openclaw
 
-RUN apt-get update && apt-get install -y curl jq ca-certificates awscli gettext-base git logrotate && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl jq ca-certificates awscli gettext-base git logrotate gosu && rm -rf /var/lib/apt/lists/*
 RUN useradd -m -s /bin/bash -u 1000 openclaw
 
 # Logrotate config for OpenClaw gateway logs (prevents disk fill)
@@ -36,8 +36,12 @@ COPY docker/entrypoint.sh /entrypoint.sh
 COPY docker/configure_channels.py /configure_channels.py
 RUN chmod +x /entrypoint.sh /app/scripts/*.sh 2>/dev/null || true
 RUN chown -R openclaw:openclaw /home/openclaw /data/logs /tmp/agents
+# Also fix npm global dirs that openclaw user needs to write to (Zoho tokens, npx cache)
+RUN chown -R openclaw:openclaw /usr/lib/node_modules/@macnishio 2>/dev/null || true
 
-USER openclaw
+# NOTE: We do NOT set USER here. The entrypoint starts as root to fix
+# bind-mount permissions, then drops to 'openclaw' via gosu/su-exec.
+# This is the standard Docker pattern for containers with host-mounted volumes.
 
 EXPOSE 3000
 ENTRYPOINT ["/entrypoint.sh"]
