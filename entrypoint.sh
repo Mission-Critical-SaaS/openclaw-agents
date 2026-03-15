@@ -230,16 +230,56 @@ INJECT_PYEOF
   # Authenticate gh CLI with the GitHub App installation token
   if command -v gh &> /dev/null && [ -n "${GITHUB_TOKEN:-}" ]; then
     echo "${GITHUB_TOKEN}" | gh auth login --with-token 2>/dev/null || true
-    # Persist to hosts.yml so ALL processes can authenticate with gh,
-    # not just those inheriting PID 1's GITHUB_TOKEN env var.
-    mkdir -p /home/openclaw/.config/gh
-    cat > /home/openclaw/.config/gh/hosts.yml <<GHEOF
+
+    # Write hosts.yml to BOTH user homes (gateway may run as root or openclaw)
+    for GH_DIR in /home/openclaw/.config/gh /root/.config/gh; do
+      mkdir -p "$GH_DIR"
+      cat > "$GH_DIR/hosts.yml" <<GHEOF
 github.com:
     oauth_token: ${GITHUB_TOKEN}
     user: lmntl-agents[bot]
     git_protocol: https
 GHEOF
+    done
+
+    # Write token to shared file (restrictive perms) for the gh wrapper
+    (umask 077 && echo "$GITHUB_TOKEN" > /tmp/.github-token)
+    echo $(( $(date +%s) + 3600 )) > /tmp/.github-token-expires
+    chown openclaw:openclaw /tmp/.github-token /tmp/.github-token-expires 2>/dev/null || true
+
     echo "gh CLI authenticated with GitHub App token"
+  fi
+
+  # ============================================================
+  # GH WRAPPER: Ensure agents always get a fresh token
+  # Agent processes run in sandboxed environments where HOME may
+  # differ from /root or /home/openclaw, so hosts.yml isn't found.
+  # The wrapper reads the latest token from /tmp/.github-token
+  # (updated every 50 min by the refresh loop) and sets GH_TOKEN
+  # before calling the real gh binary.
+  #
+  # GH_TOKEN is checked FIRST by gh CLI (before GITHUB_TOKEN and
+  # hosts.yml), so the wrapper always wins.
+  # ============================================================
+  GH_REAL=$(command -v gh 2>/dev/null || echo "")
+  if [ -n "$GH_REAL" ]; then
+    # If gh is already at /usr/local/bin, move it so wrapper can take its place
+    if [ "$GH_REAL" = "/usr/local/bin/gh" ]; then
+      mv /usr/local/bin/gh /usr/local/bin/gh.real
+      GH_REAL="/usr/local/bin/gh.real"
+    fi
+    mkdir -p /usr/local/bin
+    cat > /usr/local/bin/gh <<WRAPPER_EOF
+#!/bin/bash
+# gh wrapper: reads latest GitHub App token from the refresh loop's
+# shared file so agents in sandboxed environments always authenticate.
+if [ -f /tmp/.github-token ]; then
+  export GH_TOKEN=\$(cat /tmp/.github-token)
+fi
+exec ${GH_REAL} "\$@"
+WRAPPER_EOF
+    chmod +x /usr/local/bin/gh
+    echo "gh wrapper installed at /usr/local/bin/gh (delegates to ${GH_REAL})"
   fi
 
   # ============================================================

@@ -757,15 +757,36 @@ describe('GitHub App auth lifecycle', () => {
     expect(ghAuthIdx).toBeGreaterThan(doctorIdx);
   });
 
-  test('persists gh token to hosts.yml so all processes can authenticate', () => {
-    // gh prioritises GITHUB_TOKEN env var, but child processes spawned
-    // after gateway start won't inherit updated env. Writing hosts.yml
-    // ensures gh reads the latest token regardless of process lineage.
-    expect(script).toContain('/home/openclaw/.config/gh/hosts.yml');
+  test('persists gh token to hosts.yml in both root and openclaw homes', () => {
+    // hosts.yml written to both user homes so gh works regardless of
+    // which user the gateway process or agent sandbox runs as.
+    expect(script).toContain('/home/openclaw/.config/gh');
+    expect(script).toContain('/root/.config/gh');
     expect(script).toContain('oauth_token');
-    // Refresh script must also write hosts.yml
+    // Refresh script must also write to both locations
     const refresh = readScript('scripts/github-token-refresh.sh');
-    expect(refresh).toContain('/home/openclaw/.config/gh/hosts.yml');
+    expect(refresh).toContain('/home/openclaw/.config/gh');
+    expect(refresh).toContain('/root/.config/gh');
+  });
+
+  test('creates gh wrapper at /usr/local/bin/gh that reads from /tmp/.github-token', () => {
+    // Agent processes run in sandboxed environments where HOME may differ,
+    // so hosts.yml isn't found. The wrapper reads the latest token from
+    // /tmp/.github-token (updated by the refresh loop) and sets GH_TOKEN.
+    expect(script).toContain('/usr/local/bin/gh');
+    expect(script).toContain('/tmp/.github-token');
+    expect(script).toContain('GH_TOKEN');
+    // Wrapper must call the real gh binary
+    expect(script).toContain('GH_REAL');
+    expect(script).toContain('exec ${GH_REAL}');
+  });
+
+  test('writes initial token to /tmp/.github-token before gateway start', () => {
+    const tokenFileIdx = script.indexOf('> /tmp/.github-token');
+    const gatewayStartIdx = script.indexOf('openclaw gateway run --allow-unconfigured >> /data/logs');
+    expect(tokenFileIdx).toBeGreaterThan(-1);
+    expect(gatewayStartIdx).toBeGreaterThan(-1);
+    expect(tokenFileIdx).toBeLessThan(gatewayStartIdx);
   });
 
   test('gh auth login runs BEFORE gateway restart', () => {
@@ -1587,15 +1608,16 @@ describe('Non-root Docker user (#44)', () => {
 
   test('github-token-refresh uses /home/openclaw path', () => {
     expect(tokenRefresh).toContain('/home/openclaw/.config/gh');
-    expect(tokenRefresh).not.toContain('/root/.config/gh');
+    // Also writes to /root/.config/gh for coverage (gateway runs as root)
+    expect(tokenRefresh).toContain('/root/.config/gh');
   });
 
-  test('no /root/ references in any shell script or config', () => {
+  test('no /root/ references in any shell script or config (except gh config)', () => {
     const files = [outerEntrypoint, innerEntrypoint, healthcheck, tokenRefresh, compose];
     for (const content of files) {
-      // Allow /root only in comments
+      // Allow /root only in comments AND in gh config paths (writing to both user homes is intentional)
       const lines = content.split('\n').filter(l => !l.trim().startsWith('#') && !l.trim().startsWith('//'));
-      const rootRefs = lines.filter(l => l.includes('/root/') && !l.includes('/root/.npm'));
+      const rootRefs = lines.filter(l => l.includes('/root/') && !l.includes('/root/.npm') && !l.includes('/root/.config/gh'));
       expect(rootRefs).toEqual([]);
     }
   });

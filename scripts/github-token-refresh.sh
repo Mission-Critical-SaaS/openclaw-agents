@@ -43,15 +43,16 @@ refresh_token() {
       fi
 
       # Persist gh config so ALL processes can authenticate.
-      # CRITICAL: Since GITHUB_TOKEN is NOT in the gateway env,
-      # gh reads from hosts.yml — this is the authoritative source.
-      mkdir -p /home/openclaw/.config/gh
-      cat > /home/openclaw/.config/gh/hosts.yml <<GHEOF
+      # Write to both user homes (root and openclaw) for coverage.
+      for GH_DIR in /home/openclaw/.config/gh /root/.config/gh; do
+        mkdir -p "$GH_DIR"
+        cat > "$GH_DIR/hosts.yml" <<GHEOF
 github.com:
     oauth_token: ${GITHUB_TOKEN}
     user: lmntl-agents[bot]
     git_protocol: https
 GHEOF
+      done
 
       # Write token to shared file (restrictive perms)
       (umask 077 && echo "$GITHUB_TOKEN" > /tmp/.github-token)
