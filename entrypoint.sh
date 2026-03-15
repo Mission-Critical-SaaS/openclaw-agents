@@ -119,7 +119,7 @@ fi
 echo "Handoff HMAC key derived and validated."
 
 # Start inner entrypoint (which starts the gateway) in background
-"$@" &
+"$@" > /tmp/gateway-init.log 2>&1 &
 GATEWAY_PID=$!
 
 # Wait for gateway to create its config file
@@ -133,10 +133,9 @@ for i in $(seq 1 180); do
 done
 
 if [ -f "$CONF" ]; then
+  # Show inner entrypoint output (strip doctor box-drawing noise)
+  sed '/[│├╮╯◇]/d' /tmp/gateway-init.log 2>/dev/null || true
   echo "Gateway config found, injecting Slack channels..."
-  # Freeze the gateway process group so it cannot detect the config file
-  # change and auto-restart (which would spawn a child with doctor output)
-  kill -STOP -- -$GATEWAY_PID 2>/dev/null || kill -STOP $GATEWAY_PID 2>/dev/null || true
   python3 << 'INJECT_PYEOF'
 import json, os
 

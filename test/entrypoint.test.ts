@@ -890,7 +890,7 @@ describe('GitHub App auth lifecycle', () => {
   test('token generation happens before inner entrypoint starts', () => {
     const tokenGenIdx = script.indexOf('github-app-token.sh');
     // Find the "$@" & that starts the inner entrypoint (not eval "$@" in aws_retry)
-    const innerStartIdx = script.indexOf('"$@" &');
+    const innerStartIdx = script.indexOf('"$@" >');
     expect(tokenGenIdx).toBeGreaterThan(-1);
     expect(innerStartIdx).toBeGreaterThan(-1);
     expect(tokenGenIdx).toBeLessThan(innerStartIdx);
