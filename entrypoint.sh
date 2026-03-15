@@ -218,7 +218,8 @@ INJECT_PYEOF
   # setup (mcporter config, auth-profiles, gh CLI auth, workspace
   # files) was completed during the first run.
   # ============================================================
-  echo "Restarting gateway to apply channel config..."
+  echo "Restarting gateway to apply injected Slack channel config..."
+  echo "  (This is expected: initial gateway generated config, now restarting with channels injected)"
   kill -- -$GATEWAY_PID 2>/dev/null || kill $GATEWAY_PID 2>/dev/null || true
   sleep 3
 
@@ -281,8 +282,20 @@ GHEOF
 #!/bin/bash
 # gh wrapper: reads latest GitHub App token from the refresh loop's
 # shared file so agents in sandboxed environments always authenticate.
-if [ -f /tmp/.github-token ]; then
+# Fallback: if token file doesn't exist yet (during startup), wait
+# briefly for the refresh loop to populate it, then fall through to
+# hosts.yml which is set during bootstrap.
+if [ -f /tmp/.github-token ] && [ -s /tmp/.github-token ]; then
   export GH_TOKEN=\$(cat /tmp/.github-token)
+else
+  for _w in 1 2 3 4 5; do
+    [ -f /tmp/.github-token ] && [ -s /tmp/.github-token ] && break
+    sleep 1
+  done
+  if [ -f /tmp/.github-token ] && [ -s /tmp/.github-token ]; then
+    export GH_TOKEN=\$(cat /tmp/.github-token)
+  fi
+  # If still missing, gh falls back to ~/.config/gh/hosts.yml
 fi
 exec ${GH_REAL} "\$@"
 WRAPPER_EOF
@@ -449,19 +462,28 @@ WRAPPER_EOF
   # Fire a bootstrap turn through the gateway. The agent will
   # enumerate its tools during the turn, forcing the gateway to
   # start all configured MCP servers.
-  BOOTSTRAP_RESP=$(openclaw agent --agent main \
-    --message "Bootstrap health check. List every MCP tool name you have access to, one per line. Then say BOOTSTRAP_OK." \
-    --timeout 90 2>&1) || true
+  BOOTSTRAP_RESP=""
+  for BOOT_ATTEMPT in 1 2; do
+    echo "  Bootstrap attempt ${BOOT_ATTEMPT}/2..."
+    BOOTSTRAP_RESP=$(openclaw agent --agent main \
+      --message "Bootstrap health check. List every MCP tool name you have access to, one per line. Then say BOOTSTRAP_OK." \
+      --timeout 120 2>&1) || true
+
+    if echo "$BOOTSTRAP_RESP" | grep -q "BOOTSTRAP_OK"; then
+      break
+    elif [ "$BOOT_ATTEMPT" -eq 1 ]; then
+      echo "  First attempt did not confirm, retrying in 10s..."
+      sleep 10
+    fi
+  done
 
   if echo "$BOOTSTRAP_RESP" | grep -q "BOOTSTRAP_OK"; then
-    echo "Agent bootstrap succeeded â MCP tools are warm."
-    # Count tools mentioned in response (rough heuristic)
-    TOOL_COUNT=$(echo "$BOOTSTRAP_RESP" | grep -c "name" 2>/dev/null || echo "?")
-    echo "  Tools loaded: ~${TOOL_COUNT}"
+    echo "Agent bootstrap succeeded â MCP tools confirmed warm."
   else
     # Non-fatal: agents will still work, just with cold-start on first message
-    echo "WARNING: Agent bootstrap did not confirm. Tools may load on first user message."
-    echo "  Response (last 200 chars): $(echo "$BOOTSTRAP_RESP" | tail -c 200)"
+    echo "WARNING: Agent bootstrap did not confirm after 2 attempts."
+    echo "  Tools will load on first user message (this is OK but adds latency)."
+    echo "  Last 200 chars of response: $(echo "$BOOTSTRAP_RESP" | tail -c 200)"
   fi
 
   echo "OpenClaw gateway is live."

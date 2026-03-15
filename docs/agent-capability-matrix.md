@@ -1,12 +1,12 @@
 # OpenClaw Agent Capability Matrix
 
-Comprehensive reference for the three agents running in the OpenClaw gateway, documenting roles, tool access, and integration points.
+Comprehensive reference for the five agents running in the OpenClaw gateway, documenting roles, tool access, and integration points.
 
 ---
 
 ## Agent Overview
 
-Three agents run in the OpenClaw gateway, each with distinct roles:
+Five agents run in the OpenClaw gateway, each with distinct roles:
 
 ### Scout — Customer Support Specialist
 - **Slack Bot User ID**: U0AJLT30KMG
@@ -41,14 +41,14 @@ Three agents run in the OpenClaw gateway, each with distinct roles:
 
 ## Tool Access Matrix
 
-| Tool | Scout | Trak | Kit |
-|------|-------|------|-----|
+| Tool | Scout | Trak | Kit | Scribe | Probe |
+|------|-------|------|-----|--------|-------|
 | **Jira** (MCP) | ✅ Full — ticket lookup, creation, search | ✅ Full (primary) — sprint tracking, issue management | ⚠️ Limited — issue lookup only |
 | **Zendesk** (MCP) | ✅ Full — ticket search, create, update, comments | ❌ Not configured | ❌ Not configured |
 | **Notion** (MCP) | ❌ Not configured | ❌ Not configured | ❌ Not configured |
 | **GitHub** (gh CLI) | ⚠️ Limited — issue search only | ✅ Full — PRs, issues, repos | ✅ Full (primary) — PRs, CI, code review |
 
-**Note**: Notion is available as an MCP server but not yet assigned to any agent's identity. All three agents CAN access it if their IDENTITY.md is updated.
+**Note**: Notion is available as an MCP server but not yet assigned to any agent's identity. All five agents CAN access it if their IDENTITY.md is updated.
 
 ---
 
@@ -127,7 +127,7 @@ docker exec openclaw-agents bash -c '
 # Expected: 3 servers, all healthy
 
 # Verify each agent's identity is loaded
-for agent in scout trak kit; do
+for agent in scout trak kit scribe probe; do
   docker exec openclaw-agents head -3 /root/.openclaw/agents/$agent/workspace/IDENTITY.md
 done
 ```
@@ -149,7 +149,7 @@ done
 
 ## Specialist Agent Integration
 
-All three agents have access to 13 specialist agent personas in `agents/shared/specialists/`. These provide deep domain expertise for the 7-dimension ensemble audit protocol.
+All five agents have access to 13 specialist agent personas in `agents/shared/specialists/`. These provide deep domain expertise for the 7-dimension ensemble audit protocol.
 
 ### Specialist-to-Dimension Mapping
 
@@ -209,7 +209,9 @@ Specialists are NOT separate processes. They are expertise profiles (stored as m
 Each agent loads its capabilities from:
 - **Scout**: `/root/.openclaw/agents/scout/workspace/IDENTITY.md`
 - **Trak**: `/root/.openclaw/agents/trak/workspace/IDENTITY.md`
-- **Kit**: `/root/.openclaw/agents/kit/workspace/IDENTITY.md`
+- **Kit**: `/root/.openclaw/agents/kit/workspace/IDENTITY.md
+- `/root/.openclaw/agents/scribe/workspace/IDENTITY.md`
+- `/root/.openclaw/agents/probe/workspace/IDENTITY.md``
 
 The IDENTITY.md file contains:
 - Tool availability declarations

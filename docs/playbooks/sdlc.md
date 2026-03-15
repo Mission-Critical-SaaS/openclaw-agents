@@ -159,7 +159,7 @@ See [deploy.md](deploy.md) for full deployment details.
 ## 7. Lessons Learned
 
 ### groupPolicy Misconfiguration (Session 1)
-- **Symptom**: All three agents responded in DMs but completely ignored @mentions in channels. No errors in logs.
+- **Symptom**: All agents responded in DMs but completely ignored @mentions in channels. No errors in logs.
 - **Root cause**: `groupPolicy` was set to `"allowlist"` with an empty `allowChannels` list in the outer entrypoint. This silently drops all channel messages.
 - **Fix**: Changed `groupPolicy` to `"open"` in `/opt/openclaw/entrypoint.sh` (host file, persists across restarts).
 - **Prevention**: Always verify groupPolicy setting after deployment. Use `openclaw config get` to check, or inspect the generated config at `/root/.openclaw/openclaw.json`.
@@ -189,7 +189,7 @@ See [deploy.md](deploy.md) for full deployment details.
 
 
 ### Streaming Value Rejection (Session 7)
-- **Symptom**: Agents posted intermediate streaming updates as top-level channel messages instead of in-thread. After setting `streaming: 'none'`, container logs showed `Normalized channels.slack.accounts.scout.streaming (none) → (partial)` for all 3 agents.
+- **Symptom**: Agents posted intermediate streaming updates as top-level channel messages instead of in-thread. After setting `streaming: 'none'`, container logs showed `Normalized channels.slack.accounts.scout.streaming (none) → (partial)` for all 5 agents.
 - **Root cause**: `'none'` is not a valid OpenClaw streaming value. Valid values are: `true`, `false`, `"off"`, `"partial"`, `"block"`, `"progress"`. OpenClaw silently rejects invalid values and normalizes them to `"partial"`.
 - **Fix**: Changed `'streaming': 'none'` to `'streaming': 'off'` in the outer entrypoint.
 - **Prevention**: After any streaming config change, check container logs for "Normalized" warnings: `docker logs openclaw-agents 2>&1 | grep Normalized`. Zero matches = config accepted.

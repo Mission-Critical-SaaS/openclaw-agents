@@ -61,6 +61,40 @@ docker logs openclaw-agents 2>&1 | grep -i connected
 docker exec openclaw-agents env | grep -c SLACK
 ```
 
+
+## Gateway "Already Listening" During Startup
+
+If you see this in the container logs:
+
+```
+Gateway failed to start: another gateway instance is already listening on ws://127.0.0.1:18789
+```
+
+**This is normal and expected.** During startup, the outer entrypoint kills the first gateway instance and restarts it with injected Slack channel config. There's a brief window (1–3 seconds) where the old process hasn't released the port yet. The entrypoint retries automatically.
+
+You do NOT need to do anything. See [Startup Sequence](../runbooks/startup.md) for the full boot flow.
+
+## GitHub Token Issues (gh CLI)
+
+### "gh auth login needed" or exit code 4
+
+The gh wrapper at `/usr/local/bin/gh` reads tokens from `/tmp/.github-token`, which is refreshed every 50 minutes by the background token refresh loop. If an agent reports `gh auth login` is needed:
+
+1. **Check the token file exists:** `docker exec openclaw-agents cat /tmp/.github-token | head -c 20`
+2. **Check the refresh loop is running:** `docker exec openclaw-agents ps aux | grep token-refresh`
+3. **Check the expiry:** `docker exec openclaw-agents cat /tmp/.github-token-expires` (Unix timestamp)
+
+If the token file is missing or the refresh loop died, restart the container:
+```bash
+docker restart openclaw-agents
+```
+
+### Config file permission denied (EACCES)
+
+If logs show `EACCES: permission denied, open .../openclaw.json`:
+
+The outer entrypoint runs as root but OpenClaw expects config owned by UID 1000 (openclaw user). The `chown -R openclaw:openclaw /home/openclaw/.openclaw` line in the entrypoint fixes this. If you see this error, the chown likely failed — check disk space and filesystem health.
+
 ## Agent Responds in DMs But Ignores Channel @mentions
 
 This is a different issue from the agent not responding at all. If agents work fine in DMs but completely ignore @mentions in channels (with no error in logs):
