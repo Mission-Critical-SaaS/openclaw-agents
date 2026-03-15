@@ -203,7 +203,11 @@ INJECT_PYEOF
   # and on the host for /opt/openclaw/logs (via healthcheck/setup script)
   # ============================================================
   echo "Setting up logrotate cron for log file rotation..."
-  (crontab -l 2>/dev/null | grep -v logrotate; echo "0 0 * * * /usr/sbin/logrotate /etc/logrotate.conf --state /tmp/logrotate.state") | sort -u | crontab -
+  # Use || true to handle fresh containers with no existing crontab
+  # (crontab -l exits 1 when no crontab exists, which kills the script under set -euo pipefail)
+  EXISTING_CRON=$(crontab -l 2>/dev/null | grep -v logrotate || true)
+  echo "${EXISTING_CRON}
+0 0 * * * /usr/sbin/logrotate /etc/logrotate.conf --state /tmp/logrotate.state" | sort -u | crontab -
   echo "Logrotate cron installed."
 
   # ============================================================
