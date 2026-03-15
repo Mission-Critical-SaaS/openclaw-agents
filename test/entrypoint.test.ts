@@ -111,8 +111,8 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
   });
 
   // --- Config wait ---
-  test('waits up to 90 seconds for gateway config', () => {
-    expect(script).toMatch(/seq 1 90/);
+  test('waits up to 180 seconds for gateway config', () => {
+    expect(script).toMatch(/seq 1 180/);
   });
 
   // --- Slack injection ---

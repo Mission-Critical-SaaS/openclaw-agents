@@ -123,10 +123,11 @@ echo "Handoff HMAC key derived and validated."
 GATEWAY_PID=$!
 
 # Wait for gateway to create its config file
-# Inner entrypoint installs mcporter + gh CLI which can take ~30-60s
+# Inner entrypoint installs mcporter + gh CLI which does Zoho setup, zd-mcp-server patching, MCP config etc.
+# which can take 90-120s before the gateway starts and writes its config.
 CONF="/home/openclaw/.openclaw/.openclaw/openclaw.json"
 echo "Waiting for gateway config..."
-for i in $(seq 1 90); do
+for i in $(seq 1 180); do
   [ -f "$CONF" ] && break
   sleep 1
 done
