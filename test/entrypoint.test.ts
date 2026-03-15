@@ -1915,4 +1915,59 @@ describe('Cross-agent handoff configuration', () => {
       expect(identity).toContain('HMAC');
     }
   });
+
+  test('handoff protocol includes agent_slack_ids map with all 5 agents', () => {
+    const parsed = JSON.parse(handoffProtocol);
+    expect(parsed.agent_slack_ids).toBeDefined();
+    const agents = Object.keys(parsed.agent_slack_ids);
+    expect(agents).toContain('scout');
+    expect(agents).toContain('trak');
+    expect(agents).toContain('kit');
+    expect(agents).toContain('scribe');
+    expect(agents).toContain('probe');
+    // Each agent has user_id and session_target
+    for (const agent of agents) {
+      expect(parsed.agent_slack_ids[agent].user_id).toMatch(/^U0/);
+      expect(parsed.agent_slack_ids[agent].session_target).toMatch(/^agent:[a-z]+:main$/);
+    }
+  });
+
+  test('all IDENTITY.md files have fallback @mention lookup with Slack user IDs', () => {
+    const agentIds = {
+      scout: 'U0AJLT30KMG',
+      trak: 'U0AJEGUSELB',
+      kit: 'U0AKF614URE',
+      scribe: 'U0AM170694Z',
+      probe: 'U0ALRTLF752',
+    };
+    for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe']) {
+      const identity = readScript(`agents/${agent}/workspace/IDENTITY.md`);
+      expect(identity).toContain('Fallback @mention lookup');
+      // Should contain user IDs for all OTHER agents (not self)
+      for (const [other, uid] of Object.entries(agentIds)) {
+        if (other !== agent) {
+          expect(identity).toContain(`<@${uid}>`);
+        }
+      }
+    }
+  });
+
+  test('all IDENTITY.md files have Inter-Agent Delegation section with 4 siblings', () => {
+    for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe']) {
+      const identity = readScript(`agents/${agent}/workspace/IDENTITY.md`);
+      expect(identity).toContain('Inter-Agent Delegation & Communication');
+      expect(identity).toContain('four other agents');
+    }
+  });
+
+  test('no IDENTITY.md files reference bot-to-bot Slack DMs as a delivery method', () => {
+    for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe']) {
+      const identity = readScript(`agents/${agent}/workspace/IDENTITY.md`);
+      // The old Scribe instruction
+      expect(identity).not.toContain('Confirm completion back to the requesting agent via Slack DM');
+      // The old Probe instruction
+      expect(identity).not.toContain('DM the target agent in Slack with the handoff ID');
+    }
+  });
+
 });

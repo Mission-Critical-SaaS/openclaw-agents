@@ -167,13 +167,36 @@
         "method": "channel_mention",
         "description": "Post handoff message to #dev (C086N5031LZ) with @mention of target agent. Used when sessions_send fails or target has no active session.",
         "how": "Post to #dev channel with @TARGET_USER_ID mention and full handoff payload including HMAC signature.",
-        "channel_id": "C086N5031LZ"
+        "channel_id": "C086N5031LZ",
+        "note": "Use agent_slack_ids map to look up the correct user ID for the @mention"
       },
       "blocked": {
         "method": "slack_dm",
         "description": "Bot-to-bot Slack DMs are NOT supported. Slack returns 'cannot_dm_bot'. Do NOT attempt this.",
         "status": "blocked_by_slack_api"
       }
+    }
+  },
+  "agent_slack_ids": {
+    "scout": {
+      "user_id": "U0AJLT30KMG",
+      "session_target": "agent:scout:main"
+    },
+    "trak": {
+      "user_id": "U0AJEGUSELB",
+      "session_target": "agent:trak:main"
+    },
+    "kit": {
+      "user_id": "U0AKF614URE",
+      "session_target": "agent:kit:main"
+    },
+    "scribe": {
+      "user_id": "U0AM170694Z",
+      "session_target": "agent:scribe:main"
+    },
+    "probe": {
+      "user_id": "U0ALRTLF752",
+      "session_target": "agent:probe:main"
     }
   }
 }
