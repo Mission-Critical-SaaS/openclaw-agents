@@ -242,9 +242,12 @@ github.com:
 GHEOF
     done
 
-    # Write token to shared file (restrictive perms) for the gh wrapper
-    (umask 077 && echo "$GITHUB_TOKEN" > /tmp/.github-token)
-    echo $(( $(date +%s) + 3600 )) > /tmp/.github-token-expires
+    # Write token to shared file for the gh wrapper.
+    # rm -f first: on container restart the writable layer persists and
+    # the old file (mode 600, different owner) blocks the redirect.
+    rm -f /tmp/.github-token /tmp/.github-token-expires 2>/dev/null || true
+    (umask 077 && echo "$GITHUB_TOKEN" > /tmp/.github-token) || true
+    echo $(( $(date +%s) + 3600 )) > /tmp/.github-token-expires 2>/dev/null || true
     chown openclaw:openclaw /tmp/.github-token /tmp/.github-token-expires 2>/dev/null || true
 
     echo "gh CLI authenticated with GitHub App token"

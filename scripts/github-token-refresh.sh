@@ -54,10 +54,11 @@ github.com:
 GHEOF
       done
 
-      # Write token to shared file (restrictive perms)
-      (umask 077 && echo "$GITHUB_TOKEN" > /tmp/.github-token)
-      # Write expiry timestamp (token valid for ~1 hour from now)
-      echo $(( $(date +%s) + 3600 )) > /tmp/.github-token-expires
+      # Write token to shared file for the gh wrapper.
+      # rm -f first to handle stale files from previous container lifecycle.
+      rm -f /tmp/.github-token /tmp/.github-token-expires 2>/dev/null || true
+      (umask 077 && echo "$GITHUB_TOKEN" > /tmp/.github-token) || true
+      echo $(( $(date +%s) + 3600 )) > /tmp/.github-token-expires 2>/dev/null || true
 
       LAST_REFRESH=$(date +%s)
       echo "Token refreshed OK at $(date -Iseconds)"
