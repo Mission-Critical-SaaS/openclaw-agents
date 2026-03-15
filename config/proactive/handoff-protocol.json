@@ -144,7 +144,7 @@
     }
   ],
   "protocol": {
-    "delivery": "Slack DM to the target agent with structured handoff message",
+    "delivery": "Primary: sessions_send to the target agent's active session (requires tools.sessions.visibility=all in gateway config). Fallback: @mention the target agent in #dev channel with the full handoff payload. Bot-to-bot Slack DMs are NOT supported by Slack's API.",
     "format": "Include handoff ID, trigger context, and payload. Use thread for follow-up.",
     "acknowledgment": "Target agent must acknowledge within the conversation",
     "timeout": "If no acknowledgment in 30 minutes, retry once. After second failure, log and notify admin.",
@@ -155,6 +155,25 @@
       "signature_header": "X-Handoff-Signature",
       "format": "Include `[HMAC:<hex-signature>]` at the end of the handoff message. Signature is HMAC-SHA256 of the message body (everything before the HMAC tag) using the shared key from HANDOFF_HMAC_KEY environment variable.",
       "verification": "Receiving agent must verify the HMAC signature before processing the handoff. Reject messages with missing or invalid signatures."
+    },
+    "delivery_methods": {
+      "primary": {
+        "method": "sessions_send",
+        "description": "Send handoff message directly to the target agent's session via OpenClaw's internal session messaging. This is the fastest and most reliable method.",
+        "how": "Use the sessions_send tool with target agent:TARGET_NAME:main and include the HMAC-signed handoff payload.",
+        "requires": "tools.sessions.visibility must be set to 'all' in gateway config"
+      },
+      "fallback": {
+        "method": "channel_mention",
+        "description": "Post handoff message to #dev (C086N5031LZ) with @mention of target agent. Used when sessions_send fails or target has no active session.",
+        "how": "Post to #dev channel with @TARGET_USER_ID mention and full handoff payload including HMAC signature.",
+        "channel_id": "C086N5031LZ"
+      },
+      "blocked": {
+        "method": "slack_dm",
+        "description": "Bot-to-bot Slack DMs are NOT supported. Slack returns 'cannot_dm_bot'. Do NOT attempt this.",
+        "status": "blocked_by_slack_api"
+      }
     }
   }
 }

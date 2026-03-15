@@ -190,6 +190,13 @@ if accounts:
         del config['channels']['slack']['accounts']['default']
         print('  Cleaned up stale "default" account')
 
+    # Enable cross-agent session messaging. This lets agents use sessions_send
+    # to deliver handoff messages directly to other agents' sessions, bypassing
+    # Slack's bot-to-bot DM restriction. Without this, tools.sessions.visibility
+    # defaults to "tree" which blocks cross-agent session access.
+    config.setdefault('tools', {}).setdefault('sessions', {})['visibility'] = 'all'
+    print('  Set tools.sessions.visibility = all (cross-agent handoffs)')
+
     with open(conf_path, 'w') as f:
         json.dump(config, f, indent=2)
     print(f'Injected {len(accounts)} Slack accounts + bindings')

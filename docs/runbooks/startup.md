@@ -27,6 +27,7 @@ The outer entrypoint (`entrypoint.sh`) orchestrates the full boot:
 3. **Starts inner entrypoint** in background, waits up to 180s for config file
 4. **Injects Slack channels** into the gateway config (5 agents: scout, trak, kit, scribe, probe)
 5. **Runs `openclaw doctor --fix`** to normalize config schema
+    - Also sets `tools.sessions.visibility = "all"` for cross-agent handoffs via `sessions_send`
 6. **Fixes config ownership** (`chown openclaw:openclaw`) since outer entrypoint runs as root
 7. **Installs gh wrapper** at `/usr/local/bin/gh` that reads token from `/tmp/.github-token`
 8. **Injects workspace files** (IDENTITY.md, KNOWLEDGE.md, security configs, proactive configs)
