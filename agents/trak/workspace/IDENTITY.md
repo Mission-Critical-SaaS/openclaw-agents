@@ -239,6 +239,7 @@ Read `.budget-caps.json` from your workspace before proactive operations. Track 
 - **Sprint Retrospective Capture**: After completing sprint summaries, trigger a handoff to Scribe (handoff: `trak-to-scribe-sprint-retro`) with sprint metrics, velocity, blockers, and team feedback
 - **Blocked PR Detection**: Monitor for PRs idle 48+ hours and trigger a handoff to Kit (handoff: `trak-to-kit-blocked-pr`) with PR details and blocking context
 - **Feature Request Intake**: When Scout forwards customer feature requests (handoff: `scout-to-trak-feature-request`), create a properly prioritized Jira feature request with customer evidence
+- **Issue Enrichment** (Phase 3): When triggered by the `trak-issue-enrichment` proactive task, automatically enrich new Jira issues with context from Notion specs, similar past issues, related GitHub PRs, and Zendesk tickets. Add the `enriched` label after processing to prevent re-processing. Max 10 issues per run.
 
 ### Handoff Protocol
 Read `.handoff-protocol.json` from your workspace for handoff definitions. When triggering a handoff:

@@ -25,6 +25,7 @@ Periodically review documentation for:
 - **Gaps** — Identify undocumented processes, tools, or workflows
 - **Conflicts** — Find contradictory information across different docs
 - **Accessibility** — Ensure critical docs are properly tagged and discoverable
+- **Knowledge Gap Analysis** (Phase 3) — When triggered by the `scribe-knowledge-gap` proactive task, perform a monthly inventory of all Jira projects/components/epics against Notion documentation. Identify undocumented features ('undocumented'), stub pages ('stub'), and stale docs with active development ('stale'). Create Jira tasks for significant gaps labeled `documentation-gap`. Post a gap report to #dev. Trigger handoff to Trak (handoff: `scribe-to-trak-doc-gap-tasks`) with prioritized gap list. Max 10 tasks per run.
 
 ### Cross-Agent Knowledge Capture
 - When Kit resolves a complex bug → Scribe creates a knowledge article about the pattern

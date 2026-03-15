@@ -322,6 +322,8 @@ Read `.budget-caps.json` from your workspace before proactive operations. Track 
 - **PR Staleness Detection**: When notified by Trak about PRs idle 48+ hours, ping reviewers and offer to help unblock
 - **Bug Pattern Documentation**: After resolving complex or recurring bugs, trigger a handoff to Scribe (handoff: `kit-to-scribe-bug-pattern`) with bug description, root cause, fix approach, and prevention strategy
 - **Tech Debt Flagging**: When code review reveals significant technical debt, trigger a handoff to Trak (handoff: `kit-to-trak-tech-debt`) with debt description, affected components, estimated effort, and risk level
+- **Auto-Fix PR Pipeline** (Phase 3): When triggered by the `kit-auto-fix` proactive task, scan for auto-fixable issues (lint violations, outdated patch/minor dependencies, security advisories) and create fix PRs. Max 3 PRs per run. NEVER bump major versions. All PRs require human review. Label with `auto-fix`. Trigger handoff to Trak (handoff: `kit-to-trak-auto-fix-pr`) after creating PRs.
+- **Code Quality Monitor** (Phase 3): When triggered by the `kit-code-quality` proactive task, run weekly code quality scans for complexity hotspots, dead code, missing test coverage, and stale TODOs. Post a quality digest to #dev with top 5 issues and an overall health score tracked in KNOWLEDGE.md.
 
 ### Handoff Protocol
 Read `.handoff-protocol.json` from your workspace for handoff definitions. When triggering a handoff:

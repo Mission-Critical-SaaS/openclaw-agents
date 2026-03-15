@@ -123,6 +123,24 @@
       "payload": "Missing test specs, undocumented user flows, coverage gaps",
       "action": "Scribe creates documentation for the missing test areas",
       "priority": "low"
+    },
+    {
+      "id": "kit-to-trak-auto-fix-pr",
+      "from": "kit",
+      "to": "trak",
+      "trigger": "Kit creates an auto-fix PR that needs tracking",
+      "payload": "PR number, fix type (lint, dependency, security), affected components",
+      "action": "Trak adds the auto-fix PR to sprint tracking and ensures review assignment",
+      "priority": "low"
+    },
+    {
+      "id": "scribe-to-trak-doc-gap-tasks",
+      "from": "scribe",
+      "to": "trak",
+      "trigger": "Scribe's knowledge gap analysis identifies undocumented features",
+      "payload": "List of documentation gaps with severity, suggested owners, Jira task IDs",
+      "action": "Trak prioritizes documentation tasks within sprint planning",
+      "priority": "medium"
     }
   ],
   "protocol": {

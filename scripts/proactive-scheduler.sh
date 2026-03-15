@@ -102,7 +102,12 @@ Phase 2 — Code Automation:
   trak-deploy-tracker     Post-deploy release summary (Trak)
   scribe-changelog        Post-deploy changelog generation (Scribe)
 
-Phase 3 — Autonomous Testing:
+Phase 3 — Advanced Capabilities:
+  trak-issue-enrichment   Jira issue auto-enrichment (Trak)
+  scout-ticket-enrichment Zendesk ticket auto-enrichment (Scout)
+  kit-auto-fix            Auto-fix PR pipeline (Kit)
+  kit-code-quality        Weekly code quality monitor (Kit)
+  scribe-knowledge-gap    Monthly knowledge gap analysis (Scribe)
   probe-smoke-test        Post-deploy smoke tests (Probe)
   probe-perf-canary       Weekly performance benchmarks (Probe)
 EOF
@@ -225,7 +230,126 @@ Budget: Check .budget-caps.json before making API calls." \
       150
     ;;
 
-  # ── Phase 2/3: Probe ───────────────────────────────────
+  # ── Phase 3: Trak ──────────────────────────────────────
+  trak-issue-enrichment)
+    send_to_agent "trak" "$TASK" \
+      "[PROACTIVE TASK: Jira Issue Enrichment]
+You are running your issue enrichment scan. Do the following:
+1. Query Jira for issues created or updated in the last 30 minutes that do NOT have the 'enriched' label
+2. For each unenriched issue (max 10 per run):
+   a. Search Notion for related specs/documentation by matching keywords from the issue summary and description
+   b. Search Jira for similar past issues using JQL (same component, similar labels, related text)
+   c. Search GitHub for recent PRs touching related code paths (use component name or module keywords)
+   d. If the issue appears customer-reported, search Zendesk for related tickets
+3. Post a structured enrichment comment on each Jira issue containing:
+   - Related documentation links (Notion pages with relevance)
+   - Similar past issues and their resolutions
+   - Suggested acceptance criteria (if the issue has none)
+   - Affected components/services based on code analysis
+4. Add the 'enriched' label to each processed issue to prevent re-processing
+5. Post a brief summary to #dev listing how many issues were enriched
+6. Update your KNOWLEDGE.md with enrichment metrics (issues processed, patterns found)
+Budget: Check .budget-caps.json before making API calls. Max 10 issues per run." \
+      180
+    ;;
+
+  # ── Phase 3: Scout ─────────────────────────────────────
+  scout-ticket-enrichment)
+    send_to_agent "scout" "$TASK" \
+      "[PROACTIVE TASK: Zendesk Ticket Auto-Enrichment]
+You are running your ticket auto-enrichment scan. Do the following:
+1. Query Zendesk for tickets created in the last 15 minutes that do NOT have the 'enriched' tag
+2. For each new ticket (max 15 per run):
+   a. Search Jira for matching bug reports by keyword match on the ticket subject and description
+   b. Check recent deployments (last 24h) from GitHub tags for related changes
+   c. Search Zendesk for similar past tickets and their resolutions
+3. Add an INTERNAL NOTE (never customer-facing) to each ticket containing:
+   - Related Jira issues with status and direct links
+   - Recent deploys that might be related (tag, date, relevant PRs)
+   - Similar past tickets and how they were resolved
+4. Add the 'enriched' tag to each processed ticket to prevent re-processing
+5. If a pattern of 3+ similar tickets is detected, trigger handoff to Kit (scout-to-kit-bug-report)
+6. Update your KNOWLEDGE.md with enrichment metrics
+CRITICAL: Only add internal notes. Never post anything visible to customers.
+Budget: Check .budget-caps.json before making API calls." \
+      150
+    ;;
+
+  # ── Phase 3: Kit ──────────────────────────────────────
+  kit-auto-fix)
+    send_to_agent "kit" "$TASK" \
+      "[PROACTIVE TASK: Auto-Fix PR Pipeline]
+You are running the auto-fix PR pipeline. Do the following:
+1. Check the openclaw-agents repository for fixable issues:
+   a. Run linting checks and identify auto-fixable violations (eslint --fix, formatting)
+   b. Check for outdated dependencies with available patch or minor updates (npm outdated)
+   c. Check GitHub Security Advisories (Dependabot alerts) for available fixes
+2. For each fixable issue (max 3 PRs per run):
+   a. Create a feature branch named auto-fix/<description>
+   b. Apply the fix (run the auto-formatter, bump the dependency, apply security patch)
+   c. Run the test suite to verify the fix doesn't break anything
+   d. Create a PR with a clear description: what was fixed, why, risk assessment
+   e. Label the PR with 'auto-fix' for easy identification
+3. Post a summary to #dev listing PRs created with links and descriptions
+4. Update your KNOWLEDGE.md with auto-fix metrics (fixes attempted, PRs created, test results)
+SAFETY RULES:
+- Only patch/minor dependency updates — NEVER major version bumps
+- All PRs require human review before merge
+- If tests fail after applying a fix, abandon that fix and note the failure
+- Max 3 auto-fix PRs per cron run
+Budget: Check .budget-caps.json before making API calls." \
+      300
+    ;;
+
+  kit-code-quality)
+    send_to_agent "kit" "$TASK" \
+      "[PROACTIVE TASK: Code Quality Monitor]
+You are running the weekly code quality scan. Do the following:
+1. Scan the openclaw-agents repository for quality issues:
+   a. Identify code complexity hotspots (large functions, deep nesting, high cyclomatic complexity)
+   b. Search for dead/unreachable code patterns (unused exports, unreachable branches)
+   c. Check test coverage: identify critical paths without test coverage
+   d. Find stale TODO/FIXME/HACK comments older than 30 days (check git blame for age)
+2. Compile a quality digest with:
+   - Top 5 complexity hotspots (file, function, complexity score)
+   - Untested critical paths (files with no corresponding test files)
+   - Stale TODOs with age and original author
+   - Overall health score compared to last week (from KNOWLEDGE.md)
+3. Post the quality digest to #dev
+4. For simple issues (e.g., removing dead code, fixing TODOs), optionally create auto-fix PRs (label: auto-fix)
+5. Update your KNOWLEDGE.md with quality metrics for trend tracking
+Budget: Check .budget-caps.json before making API calls." \
+      240
+    ;;
+
+  # ── Phase 3: Scribe ────────────────────────────────────
+  scribe-knowledge-gap)
+    send_to_agent "scribe" "$TASK" \
+      "[PROACTIVE TASK: Knowledge Gap Analyzer]
+You are running the monthly knowledge gap analysis. Do the following:
+1. Inventory all Jira projects, components, and recent epics (last 6 months)
+2. For each project/component, search Notion for corresponding documentation:
+   - Architecture docs, API docs, runbooks, onboarding guides
+   - Check for stub pages (created but mostly empty)
+3. Identify gaps — features/modules with:
+   - No documentation at all ('undocumented')
+   - Only stubs or outlines ('stub')
+   - Documentation older than 6 months with active recent development ('stale')
+4. Create Jira tasks for each significant gap:
+   - Clear title: 'Document: [feature/module name]'
+   - Description with scope, suggested outline, and related code/PRs
+   - Assign to the project that owns the feature
+   - Label with 'documentation-gap'
+5. Post a knowledge gap report to #dev with:
+   - Total documented vs undocumented features
+   - Highest-priority gaps (actively developed but undocumented)
+   - Stale docs that need refresh
+6. Update your KNOWLEDGE.md with gap analysis metrics and trends
+Budget: Check .budget-caps.json before making API calls." \
+      300
+    ;;
+
+  # ── Phase 3: Probe ───────────────────────────────────
   probe-smoke-test)
     send_to_agent "probe" "$TASK" \
       "[PROACTIVE TASK: Post-Deploy Smoke Tests]

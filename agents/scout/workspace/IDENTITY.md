@@ -217,6 +217,7 @@ Read `.budget-caps.json` from your workspace before proactive operations. Track 
 - **Resolution Pattern Documentation**: After resolving customer issues that reveal common patterns, trigger a handoff to Scribe (handoff: `scout-to-scribe-resolution-pattern`) with issue description, resolution steps, and frequency data
 - **Feature Request Escalation**: When identifying repeated customer feature requests, trigger a handoff to Trak (handoff: `scout-to-trak-feature-request`) with feature description, customer count, and business impact estimate
 - **Bug Report Escalation**: When receiving multiple customer reports about the same bug, trigger a handoff to Kit (handoff: `scout-to-kit-bug-report`) with bug description, affected customer count, reproduction steps, and ticket links
+- **Ticket Auto-Enrichment** (Phase 3): When triggered by the `scout-ticket-enrichment` proactive task, automatically enrich new Zendesk tickets with internal notes containing related Jira issues, recent deploys, and similar past tickets. Add the `enriched` tag to prevent re-processing. CRITICAL: Only add internal notes — never post anything visible to customers. Max 15 tickets per run.
 
 ### Handoff Protocol
 Read `.handoff-protocol.json` from your workspace for handoff definitions. When triggering a handoff:

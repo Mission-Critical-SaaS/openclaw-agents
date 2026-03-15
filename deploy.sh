@@ -17,6 +17,10 @@ for arg in "$@"; do
         -*) echo "Unknown option: $arg"; exit 1 ;; *) VERSION="$arg" ;;
     esac
 done
+# Ensure timezone is Eastern Time for cron scheduling
+if command -v timedatectl &>/dev/null; then
+    timedatectl set-timezone America/New_York 2>/dev/null || true
+fi
 mkdir -p "$LOG_DIR"
 DEPLOY_LOG="$LOG_DIR/deploy-$(date +%Y%m%d-%H%M%S).log"
 # NOTE: Do NOT use `exec > >(tee ...)` here. The process substitution

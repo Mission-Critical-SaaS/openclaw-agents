@@ -9,6 +9,9 @@
 # This script APPENDS to the existing crontab (preserving backup/snapshot crons).
 # Each proactive entry is tagged with "# proactive:" for easy identification.
 #
+# IMPORTANT: All times are Eastern Time (America/New_York). The EC2 instance
+# timezone MUST be set to America/New_York for correct scheduling.
+#
 # Kill switch: touch /opt/openclaw/.proactive-pause to pause ALL proactive tasks.
 # Per-agent pause: export PROACTIVE_PAUSE_TRAK=true (etc.) in the environment.
 
@@ -64,20 +67,29 @@ ${EXISTING}
 # ============================================================
 
 # Phase 1: Daily tasks
-0 9 * * 1-5 $SCHEDULER trak-sprint-health >> $LOG_DIR/proactive.log 2>&1 # proactive: trak-sprint-health (weekdays 9am UTC)
-30 10 * * 1-5 $SCHEDULER scout-sla-watchdog >> $LOG_DIR/proactive.log 2>&1 # proactive: scout-sla-watchdog (weekdays 10:30am UTC)
-0 11 * * 1-5 $SCHEDULER scout-bug-correlator >> $LOG_DIR/proactive.log 2>&1 # proactive: scout-bug-correlator (weekdays 11am UTC)
+0 9 * * 1-5 $SCHEDULER trak-sprint-health >> $LOG_DIR/proactive.log 2>&1 # proactive: trak-sprint-health (weekdays 9am ET)
+30 10 * * 1-5 $SCHEDULER scout-sla-watchdog >> $LOG_DIR/proactive.log 2>&1 # proactive: scout-sla-watchdog (weekdays 10:30am ET)
+0 11 * * 1-5 $SCHEDULER scout-bug-correlator >> $LOG_DIR/proactive.log 2>&1 # proactive: scout-bug-correlator (weekdays 11am ET)
 
 # Phase 1: Weekly tasks
-0 9 * * 1 $SCHEDULER trak-stale-work >> $LOG_DIR/proactive.log 2>&1 # proactive: trak-stale-work (Mondays 9am UTC)
-0 10 * * 1 $SCHEDULER scribe-doc-staleness >> $LOG_DIR/proactive.log 2>&1 # proactive: scribe-doc-staleness (Mondays 10am UTC)
+0 9 * * 1 $SCHEDULER trak-stale-work >> $LOG_DIR/proactive.log 2>&1 # proactive: trak-stale-work (Mondays 9am ET)
+0 10 * * 1 $SCHEDULER scribe-doc-staleness >> $LOG_DIR/proactive.log 2>&1 # proactive: scribe-doc-staleness (Mondays 10am ET)
 
 # Phase 2: On-demand (triggered by deploy hook in deploy.sh, not cron)
 # kit-ci-triage: runs when CI fails (checked daily as fallback)
-0 8 * * 1-5 $SCHEDULER kit-ci-triage >> $LOG_DIR/proactive.log 2>&1 # proactive: kit-ci-triage (weekdays 8am UTC)
+0 8 * * 1-5 $SCHEDULER kit-ci-triage >> $LOG_DIR/proactive.log 2>&1 # proactive: kit-ci-triage (weekdays 8am ET)
+
+# Phase 3: High-frequency enrichment
+*/30 9-18 * * 1-5 $SCHEDULER trak-issue-enrichment >> $LOG_DIR/proactive.log 2>&1 # proactive: trak-issue-enrichment (every 30min, business hours ET)
+*/15 9-18 * * 1-5 $SCHEDULER scout-ticket-enrichment >> $LOG_DIR/proactive.log 2>&1 # proactive: scout-ticket-enrichment (every 15min, business hours ET)
+
+# Phase 3: Periodic automation
+0 */6 * * 1-5 $SCHEDULER kit-auto-fix >> $LOG_DIR/proactive.log 2>&1 # proactive: kit-auto-fix (every 6 hours weekdays ET)
+0 7 * * 6 $SCHEDULER kit-code-quality >> $LOG_DIR/proactive.log 2>&1 # proactive: kit-code-quality (Saturdays 7am ET)
+0 8 1 * * $SCHEDULER scribe-knowledge-gap >> $LOG_DIR/proactive.log 2>&1 # proactive: scribe-knowledge-gap (1st of month 8am ET)
 
 # Phase 3: Weekly performance
-0 6 * * 0 $SCHEDULER probe-perf-canary >> $LOG_DIR/proactive.log 2>&1 # proactive: probe-perf-canary (Sundays 6am UTC)
+0 6 * * 0 $SCHEDULER probe-perf-canary >> $LOG_DIR/proactive.log 2>&1 # proactive: probe-perf-canary (Sundays 6am ET)
 CRON_EOF
 
 echo "Proactive cron entries installed."
