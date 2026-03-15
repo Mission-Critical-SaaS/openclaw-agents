@@ -41,11 +41,20 @@ log "Current: commit=$CURRENT_COMMIT branch=$CURRENT_BRANCH"
 if $ROLLBACK; then
     if [ ! -f "$BACKUP_FILE" ]; then log "ERROR: No backup found"; exit 1; fi
     PREV_COMMIT=$(head -1 "$BACKUP_FILE")
+    if [[ ! "$PREV_COMMIT" =~ ^[0-9a-f]{7,40}$ ]]; then
+        log "ERROR: Invalid commit hash in backup file: '$PREV_COMMIT'"
+        exit 1
+    fi
     log "Rolling back to $PREV_COMMIT"
     if ! $FORCE; then read -p "Proceed? [y/N] " c; [[ "$c" != "y" && "$c" != "Y" ]] && exit 0; fi
     VERSION="$PREV_COMMIT"
 fi
+# Validate VERSION format to prevent injection
 [ -z "$VERSION" ] && VERSION="main"
+if [[ ! "$VERSION" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
+    log "ERROR: Invalid version format: '$VERSION' (allowed: alphanumeric, dots, slashes, hyphens)"
+    exit 1
+fi
 if $DRY_RUN; then
     log "=== DRY RUN ==="
     log "Would deploy: $VERSION (current: $CURRENT_COMMIT)"

@@ -66,30 +66,30 @@ ${EXISTING}
 # Kill switch: touch /opt/openclaw/.proactive-pause
 # ============================================================
 
-# Phase 1: Daily tasks
-0 9 * * 1-5 $SCHEDULER trak-sprint-health >> $LOG_DIR/proactive.log 2>&1 # proactive: trak-sprint-health (weekdays 9am ET)
-30 10 * * 1-5 $SCHEDULER scout-sla-watchdog >> $LOG_DIR/proactive.log 2>&1 # proactive: scout-sla-watchdog (weekdays 10:30am ET)
-0 11 * * 1-5 $SCHEDULER scout-bug-correlator >> $LOG_DIR/proactive.log 2>&1 # proactive: scout-bug-correlator (weekdays 11am ET)
+# Phase 1: Daily tasks (flock -n prevents concurrent runs of the same task)
+0 9 * * 1-5 flock -n /tmp/openclaw-trak-sprint-health.lock $SCHEDULER trak-sprint-health >> $LOG_DIR/proactive.log 2>&1 # proactive: trak-sprint-health (weekdays 9am ET)
+30 10 * * 1-5 flock -n /tmp/openclaw-scout-sla-watchdog.lock $SCHEDULER scout-sla-watchdog >> $LOG_DIR/proactive.log 2>&1 # proactive: scout-sla-watchdog (weekdays 10:30am ET)
+0 11 * * 1-5 flock -n /tmp/openclaw-scout-bug-correlator.lock $SCHEDULER scout-bug-correlator >> $LOG_DIR/proactive.log 2>&1 # proactive: scout-bug-correlator (weekdays 11am ET)
 
 # Phase 1: Weekly tasks
-0 9 * * 1 $SCHEDULER trak-stale-work >> $LOG_DIR/proactive.log 2>&1 # proactive: trak-stale-work (Mondays 9am ET)
-0 10 * * 1 $SCHEDULER scribe-doc-staleness >> $LOG_DIR/proactive.log 2>&1 # proactive: scribe-doc-staleness (Mondays 10am ET)
+0 9 * * 1 flock -n /tmp/openclaw-trak-stale-work.lock $SCHEDULER trak-stale-work >> $LOG_DIR/proactive.log 2>&1 # proactive: trak-stale-work (Mondays 9am ET)
+0 10 * * 1 flock -n /tmp/openclaw-scribe-doc-staleness.lock $SCHEDULER scribe-doc-staleness >> $LOG_DIR/proactive.log 2>&1 # proactive: scribe-doc-staleness (Mondays 10am ET)
 
 # Phase 2: On-demand (triggered by deploy hook in deploy.sh, not cron)
 # kit-ci-triage: runs when CI fails (checked daily as fallback)
-0 8 * * 1-5 $SCHEDULER kit-ci-triage >> $LOG_DIR/proactive.log 2>&1 # proactive: kit-ci-triage (weekdays 8am ET)
+0 8 * * 1-5 flock -n /tmp/openclaw-kit-ci-triage.lock $SCHEDULER kit-ci-triage >> $LOG_DIR/proactive.log 2>&1 # proactive: kit-ci-triage (weekdays 8am ET)
 
-# Phase 3: High-frequency enrichment
-*/30 9-18 * * 1-5 $SCHEDULER trak-issue-enrichment >> $LOG_DIR/proactive.log 2>&1 # proactive: trak-issue-enrichment (every 30min, business hours ET)
-*/15 9-18 * * 1-5 $SCHEDULER scout-ticket-enrichment >> $LOG_DIR/proactive.log 2>&1 # proactive: scout-ticket-enrichment (every 15min, business hours ET)
+# Phase 3: High-frequency enrichment (flock critical here — prevents overlap on slow runs)
+*/30 9-18 * * 1-5 flock -n /tmp/openclaw-trak-issue-enrichment.lock $SCHEDULER trak-issue-enrichment >> $LOG_DIR/proactive.log 2>&1 # proactive: trak-issue-enrichment (every 30min, business hours ET)
+*/15 9-18 * * 1-5 flock -n /tmp/openclaw-scout-ticket-enrichment.lock $SCHEDULER scout-ticket-enrichment >> $LOG_DIR/proactive.log 2>&1 # proactive: scout-ticket-enrichment (every 15min, business hours ET)
 
 # Phase 3: Periodic automation
-0 */6 * * 1-5 $SCHEDULER kit-auto-fix >> $LOG_DIR/proactive.log 2>&1 # proactive: kit-auto-fix (every 6 hours weekdays ET)
-0 7 * * 6 $SCHEDULER kit-code-quality >> $LOG_DIR/proactive.log 2>&1 # proactive: kit-code-quality (Saturdays 7am ET)
-0 8 1 * * $SCHEDULER scribe-knowledge-gap >> $LOG_DIR/proactive.log 2>&1 # proactive: scribe-knowledge-gap (1st of month 8am ET)
+0 */6 * * 1-5 flock -n /tmp/openclaw-kit-auto-fix.lock $SCHEDULER kit-auto-fix >> $LOG_DIR/proactive.log 2>&1 # proactive: kit-auto-fix (every 6 hours weekdays ET)
+0 7 * * 6 flock -n /tmp/openclaw-kit-code-quality.lock $SCHEDULER kit-code-quality >> $LOG_DIR/proactive.log 2>&1 # proactive: kit-code-quality (Saturdays 7am ET)
+0 8 1 * * flock -n /tmp/openclaw-scribe-knowledge-gap.lock $SCHEDULER scribe-knowledge-gap >> $LOG_DIR/proactive.log 2>&1 # proactive: scribe-knowledge-gap (1st of month 8am ET)
 
 # Phase 3: Weekly performance
-0 6 * * 0 $SCHEDULER probe-perf-canary >> $LOG_DIR/proactive.log 2>&1 # proactive: probe-perf-canary (Sundays 6am ET)
+0 6 * * 0 flock -n /tmp/openclaw-probe-perf-canary.lock $SCHEDULER probe-perf-canary >> $LOG_DIR/proactive.log 2>&1 # proactive: probe-perf-canary (Sundays 6am ET)
 CRON_EOF
 
 echo "Proactive cron entries installed."

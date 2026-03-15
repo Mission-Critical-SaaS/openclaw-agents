@@ -75,6 +75,41 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(script).toContain('github-token-refresh.sh');
   });
 
+  // --- Security Hardening (Audit Fixes) ---
+  test('uses set -euo pipefail for strict error handling', () => {
+    expect(script).toContain('set -euo pipefail');
+  });
+
+  test('has AWS retry helper with exponential backoff', () => {
+    expect(script).toContain('aws_retry');
+    expect(script).toContain('max_attempts=3');
+    expect(script).toContain('delay=$((delay * 2))');
+  });
+
+  test('validates Secrets Manager response is valid JSON', () => {
+    expect(script).toContain('jq empty');
+    expect(script).toContain('not valid JSON');
+  });
+
+  test('validates Slack token format (xoxb-/xapp- prefix)', () => {
+    expect(script).toContain('validate_token');
+    expect(script).toContain('"xoxb"');
+    expect(script).toContain('"xapp"');
+  });
+
+  test('uses aws_retry for SSM parameter retrieval', () => {
+    const ssmCalls = script.match(/aws_retry.*ssm get-parameter/g) || [];
+    expect(ssmCalls.length).toBe(3); // app-id, installation-id, private-key
+  });
+
+  test('gateway logs redirect to file only (no stdout via tee)', () => {
+    const gatewayLine = script.split('\n').find(l =>
+      l.includes('openclaw gateway run') && !l.trim().startsWith('#')
+    );
+    expect(gatewayLine).toBeDefined();
+    expect(gatewayLine).not.toContain('tee');
+  });
+
   // --- Config wait ---
   test('waits up to 90 seconds for gateway config', () => {
     expect(script).toMatch(/seq 1 90/);
@@ -113,9 +148,10 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     // The restart section should contain a direct gateway run command
     const afterRestart = script.substring(restartIdx);
     expect(afterRestart).toContain('openclaw gateway run');
-    // There should be exactly ONE "$@" in the entire script (the initial start)
-    const dollarAtMatches = script.match(/"\$@"/g) || [];
-    expect(dollarAtMatches.length).toBe(1);
+    // "$@" should only appear for the initial gateway start (not in restart section).
+    // Note: aws_retry uses eval "$@" which is a different usage — we check that
+    // the restart section itself does NOT re-invoke "$@".
+    expect(afterRestart).not.toMatch(/"\$@"\s*&/);
   });
 
   // --- Config normalization (fixes schema drift after channel injection) ---
@@ -749,7 +785,10 @@ describe('GitHub App auth lifecycle', () => {
 
   test('token generation happens before inner entrypoint starts', () => {
     const tokenGenIdx = script.indexOf('github-app-token.sh');
-    const innerStartIdx = script.indexOf('"$@"');
+    // Find the "$@" & that starts the inner entrypoint (not eval "$@" in aws_retry)
+    const innerStartIdx = script.indexOf('"$@" &');
+    expect(tokenGenIdx).toBeGreaterThan(-1);
+    expect(innerStartIdx).toBeGreaterThan(-1);
     expect(tokenGenIdx).toBeLessThan(innerStartIdx);
   });
 

@@ -1,8 +1,48 @@
 #!/bin/bash
 export PATH="$PATH:/root/.openclaw/bin:/root/.local/bin:/usr/bin"
+set -euo pipefail
+
+# ── Retry helper ──────────────────────────────────────────────
+aws_retry() {
+  local max_attempts=3
+  local delay=5
+  local attempt=1
+  local output
+  while [ $attempt -le $max_attempts ]; do
+    if output=$(eval "$@" 2>&1); then
+      echo "$output"
+      return 0
+    fi
+    echo "WARN: AWS call failed (attempt $attempt/$max_attempts): $output" >&2
+    sleep $delay
+    delay=$((delay * 2))
+    attempt=$((attempt + 1))
+  done
+  echo "FATAL: AWS call failed after $max_attempts attempts" >&2
+  return 1
+}
+
+# ── Validate a Slack token format ──────────────────────────────
+validate_token() {
+  local name="$1" value="$2" prefix="$3"
+  if [ -z "$value" ] || [ "$value" = "null" ]; then
+    echo "FATAL: $name is empty or null" >&2
+    return 1
+  fi
+  if [[ ! "$value" =~ ^${prefix}- ]]; then
+    echo "FATAL: $name does not start with expected prefix '${prefix}-'" >&2
+    return 1
+  fi
+  return 0
+}
 
 # Fetch secrets from AWS Secrets Manager
-SECRET=$(aws secretsmanager get-secret-value --secret-id openclaw/agents --region us-east-1 --query SecretString --output text)
+SECRET=$(aws_retry 'aws secretsmanager get-secret-value --secret-id openclaw/agents --region us-east-1 --query SecretString --output text')
+if ! echo "$SECRET" | jq empty 2>/dev/null; then
+  echo "FATAL: Secret value is not valid JSON" >&2
+  exit 1
+fi
+echo "Secrets fetched and validated as JSON."
 export SLACK_BOT_TOKEN_SCOUT=$(echo "$SECRET" | jq -r .SLACK_BOT_TOKEN_SCOUT)
 export SLACK_APP_TOKEN_SCOUT=$(echo "$SECRET" | jq -r .SLACK_APP_TOKEN_SCOUT)
 export SLACK_BOT_TOKEN_TRAK=$(echo "$SECRET" | jq -r .SLACK_BOT_TOKEN_TRAK)
@@ -14,6 +54,28 @@ export SLACK_BOT_TOKEN_SCRIBE=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_SCRIBE 
 export SLACK_APP_TOKEN_SCRIBE=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_SCRIBE // empty')
 export SLACK_BOT_TOKEN_PROBE=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_PROBE // empty')
 export SLACK_APP_TOKEN_PROBE=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_PROBE // empty')
+
+# ── Validate critical Slack tokens ────────────────────────────
+echo "Validating Slack tokens..."
+for agent in SCOUT TRAK KIT; do
+  bot_var="SLACK_BOT_TOKEN_${agent}"
+  app_var="SLACK_APP_TOKEN_${agent}"
+  validate_token "$bot_var" "${!bot_var}" "xoxb" || exit 1
+  validate_token "$app_var" "${!app_var}" "xapp" || exit 1
+done
+# Scribe and Probe are newer — warn but don't block startup
+for agent in SCRIBE PROBE; do
+  bot_var="SLACK_BOT_TOKEN_${agent}"
+  app_var="SLACK_APP_TOKEN_${agent}"
+  if [ -n "${!bot_var}" ] && [ "${!bot_var}" != "null" ]; then
+    validate_token "$bot_var" "${!bot_var}" "xoxb" || echo "WARN: $bot_var has invalid format (non-fatal)"
+    validate_token "$app_var" "${!app_var}" "xapp" || echo "WARN: $app_var has invalid format (non-fatal)"
+  else
+    echo "INFO: $agent tokens not configured (optional)"
+  fi
+done
+echo "Token validation complete."
+
 export ATLASSIAN_SITE_NAME=$(echo "$SECRET" | jq -r .ATLASSIAN_SITE_NAME)
 export ATLASSIAN_USER_EMAIL=$(echo "$SECRET" | jq -r .ATLASSIAN_USER_EMAIL)
 export ATLASSIAN_API_TOKEN=$(echo "$SECRET" | jq -r .ATLASSIAN_API_TOKEN)
@@ -23,9 +85,9 @@ export JIRA_BASE_URL="https://${ATLASSIAN_SITE_NAME}.atlassian.net"
 export JIRA_USER_EMAIL="${ATLASSIAN_USER_EMAIL}"
 export JIRA_API_TOKEN="${ATLASSIAN_API_TOKEN}"
 # GitHub App token (replaces static PAT)
-export GH_APP_ID=$(aws ssm get-parameter --name /openclaw/github-app/app-id --region us-east-1 --query Parameter.Value --output text)
-export GH_APP_INSTALLATION_ID=$(aws ssm get-parameter --name /openclaw/github-app/installation-id --region us-east-1 --query Parameter.Value --output text)
-GH_APP_PRIVATE_KEY=$(aws ssm get-parameter --name /openclaw/github-app/private-key --region us-east-1 --with-decryption --query Parameter.Value --output text)
+export GH_APP_ID=$(aws_retry 'aws ssm get-parameter --name /openclaw/github-app/app-id --region us-east-1 --query Parameter.Value --output text')
+export GH_APP_INSTALLATION_ID=$(aws_retry 'aws ssm get-parameter --name /openclaw/github-app/installation-id --region us-east-1 --query Parameter.Value --output text')
+GH_APP_PRIVATE_KEY=$(aws_retry 'aws ssm get-parameter --name /openclaw/github-app/private-key --region us-east-1 --with-decryption --query Parameter.Value --output text')
 export GH_APP_PRIVATE_KEY_FILE=/tmp/.github-app-key.pem
 # Write private key with restrictive permissions from the start (no race window)
 (umask 077 && echo "$GH_APP_PRIVATE_KEY" > "$GH_APP_PRIVATE_KEY_FILE")
@@ -263,7 +325,7 @@ GHEOF
   # Start gateway DIRECTLY â one-time setup is already done
   # Workspace files are in place so the gateway discovers them on scan
   echo "Starting gateway with injected channel config..."
-  openclaw gateway run --allow-unconfigured 2>&1 | tee -a /data/logs/openclaw.log &
+  openclaw gateway run --allow-unconfigured >> /data/logs/openclaw.log 2>&1 &
   GATEWAY_PID=$!
 
   # Verify gateway started (lightweight liveness check)

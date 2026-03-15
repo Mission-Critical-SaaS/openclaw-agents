@@ -454,6 +454,19 @@ describe('Cron Schedule (Live EC2)', () => {
     expect(line).toMatch(/1 \* \*/); // 1st day of month
   });
 
+  test('all proactive cron entries use flock for concurrency protection', () => {
+    // Check the local setup script (source of truth) rather than live crontab,
+    // since live crontab may not yet reflect the latest deploy.
+    const cronSetup = readLocalFile('scripts/setup-proactive-cron.sh');
+    const cronLines = cronSetup.split('\n').filter(
+      (l) => l.includes('# proactive:') && l.match(/^\d|\*/)
+    );
+    expect(cronLines.length).toBe(12);
+    for (const line of cronLines) {
+      expect(line).toContain('flock -n /tmp/openclaw-');
+    }
+  });
+
   test('EC2 timezone is America/New_York', () => {
     const output = ssmExec('timedatectl show --property=Timezone --value 2>/dev/null || cat /etc/timezone');
     expect(output).toContain('New_York');
@@ -725,5 +738,120 @@ describe('Deploy Script Configuration', () => {
   test('deploy script enforces Eastern timezone', () => {
     expect(deployScript).toContain('timedatectl');
     expect(deployScript).toContain('America/New_York');
+  });
+
+  test('deploy script validates VERSION format', () => {
+    expect(deployScript).toContain('Invalid version format');
+    expect(deployScript).toMatch(/[a-zA-Z0-9._\/-]/);
+  });
+
+  test('deploy script validates rollback commit hash', () => {
+    expect(deployScript).toContain('Invalid commit hash in backup file');
+    expect(deployScript).toMatch(/\[0-9a-f\]/);
+  });
+});
+
+// ============================================================
+// 13. SECURITY HARDENING — Infrastructure-level defenses
+// ============================================================
+
+describe('Security Hardening (Audit Fix Verification)', () => {
+  let entrypoint: string;
+  let scheduler: string;
+  let healthcheck: string;
+  let dockerCompose: string;
+  let cronSetup: string;
+
+  beforeAll(() => {
+    entrypoint = readLocalFile('entrypoint.sh');
+    scheduler = readLocalFile('scripts/proactive-scheduler.sh');
+    healthcheck = readLocalFile('scripts/healthcheck.sh');
+    dockerCompose = readLocalFile('docker-compose.yml');
+    cronSetup = readLocalFile('scripts/setup-proactive-cron.sh');
+  });
+
+  test('entrypoint.sh uses set -euo pipefail', () => {
+    expect(entrypoint).toContain('set -euo pipefail');
+  });
+
+  test('entrypoint.sh has AWS retry helper', () => {
+    expect(entrypoint).toContain('aws_retry');
+    expect(entrypoint).toContain('max_attempts=3');
+  });
+
+  test('entrypoint.sh validates Slack token format', () => {
+    expect(entrypoint).toContain('validate_token');
+    expect(entrypoint).toContain('xoxb');
+    expect(entrypoint).toContain('xapp');
+  });
+
+  test('entrypoint.sh validates JSON from Secrets Manager', () => {
+    expect(entrypoint).toContain('jq empty');
+    expect(entrypoint).toContain('not valid JSON');
+  });
+
+  test('gateway logs do not pipe to stdout (no tee)', () => {
+    // Gateway should redirect to file only, not tee to stdout
+    const gatewayLine = entrypoint.split('\n').find(l =>
+      l.includes('openclaw gateway run') && !l.trim().startsWith('#')
+    );
+    expect(gatewayLine).toBeDefined();
+    expect(gatewayLine).not.toContain('tee');
+    expect(gatewayLine).toContain('>> /data/logs/openclaw.log');
+  });
+
+  test('scheduler has server-side budget enforcement', () => {
+    expect(scheduler).toContain('BUDGET_COUNTER_FILE');
+    expect(scheduler).toContain('check_budget');
+    expect(scheduler).toContain('BUDGET_BLOCKED');
+    expect(scheduler).toContain('increment_budget_counter');
+  });
+
+  test('scheduler has circuit breaker for consecutive failures', () => {
+    expect(scheduler).toContain('CIRCUIT_BREAKER_DIR');
+    expect(scheduler).toContain('check_circuit_breaker');
+    expect(scheduler).toContain('CIRCUIT_OPEN');
+    expect(scheduler).toContain('record_circuit_failure');
+    expect(scheduler).toContain('reset_circuit_breaker');
+  });
+
+  test('scheduler has prompt injection defense wrapper', () => {
+    expect(scheduler).toContain('wrap_prompt');
+    expect(scheduler).toContain('SYSTEM_TASK_INSTRUCTIONS');
+    expect(scheduler).toContain('PROMPT INJECTION DEFENSE');
+    expect(scheduler).toContain('adversarial content');
+  });
+
+  test('scheduler re-checks pause inside send_to_agent', () => {
+    // Ensures pause is checked both at entry AND inside send_to_agent
+    const sendFn = scheduler.substring(scheduler.indexOf('send_to_agent()'));
+    expect(sendFn).toContain('PAUSE_FILE');
+    expect(sendFn).toContain('pause detected inside send_to_agent');
+  });
+
+  test('healthcheck verifies all 5 agents', () => {
+    expect(healthcheck).toContain('5 socket connections');
+    expect(healthcheck).toContain('for agent in scout trak kit scribe probe');
+  });
+
+  test('docker-compose has memory limits', () => {
+    expect(dockerCompose).toContain('memory: 4G');
+    expect(dockerCompose).toContain('cpus:');
+  });
+
+  test('docker-compose has health check', () => {
+    expect(dockerCompose).toContain('healthcheck');
+    expect(dockerCompose).toContain('openclaw.gateway');
+  });
+
+  test('all cron entries use flock for concurrency protection', () => {
+    // Filter to actual cron entry lines (start with digit or *), not script code
+    const lines = cronSetup.split('\n').filter(l =>
+      l.includes('# proactive:') && l.match(/^\d|\*/)
+    );
+    expect(lines.length).toBe(12);
+    for (const line of lines) {
+      expect(line).toContain('flock -n');
+    }
   });
 });

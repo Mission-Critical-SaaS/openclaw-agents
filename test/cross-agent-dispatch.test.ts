@@ -1773,8 +1773,11 @@ describe('Ensemble Audit Workflows', () => {
 
     test('all five agents are in entrypoint.sh workspace loops', () => {
       const content = readFileSync(join(ROOT, 'entrypoint.sh'), 'utf-8');
-      // All workspace injection loops should include all 5 agents
-      const loops = content.match(/for agent in [^;]+;/g) || [];
+      // Workspace injection loops use lowercase agent names;
+      // token validation loops use UPPERCASE — only check lowercase loops.
+      const loops = (content.match(/for agent in [^;]+;/g) || [])
+        .filter(l => l.includes('scout'));  // workspace loops use lowercase
+      expect(loops.length).toBeGreaterThanOrEqual(4); // inject, identity, security, proactive
       for (const loop of loops) {
         expect(loop).toContain('scout');
         expect(loop).toContain('trak');

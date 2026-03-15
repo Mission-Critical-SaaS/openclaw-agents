@@ -86,15 +86,24 @@ if [ "$CS" = "running" ]; then
         log "FAIL: openclaw status returned no OK"
     fi
 
-    # Check 3: Slack connections
+    # Check 3: Slack connections (all 5 agents: scout, trak, kit, scribe, probe)
     SLACK_CONNS=$(docker logs "$CONTAINER" 2>&1 | grep -c "socket mode connected" || true)
-    if [ "$SLACK_CONNS" -lt 3 ]; then
+    if [ "$SLACK_CONNS" -lt 5 ]; then
         RECENT_SLACK=$(docker logs --since 5m "$CONTAINER" 2>&1 | grep -c "socket mode connected" || true)
-        if [ "$RECENT_SLACK" -lt 1 ] && [ "$SLACK_CONNS" -lt 3 ]; then
-            ERRORS="${ERRORS}Slack: fewer than 3 socket connections detected\n"
-            log "WARN: Slack connections low"
+        if [ "$RECENT_SLACK" -lt 1 ] && [ "$SLACK_CONNS" -lt 5 ]; then
+            ERRORS="${ERRORS}Slack: fewer than 5 socket connections detected (${SLACK_CONNS} found, need 5 for all agents)\n"
+            log "WARN: Slack connections low (${SLACK_CONNS}/5)"
         fi
     fi
+
+    # Check 4: Per-agent connectivity (verify each agent is configured)
+    for agent in scout trak kit scribe probe; do
+        AGENT_CONFIGURED=$(docker exec "$CONTAINER" grep -c "\"${agent}\"" /root/.openclaw/.openclaw/openclaw.json 2>/dev/null || echo "0")
+        if [ "$AGENT_CONFIGURED" -lt 1 ]; then
+            ERRORS="${ERRORS}Agent '${agent}' not found in gateway config\n"
+            log "WARN: Agent ${agent} missing from gateway config"
+        fi
+    done
 fi
 
 # Report
@@ -104,7 +113,7 @@ if [ -n "$ERRORS" ]; then
     send_alert "$ALERT_MSG"
     exit 1
 else
-    log "OK: container=$CS, mcp=$HEALTHY_COUNT/3"
-    send_recovery ":white_check_mark: *OpenClaw Recovered*\nAll systems healthy: container running, 3/3 MCP servers, Slack connected.\nTime: $(date -Iseconds)"
+    log "OK: container=$CS, mcp=$HEALTHY_COUNT, slack=$SLACK_CONNS"
+    send_recovery ":white_check_mark: *OpenClaw Recovered*\nAll systems healthy: container running, MCP servers OK, 5/5 agents connected.\nTime: $(date -Iseconds)"
     exit 0
 fi
