@@ -121,6 +121,7 @@ echo "Handoff HMAC key derived and validated."
 # Start inner entrypoint (which starts the gateway) in background
 "$@" > /tmp/gateway-init.log 2>&1 &
 GATEWAY_PID=$!
+disown $GATEWAY_PID 2>/dev/null || true  # suppress bash Killed notification
 
 # Wait for gateway to create its config file
 # Inner entrypoint installs mcporter + gh CLI which does Zoho setup, zd-mcp-server patching, MCP config etc.
