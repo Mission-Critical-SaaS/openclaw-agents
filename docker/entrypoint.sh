@@ -335,19 +335,15 @@ done
 # Do NOT use the interactive "paste-token" CLI auth method — it blocks
 # the entrypoint and leaks the key character-by-character into docker logs.
 
-# Install mcporter globally
+# mcporter and gh CLI are installed at build time in the Dockerfile.
+# These fallback blocks are kept for safety but use || true to avoid
+# crashing the entrypoint when running as non-root (gosu/openclaw user).
 if ! command -v mcporter &> /dev/null; then
-  npm install -g mcporter 2>/dev/null
-  echo "mcporter installed"
+  npm install -g mcporter 2>/dev/null || echo "WARN: mcporter not available (install in Dockerfile)"
 fi
 
-# Install gh CLI if missing
 if ! command -v gh &> /dev/null; then
-  echo "Installing gh CLI..."
-  curl -sSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli.gpg 2>/dev/null
-  echo "deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list
-  apt-get update -qq && apt-get install -y -qq gh 2>/dev/null
-  echo "gh CLI installed"
+  echo "WARN: gh CLI not available (should be installed in Dockerfile)"
 fi
 
 # Auth gh with token

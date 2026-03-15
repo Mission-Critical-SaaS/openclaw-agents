@@ -319,9 +319,8 @@ describe('Inner entrypoint (docker/entrypoint.sh)', () => {
     expect(script).toMatch(/npm install -g mcporter/);
   });
 
-  test('installs gh CLI', () => {
+  test('references gh CLI (installed in Dockerfile, fallback warning in entrypoint)', () => {
     expect(script).toContain('gh');
-    expect(script).toMatch(/apt-get.*install.*gh/);
   });
 
   test('authenticates gh with GITHUB_TOKEN', () => {
@@ -1543,6 +1542,11 @@ describe('Non-root Docker user (#44)', () => {
   test('Dockerfile sets ownership of home directory and installs gosu', () => {
     expect(dockerfile).toContain('chown -R openclaw:openclaw /home/openclaw');
     expect(dockerfile).toContain('gosu');
+  });
+
+  test('Dockerfile installs mcporter and gh CLI at build time (requires root)', () => {
+    expect(dockerfile).toMatch(/npm install -g mcporter/);
+    expect(dockerfile).toMatch(/apt-get.*install.*gh/);
   });
 
   test('docker-compose.yml uses /home/openclaw paths for container mounts', () => {
