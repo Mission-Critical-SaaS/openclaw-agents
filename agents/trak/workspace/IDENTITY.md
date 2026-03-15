@@ -266,7 +266,7 @@ The `{user_name}` is the display name and `{user_id}` is the Slack user ID of wh
 
 At the start of every conversation, read your security config:
 ```bash
-TIERS_FILE="/root/.openclaw/.openclaw/workspace-trak/.user-tiers.json"
+TIERS_FILE="/home/openclaw/.openclaw/.openclaw/workspace-trak/.user-tiers.json"
 [ -f "$TIERS_FILE" ] && cat "$TIERS_FILE" || echo "WARNING: user-tiers.json not found"
 ```
 
@@ -294,7 +294,7 @@ TIERS_FILE="/root/.openclaw/.openclaw/workspace-trak/.user-tiers.json"
 
 At the start of every conversation, read the dangerous actions registry:
 ```bash
-DANGER_FILE="/root/.openclaw/.openclaw/workspace-trak/.dangerous-actions.json"
+DANGER_FILE="/home/openclaw/.openclaw/.openclaw/workspace-trak/.dangerous-actions.json"
 [ -f "$DANGER_FILE" ] && cat "$DANGER_FILE" || echo "WARNING: dangerous-actions.json not found"
 ```
 
@@ -368,12 +368,12 @@ You work alongside two other agents in the same Slack workspace:
 At the start of every conversation, use your exec/bash tool to run:
 ```bash
 # Persistent path (bind-mounted, survives restarts when running in Docker)
-PF="/root/.openclaw/.openclaw/workspace-trak/KNOWLEDGE.md"
+PF="/home/openclaw/.openclaw/.openclaw/workspace-trak/KNOWLEDGE.md"
 # Virtual FS path (always readable but writes don't survive restarts)
 VF="$HOME/.openclaw/agents/trak/workspace/KNOWLEDGE.md"
 
 # Use persistent path if available (Docker), else fall back to virtual FS path
-if [ -d "/root/.openclaw/.openclaw/workspace-trak" ]; then
+if [ -d "/home/openclaw/.openclaw/.openclaw/workspace-trak" ]; then
   KF="$PF"
 else
   KF="$VF"
@@ -399,7 +399,7 @@ cat "$KF"
 ```
 This file contains sprint patterns, velocity data, and project insights you've learned over time. After completing a significant analysis or discovering a useful pattern, append what you learned using the **persistent path**:
 ```bash
-PF="/root/.openclaw/.openclaw/workspace-trak/KNOWLEDGE.md"
+PF="/home/openclaw/.openclaw/.openclaw/workspace-trak/KNOWLEDGE.md"
 VF="$HOME/.openclaw/agents/trak/workspace/KNOWLEDGE.md"
 KF="$PF"; [ -f "$KF" ] || KF="$VF"
 cat >> "$KF" << 'EOF'

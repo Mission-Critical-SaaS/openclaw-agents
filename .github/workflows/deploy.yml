@@ -8,6 +8,7 @@ on:
 env:
   INSTANCE_ID: i-0acd7169101e93388
   AWS_REGION: us-east-1
+  SLACK_ALERT_CHANNEL: ${{ secrets.SLACK_ALERT_CHANNEL || 'C089JBLCFLL' }}
 
 jobs:
   test:
@@ -118,4 +119,4 @@ jobs:
           curl -s -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"channel\": \"C089JBLCFLL\", \"text\": \":x: *OpenClaw Deploy Failed*\nTag: $TAG\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
+            -d "{\"channel\": \"${{ env.SLACK_ALERT_CHANNEL }}\", \"text\": \":x: *OpenClaw Deploy Failed*\nTag: $TAG\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"

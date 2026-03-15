@@ -4,7 +4,7 @@
 set -uo pipefail
 
 CONTAINER="openclaw-agents"
-SNS_TOPIC="arn:aws:sns:us-east-1:122015479852:openclaw-alerts"
+SNS_TOPIC="${OPENCLAW_SNS_TOPIC:-arn:aws:sns:us-east-1:122015479852:openclaw-alerts}"
 LOG="/opt/openclaw/logs/healthcheck.log"
 ALERT_COOLDOWN_FILE="/tmp/openclaw_alert_cooldown"
 COOLDOWN_SECONDS=900  # 15 min between alerts
@@ -13,13 +13,21 @@ mkdir -p /opt/openclaw/logs
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 
+log_json() {
+  local level="$1" event="$2"
+  shift 2
+  local extra="$*"
+  local ts=$(date -Iseconds)
+  echo "{\"ts\":\"$ts\",\"level\":\"$level\",\"event\":\"$event\",\"host\":\"$(hostname)\"${extra:+,$extra}}" >> "${LOG%.log}.jsonl"
+}
+
 # Get Slack token from container env (only reads the specific var, not all of /proc/1/environ)
 get_slack_token() {
     docker exec "$CONTAINER" printenv SLACK_BOT_TOKEN_SCOUT 2>/dev/null
 }
 
 # Slack #leads channel ID (use ID not name — survives channel renames)
-SLACK_ALERT_CHANNEL="C089JBLCFLL"
+SLACK_ALERT_CHANNEL="${OPENCLAW_ALERT_CHANNEL:-C089JBLCFLL}"
 
 send_slack_alert() {
     local msg="$1"
@@ -98,7 +106,7 @@ if [ "$CS" = "running" ]; then
 
     # Check 4: Per-agent connectivity (verify each agent is configured)
     for agent in scout trak kit scribe probe; do
-        AGENT_CONFIGURED=$(docker exec "$CONTAINER" grep -c "\"${agent}\"" /root/.openclaw/.openclaw/openclaw.json 2>/dev/null || echo "0")
+        AGENT_CONFIGURED=$(docker exec "$CONTAINER" grep -c "\"${agent}\"" /home/openclaw/.openclaw/.openclaw/openclaw.json 2>/dev/null || echo "0")
         if [ "$AGENT_CONFIGURED" -lt 1 ]; then
             ERRORS="${ERRORS}Agent '${agent}' not found in gateway config\n"
             log "WARN: Agent ${agent} missing from gateway config"
@@ -110,10 +118,12 @@ fi
 if [ -n "$ERRORS" ]; then
     ALERT_MSG=":rotating_light: *OpenClaw Health Alert*\nHost: $(hostname)\nTime: $(date -Iseconds)\n\nIssues:\n${ERRORS}\nRun \`docker logs openclaw-agents --tail 50\` for details."
     log "ALERT: $ERRORS"
+    log_json "error" "healthcheck_failed" "\"errors\":\"$(echo -n "$ERRORS" | tr '\n' ' ')\""
     send_alert "$ALERT_MSG"
     exit 1
 else
     log "OK: container=$CS, mcp=$HEALTHY_COUNT, slack=$SLACK_CONNS"
+    log_json "info" "healthcheck_ok" "\"container\":\"$CS\",\"mcp\":$HEALTHY_COUNT,\"slack\":$SLACK_CONNS"
     send_recovery ":white_check_mark: *OpenClaw Recovered*\nAll systems healthy: container running, MCP servers OK, 5/5 agents connected.\nTime: $(date -Iseconds)"
     exit 0
 fi

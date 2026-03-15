@@ -1,5 +1,5 @@
 #!/bin/bash
-export PATH="$PATH:/root/.openclaw/bin:/root/.local/bin:/usr/bin"
+export PATH="$PATH:/home/openclaw/.openclaw/bin:/home/openclaw/.local/bin:/usr/bin"
 set -euo pipefail
 
 # ── Retry helper ──────────────────────────────────────────────
@@ -104,6 +104,19 @@ export ZOHO_REFRESH_TOKEN=$(echo "$SECRET" | jq -r '.ZOHO_REFRESH_TOKEN // empty
 export ZOHO_API_DOMAIN=$(echo "$SECRET" | jq -r '.ZOHO_API_DOMAIN // "https://www.zohoapis.com"')
 export SLACK_ALLOW_FROM=$(echo "$SECRET" | jq -r .SLACK_ALLOW_FROM)
 export ANTHROPIC_API_KEY=$(echo "$SECRET" | jq -r .ANTHROPIC_API_KEY)
+if [ -z "$ANTHROPIC_API_KEY" ] || [ "$ANTHROPIC_API_KEY" = "null" ]; then
+  echo "FATAL: ANTHROPIC_API_KEY not found in Secrets Manager secret" >&2
+  exit 1
+fi
+
+# Generate HMAC signing key for cross-agent handoff authentication
+# Derived from API key hash so it's deterministic across restarts without needing another secret
+export HANDOFF_HMAC_KEY=$(echo -n "openclaw-handoff-${ANTHROPIC_API_KEY}" | sha256sum | cut -d' ' -f1)
+if [ -z "$HANDOFF_HMAC_KEY" ] || [ ${#HANDOFF_HMAC_KEY} -ne 64 ]; then
+  echo "FATAL: HANDOFF_HMAC_KEY derivation failed (expected 64-char SHA256)" >&2
+  exit 1
+fi
+echo "Handoff HMAC key derived and validated."
 
 # Start inner entrypoint (which starts the gateway) in background
 "$@" &
@@ -111,7 +124,7 @@ GATEWAY_PID=$!
 
 # Wait for gateway to create its config file
 # Inner entrypoint installs mcporter + gh CLI which can take ~30-60s
-CONF="/root/.openclaw/.openclaw/openclaw.json"
+CONF="/home/openclaw/.openclaw/.openclaw/openclaw.json"
 echo "Waiting for gateway config..."
 for i in $(seq 1 90); do
   [ -f "$CONF" ] && break
@@ -123,7 +136,7 @@ if [ -f "$CONF" ]; then
   python3 << 'INJECT_PYEOF'
 import json, os
 
-conf_path = '/root/.openclaw/.openclaw/openclaw.json'
+conf_path = '/home/openclaw/.openclaw/.openclaw/openclaw.json'
 try:
     with open(conf_path) as f:
         config = json.load(f)
@@ -184,6 +197,15 @@ else:
 INJECT_PYEOF
 
   # ============================================================
+  # LOGROTATE CRON SETUP
+  # Ensure logrotate runs daily inside the container for /data/logs
+  # and on the host for /opt/openclaw/logs (via healthcheck/setup script)
+  # ============================================================
+  echo "Setting up logrotate cron for log file rotation..."
+  (crontab -l 2>/dev/null | grep -v logrotate; echo "0 0 * * * /usr/sbin/logrotate /etc/logrotate.conf --state /tmp/logrotate.state") | sort -u | crontab -
+  echo "Logrotate cron installed."
+
+  # ============================================================
   # GATEWAY RESTART
   # Kill the initial gateway and restart with injected config.
   # IMPORTANT: Only restart the gateway process â do NOT re-run
@@ -205,8 +227,8 @@ INJECT_PYEOF
     echo "${GITHUB_TOKEN}" | gh auth login --with-token 2>/dev/null || true
     # Persist to hosts.yml so ALL processes can authenticate with gh,
     # not just those inheriting PID 1's GITHUB_TOKEN env var.
-    mkdir -p /root/.config/gh
-    cat > /root/.config/gh/hosts.yml <<GHEOF
+    mkdir -p /home/openclaw/.config/gh
+    cat > /home/openclaw/.config/gh/hosts.yml <<GHEOF
 github.com:
     oauth_token: ${GITHUB_TOKEN}
     user: lmntl-agents[bot]
@@ -222,8 +244,8 @@ GHEOF
   # in the agent's virtual workspace view.
   #
   # Two workspace paths per agent:
-  #   CFG  = /root/.openclaw/agents/{agent}/workspace  (configured â agent reads/writes here)
-  #   PERSIST = /root/.openclaw/.openclaw/workspace-{agent}  (bind-mounted â survives restarts)
+  #   CFG  = /home/openclaw/.openclaw/agents/{agent}/workspace  (configured â agent reads/writes here)
+  #   PERSIST = /home/openclaw/.openclaw/.openclaw/workspace-{agent}  (bind-mounted â survives restarts)
   # Strategy:
   #   IDENTITY.md  â always copy from git to CFG (deploy may update instructions)
   #   KNOWLEDGE.md â seed PERSIST from git if missing, then copy PERSIST â CFG
@@ -232,8 +254,8 @@ GHEOF
   echo "Injecting workspace files into agent workspaces..."
   for agent in scout trak kit scribe probe; do
     SRC="/tmp/agents/${agent}/workspace"
-    CFG="/root/.openclaw/agents/${agent}/workspace"
-    PERSIST="/root/.openclaw/.openclaw/workspace-${agent}"
+    CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
+    PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
 
     mkdir -p "$CFG" "$PERSIST"
 
@@ -268,8 +290,8 @@ GHEOF
   # ============================================================
   echo "Injecting security configs into agent workspaces..."
   for agent in scout trak kit scribe probe; do
-    CFG="/root/.openclaw/agents/${agent}/workspace"
-    PERSIST="/root/.openclaw/.openclaw/workspace-${agent}"
+    CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
+    PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     for target_dir in "$CFG" "$PERSIST"; do
       if [ -d "$target_dir" ]; then
         cp /app/config/user-tiers.json "$target_dir/.user-tiers.json" 2>/dev/null || true
@@ -286,8 +308,8 @@ GHEOF
   # ============================================================
   echo "Injecting proactive capability configs into agent workspaces..."
   for agent in scout trak kit scribe probe; do
-    CFG="/root/.openclaw/agents/${agent}/workspace"
-    PERSIST="/root/.openclaw/.openclaw/workspace-${agent}"
+    CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
+    PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     for target_dir in "$CFG" "$PERSIST"; do
       if [ -d "$target_dir" ]; then
         cp /app/config/proactive/budget-caps.json "$target_dir/.budget-caps.json" 2>/dev/null || true
@@ -307,10 +329,10 @@ GHEOF
   # FTS index can find them.
   # ============================================================
   echo "Populating main workspace for memory indexing..."
-  MAIN_WS="/root/.openclaw/.openclaw/workspace"
+  MAIN_WS="/home/openclaw/.openclaw/.openclaw/workspace"
   mkdir -p "$MAIN_WS/memory"
   for agent in scout trak kit scribe probe; do
-    PERSIST="/root/.openclaw/.openclaw/workspace-${agent}"
+    PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     if [ -f "$PERSIST/KNOWLEDGE.md" ]; then
       cp "$PERSIST/KNOWLEDGE.md" "$MAIN_WS/memory/KNOWLEDGE-${agent}.md"
       echo "  ${agent}: KNOWLEDGE.md copied to main workspace/memory/"

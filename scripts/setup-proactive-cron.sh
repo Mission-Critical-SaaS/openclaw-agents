@@ -54,12 +54,17 @@ esac
 
 echo "Installing proactive cron entries..."
 
-# Get existing crontab (without proactive entries, to avoid duplicates)
-EXISTING=$(crontab -l 2>/dev/null | grep -v "# proactive:" || true)
+# Get existing crontab (without proactive or logrotate entries, to avoid duplicates)
+EXISTING=$(crontab -l 2>/dev/null | grep -v "# proactive:" | grep -v "# logrotate:" | grep -v "# ====" || true)
 
 # Build new crontab
 cat <<CRON_EOF | crontab -
 ${EXISTING}
+
+# ============================================================
+# Log Rotation (host-side logs in /opt/openclaw/logs)
+# ============================================================
+0 0 * * * /usr/sbin/logrotate /etc/logrotate.conf --state /tmp/logrotate.state >> $LOG_DIR/logrotate.log 2>&1 # logrotate: host-side log rotation (daily at midnight)
 
 # ============================================================
 # Proactive Agent Tasks

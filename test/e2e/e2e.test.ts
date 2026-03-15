@@ -158,7 +158,7 @@ describe('Slack Agent Connectivity', () => {
   for (const agent of ['scribe', 'probe']) {
     test(`${agent} is configured in gateway Slack accounts`, () => {
       const output = ssmExec(
-        `docker exec openclaw-agents grep -c ${agent} /root/.openclaw/.openclaw/openclaw.json || echo 0`
+        `docker exec openclaw-agents grep -c ${agent} /home/openclaw/.openclaw/.openclaw/openclaw.json || echo 0`
       );
       expect(parseInt(output.trim(), 10)).toBeGreaterThan(0);
     });
