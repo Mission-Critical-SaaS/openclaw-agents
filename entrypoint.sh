@@ -104,11 +104,19 @@ export ZOHO_REFRESH_TOKEN=$(echo "$SECRET" | jq -r '.ZOHO_REFRESH_TOKEN // empty
 export ZOHO_API_DOMAIN=$(echo "$SECRET" | jq -r '.ZOHO_API_DOMAIN // "https://www.zohoapis.com"')
 export SLACK_ALLOW_FROM=$(echo "$SECRET" | jq -r .SLACK_ALLOW_FROM)
 export ANTHROPIC_API_KEY=$(echo "$SECRET" | jq -r .ANTHROPIC_API_KEY)
+if [ -z "$ANTHROPIC_API_KEY" ] || [ "$ANTHROPIC_API_KEY" = "null" ]; then
+  echo "FATAL: ANTHROPIC_API_KEY not found in Secrets Manager secret" >&2
+  exit 1
+fi
 
 # Generate HMAC signing key for cross-agent handoff authentication
 # Derived from API key hash so it's deterministic across restarts without needing another secret
 export HANDOFF_HMAC_KEY=$(echo -n "openclaw-handoff-${ANTHROPIC_API_KEY}" | sha256sum | cut -d' ' -f1)
-echo "Handoff HMAC key derived."
+if [ -z "$HANDOFF_HMAC_KEY" ] || [ ${#HANDOFF_HMAC_KEY} -ne 64 ]; then
+  echo "FATAL: HANDOFF_HMAC_KEY derivation failed (expected 64-char SHA256)" >&2
+  exit 1
+fi
+echo "Handoff HMAC key derived and validated."
 
 # Start inner entrypoint (which starts the gateway) in background
 "$@" &

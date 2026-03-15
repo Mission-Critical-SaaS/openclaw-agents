@@ -1690,6 +1690,17 @@ describe('Handoff HMAC authentication (#53)', () => {
   test('docker-compose passes HANDOFF_HMAC_KEY', () => {
     expect(compose).toContain('HANDOFF_HMAC_KEY');
   });
+
+  test('HMAC key derivation validates key length (64-char SHA256)', () => {
+    expect(outerEntrypoint).toContain('${#HANDOFF_HMAC_KEY} -ne 64');
+  });
+
+  test('ANTHROPIC_API_KEY is validated before HMAC derivation', () => {
+    const apiKeyIdx = outerEntrypoint.indexOf('ANTHROPIC_API_KEY not found');
+    const hmacIdx = outerEntrypoint.indexOf('HANDOFF_HMAC_KEY=$(');
+    expect(apiKeyIdx).toBeGreaterThan(-1);
+    expect(hmacIdx).toBeGreaterThan(apiKeyIdx);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1726,6 +1737,13 @@ describe('Dangerous action enforcement (#56)', () => {
   test('audit script enforces confirmation requirements', () => {
     expect(auditScript).toContain('missing_confirmation');
     expect(auditScript).toContain('missing_double_confirmation');
+  });
+
+  test('audit script uses jq --arg to prevent injection', () => {
+    expect(auditScript).toContain('--arg pat');
+    expect(auditScript).toContain('$pat');
+    // Must NOT use string interpolation in jq filter
+    expect(auditScript).not.toContain('select(.pattern == \\"$action\\")');
   });
 
   test('proactive scheduler injects safety constraints for dangerous actions', () => {

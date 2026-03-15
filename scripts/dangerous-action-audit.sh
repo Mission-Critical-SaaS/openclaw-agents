@@ -33,10 +33,10 @@ tier_level() {
   esac
 }
 
-# Look up action in config
+# Look up action in config (uses jq --arg to prevent injection)
 if [ -f "$CONFIG_FILE" ]; then
-  min_tier=$(jq -r ".dangerous_actions[] | select(.pattern == \"$action\") | .min_tier // \"admin\"" "$CONFIG_FILE" 2>/dev/null || echo "admin")
-  confirmation=$(jq -r ".dangerous_actions[] | select(.pattern == \"$action\") | .confirmation // \"explicit\"" "$CONFIG_FILE" 2>/dev/null || echo "explicit")
+  min_tier=$(jq -r --arg pat "$action" '.dangerous_actions[] | select(.pattern == $pat) | .min_tier // "admin"' "$CONFIG_FILE" 2>/dev/null || echo "admin")
+  confirmation=$(jq -r --arg pat "$action" '.dangerous_actions[] | select(.pattern == $pat) | .confirmation // "explicit"' "$CONFIG_FILE" 2>/dev/null || echo "explicit")
 else
   min_tier="admin"
   confirmation="double"
