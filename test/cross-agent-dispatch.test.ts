@@ -893,7 +893,7 @@ describe('Persistent Knowledge (All Agents)', () => {
         expect(knowledgeSection).toBeTruthy();
         const section = knowledgeSection![0];
 
-        expect(section).toContain('/root/.openclaw');
+        expect(section).toContain('/home/openclaw/.openclaw');
         expect(section).toContain('$HOME/.openclaw');
       });
 

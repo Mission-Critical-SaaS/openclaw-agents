@@ -1,13 +1,13 @@
 #!/bin/bash
 set -euo pipefail
-OPENCLAW_HOME="${OPENCLAW_HOME:-/root/.openclaw}"
+OPENCLAW_HOME="${OPENCLAW_HOME:-/home/openclaw/.openclaw}"
 echo "OpenClaw Multi-Agent Gateway starting..."
 
 echo "Configuring from template..."
 envsubst < ${OPENCLAW_HOME}/openclaw.json.tpl > ${OPENCLAW_HOME}/openclaw.json
 
 # Set up mcporter config using Python (avoids sed escaping issues with JSON)
-mkdir -p /root/.mcporter
+mkdir -p /home/openclaw/.mcporter
 python3 -c "
 import json, os
 config = {
@@ -56,14 +56,14 @@ config = {
         }
     }
 }
-with open('/root/.mcporter/mcporter.json', 'w') as f:
+with open('/home/openclaw/.mcporter/mcporter.json', 'w') as f:
     json.dump(config, f, indent=2)
 print('mcporter config written OK')
 "
 
 # Create Zoho config file required by @macnishio/zoho-mcp-server
 # The package reads OAuth client config from this Claude Desktop config path
-mkdir -p /root/AppData/Roaming/Claude
+mkdir -p /home/openclaw/AppData/Roaming/Claude
 python3 << 'ZOHO_CONFIG_EOF'
 import json, os
 zoho_config = {
@@ -94,7 +94,7 @@ zoho_config = {
         }
     }
 }
-with open("/root/AppData/Roaming/Claude/claude_desktop_config.json", "w") as f:
+with open("/home/openclaw/AppData/Roaming/Claude/claude_desktop_config.json", "w") as f:
     json.dump(zoho_config, f, indent=2)
 print("Zoho desktop config written OK")
 ZOHO_CONFIG_EOF
@@ -159,7 +159,7 @@ fi
 echo "Patching zd-mcp-server..."
 # Ensure zd-mcp-server is installed in npx cache
 npx -y zd-mcp-server --help > /dev/null 2>&1 || true
-ZD_TOOLS_FILE=$(find /root/.npm/_npx -name "index.js" -path "*/zd-mcp-server/dist/tools/*" 2>/dev/null | head -1)
+ZD_TOOLS_FILE=$(find /home/openclaw/.npm/_npx -name "index.js" -path "*/zd-mcp-server/dist/tools/*" 2>/dev/null | head -1)
 if [ -n "$ZD_TOOLS_FILE" ]; then
   export _ZD_TOOLS_FILE="$ZD_TOOLS_FILE"
   python3 << 'ZD_PATCH_EOF'
@@ -167,7 +167,7 @@ import os, glob
 
 tools_file = os.environ.get('_ZD_TOOLS_FILE', '')
 if not tools_file:
-    matches = glob.glob('/root/.npm/_npx/*/node_modules/zd-mcp-server/dist/tools/index.js')
+    matches = glob.glob('/home/openclaw/.npm/_npx/*/node_modules/zd-mcp-server/dist/tools/index.js')
     tools_file = matches[0] if matches else ''
 
 if not tools_file:
@@ -311,7 +311,7 @@ done
 
 # NOTE: Agent workspace file injection (IDENTITY.md, KNOWLEDGE.md) is handled
 # by the outer entrypoint (/app/entrypoint.sh) AFTER the gateway creates the
-# runtime workspaces at /root/.openclaw/.openclaw/workspace-{agent}/.
+# runtime workspaces at /home/openclaw/.openclaw/.openclaw/workspace-{agent}/.
 # The inner entrypoint runs before those directories exist.
 
 # NOTE: API key auth is handled via auth-profiles.json written above.

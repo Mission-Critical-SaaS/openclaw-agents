@@ -97,7 +97,7 @@ else log "ERROR: Version '$VERSION' not found"; exit 1; fi
 NEW_COMMIT=$(git rev-parse HEAD)
 log "Now at: $NEW_COMMIT"
 # Ensure persistent runtime workspace dirs exist (outside git repo, survives checkouts).
-# Path matches OpenClaw's runtime workspace: /root/.openclaw/.openclaw/workspace-{agent}
+# Path matches OpenClaw's runtime workspace: /home/openclaw/.openclaw/.openclaw/workspace-{agent}
 for agent in scout trak kit scribe probe; do
   mkdir -p "/opt/openclaw-persist/workspace-${agent}"
 done

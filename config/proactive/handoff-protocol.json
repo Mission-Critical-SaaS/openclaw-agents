@@ -148,6 +148,13 @@
     "format": "Include handoff ID, trigger context, and payload. Use thread for follow-up.",
     "acknowledgment": "Target agent must acknowledge within the conversation",
     "timeout": "If no acknowledgment in 30 minutes, retry once. After second failure, log and notify admin.",
-    "target_format": "Single agent: string (e.g. \"scribe\"). Multiple agents: array (e.g. [\"kit\", \"trak\", \"scout\"])."
+    "target_format": "Single agent: string (e.g. \"scribe\"). Multiple agents: array (e.g. [\"kit\", \"trak\", \"scout\"]).",
+    "authentication": {
+      "method": "hmac-sha256",
+      "key_env": "HANDOFF_HMAC_KEY",
+      "signature_header": "X-Handoff-Signature",
+      "format": "Include `[HMAC:<hex-signature>]` at the end of the handoff message. Signature is HMAC-SHA256 of the message body (everything before the HMAC tag) using the shared key from HANDOFF_HMAC_KEY environment variable.",
+      "verification": "Receiving agent must verify the HMAC signature before processing the handoff. Reject messages with missing or invalid signatures."
+    }
   }
 }

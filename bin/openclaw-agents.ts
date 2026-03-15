@@ -6,8 +6,8 @@ const app = new cdk.App();
 
 new OpenclawAgentsStack(app, 'OpenclawAgentsStack', {
   env: {
-    account: '122015479852',
-    region: 'us-east-1',
+    account: process.env.AWS_ACCOUNT_ID || '122015479852',
+    region: process.env.AWS_REGION || 'us-east-1',
   },
   instanceType: 't3.xlarge',
   diskSizeGb: 50,

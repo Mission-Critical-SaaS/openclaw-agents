@@ -33,6 +33,14 @@ log() {
   echo "$msg"
 }
 
+log_json() {
+  local level="$1" event="$2"
+  shift 2
+  local extra="$*"
+  local ts=$(date -Iseconds)
+  echo "{\"ts\":\"$ts\",\"level\":\"$level\",\"event\":\"$event\",\"host\":\"$(hostname)\"${extra:+,$extra}}" >> "${LOG_FILE%.log}.jsonl"
+}
+
 # ============================================================
 # Kill Switch Checks
 # ============================================================
@@ -99,6 +107,7 @@ check_budget() {
 
   if [ "$count" -ge "$cap" ]; then
     log "BUDGET_BLOCKED: ${task_name} — agent=${agent} has hit daily cap (${count}/${cap})"
+    log_json "warn" "budget_blocked" "\"task\":\"$task_name\",\"agent\":\"$agent\",\"count\":$count,\"cap\":$cap"
     return 1
   fi
   if [ "$pct" -ge 80 ]; then
@@ -118,6 +127,7 @@ check_circuit_breaker() {
     local failures=$(cat "$breaker_file")
     if [ "$failures" -ge 3 ]; then
       log "CIRCUIT_OPEN: ${task_name} disabled after ${failures} consecutive failures"
+      log_json "error" "circuit_breaker_open" "\"task\":\"$task_name\",\"failures\":$failures"
       return 1
     fi
   fi
@@ -170,13 +180,39 @@ send_to_agent() {
   fi
 
   log "START: ${task_name} (agent=${agent}, timeout=${timeout}s)"
+  log_json "info" "task_dispatched" "\"task\":\"$task_name\",\"agent\":\"$agent\",\"timeout\":$timeout"
 
   # Increment budget counter BEFORE dispatch (pessimistic counting)
   increment_budget_counter "$agent" "$task_name"
 
+  # Block proactive tasks from executing dangerous actions
+  # Proactive tasks run without human confirmation, so they must not trigger
+  # actions that require explicit or double confirmation
+  local safety_addendum=""
+  if [ -f "/opt/openclaw/config/dangerous-actions.json" ]; then
+    local blocked_patterns=$(jq -r '.dangerous_actions[] | select(.confirmation == "double" or .confirmation == "explicit") | .pattern' /opt/openclaw/config/dangerous-actions.json 2>/dev/null | sort | uniq)
+    if [ -n "$blocked_patterns" ]; then
+      safety_addendum="
+
+PROACTIVE SAFETY CONSTRAINT: This is an automated proactive task (no human in the loop).
+You MUST NOT execute any of the following actions during this task:
+$(echo "$blocked_patterns" | sed 's/^/- /')
+If the task requires any of these actions, document the need and request human approval via Slack instead of executing directly."
+    fi
+  fi
+
   # Apply prompt injection defense wrapper
   local wrapped_prompt
-  wrapped_prompt=$(wrap_prompt "$prompt")
+  wrapped_prompt=$(wrap_prompt "$prompt")"$safety_addendum"
+
+  # Sign handoff messages with HMAC
+  if [ -n "${HANDOFF_HMAC_KEY:-}" ] && echo "$wrapped_prompt" | grep -qi "handoff"; then
+    local hmac_sig=$(echo -n "$wrapped_prompt" | openssl dgst -sha256 -hmac "$HANDOFF_HMAC_KEY" | awk '{print $NF}')
+    wrapped_prompt="${wrapped_prompt}
+
+[HMAC:${hmac_sig}]"
+    log "HMAC signature appended to handoff message for $agent"
+  fi
 
   local response
   response=$(timeout "$timeout" docker exec openclaw-agents \

@@ -25,6 +25,7 @@ services:
       - /opt/openclaw/entrypoint.sh:/app/entrypoint.sh
       - /opt/openclaw/scripts:/app/scripts
       - /opt/openclaw/docker/entrypoint.sh:/entrypoint.sh
+      - /opt/openclaw/logs:/opt/openclaw/logs
       # Git-managed workspace (source for IDENTITY.md updates on deploy)
       - /opt/openclaw/agents/scout/workspace:/tmp/agents/scout/workspace
       - /opt/openclaw/agents/trak/workspace:/tmp/agents/trak/workspace
@@ -34,18 +35,21 @@ services:
       # Persistent runtime workspace (survives deploys + restarts).
       # OpenClaw creates workspace files here on first boot; bind mount
       # ensures they persist. Path matches OpenClaw's actual runtime
-      # workspace: /root/.openclaw/.openclaw/workspace-{agent}
-      - /opt/openclaw-persist/workspace-scout:/root/.openclaw/.openclaw/workspace-scout
-      - /opt/openclaw-persist/workspace-trak:/root/.openclaw/.openclaw/workspace-trak
-      - /opt/openclaw-persist/workspace-kit:/root/.openclaw/.openclaw/workspace-kit
-      - /opt/openclaw-persist/workspace-scribe:/root/.openclaw/.openclaw/workspace-scribe
-      - /opt/openclaw-persist/workspace-probe:/root/.openclaw/.openclaw/workspace-probe
+      # workspace: /home/openclaw/.openclaw/.openclaw/workspace-{agent}
+      - /opt/openclaw-persist/workspace-scout:/home/openclaw/.openclaw/.openclaw/workspace-scout
+      - /opt/openclaw-persist/workspace-trak:/home/openclaw/.openclaw/.openclaw/workspace-trak
+      - /opt/openclaw-persist/workspace-kit:/home/openclaw/.openclaw/.openclaw/workspace-kit
+      - /opt/openclaw-persist/workspace-scribe:/home/openclaw/.openclaw/.openclaw/workspace-scribe
+      - /opt/openclaw-persist/workspace-probe:/home/openclaw/.openclaw/.openclaw/workspace-probe
       # Memory database (agent knowledge, virtual FS state).
       # Without this mount, agent file edits (e.g. KNOWLEDGE.md updates)
       # are lost on container restart because the virtual FS stores
       # modifications in SQLite, not on the real filesystem.
-      - /opt/openclaw-persist/memory:/root/.openclaw/.openclaw/memory
+      - /opt/openclaw-persist/memory:/home/openclaw/.openclaw/.openclaw/memory
     entrypoint: ["/app/entrypoint.sh"]
     command: ["/entrypoint.sh"]
     environment:
       - AWS_DEFAULT_REGION=us-east-1
+      - OPENCLAW_SNS_TOPIC=${OPENCLAW_SNS_TOPIC:-arn:aws:sns:us-east-1:122015479852:openclaw-alerts}
+      - OPENCLAW_ALERT_CHANNEL=${OPENCLAW_ALERT_CHANNEL:-C089JBLCFLL}
+      - HANDOFF_HMAC_KEY=${HANDOFF_HMAC_KEY:-}

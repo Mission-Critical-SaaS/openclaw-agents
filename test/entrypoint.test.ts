@@ -226,9 +226,9 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
 
   test('uses both configured and persist workspace paths', () => {
     // CFG = agents/{agent}/workspace (where agent reads/writes)
-    expect(script).toContain('/root/.openclaw/agents/${agent}/workspace');
+    expect(script).toContain('/home/openclaw/.openclaw/agents/${agent}/workspace');
     // PERSIST = .openclaw/workspace-{agent} (bind-mounted, survives restarts)
-    expect(script).toContain('/root/.openclaw/.openclaw/workspace-${agent}');
+    expect(script).toContain('/home/openclaw/.openclaw/.openclaw/workspace-${agent}');
   });
 
   test('seeds KNOWLEDGE.md to persist dir only if it does not already exist', () => {
@@ -391,10 +391,10 @@ describe('docker-compose.yml', () => {
 
   test('has persistent runtime workspace bind mounts for all three agents', () => {
     // Must target OpenClaw's actual runtime workspace path:
-    // /root/.openclaw/.openclaw/workspace-{agent}
+    // /home/openclaw/.openclaw/.openclaw/workspace-{agent}
     for (const agent of ['scout', 'trak', 'kit']) {
       expect(compose).toContain(
-        `/opt/openclaw-persist/workspace-${agent}:/root/.openclaw/.openclaw/workspace-${agent}`
+        `/opt/openclaw-persist/workspace-${agent}:/home/openclaw/.openclaw/.openclaw/workspace-${agent}`
       );
     }
   });
@@ -404,7 +404,7 @@ describe('docker-compose.yml', () => {
     // on container restart because the virtual FS stores modifications in
     // SQLite, not on the real filesystem.
     expect(compose).toContain(
-      '/opt/openclaw-persist/memory:/root/.openclaw/.openclaw/memory'
+      '/opt/openclaw-persist/memory:/home/openclaw/.openclaw/.openclaw/memory'
     );
   });
 
@@ -509,7 +509,7 @@ describe('Agent IDENTITY.md files', () => {
 
       test('has self-seeding KNOWLEDGE.md bootstrap with 2-path support', () => {
         // Must have persistent path (bind-mounted, survives restarts in Docker)
-        expect(identity).toContain('/root/.openclaw/.openclaw/workspace-' + agent + '/KNOWLEDGE.md');
+        expect(identity).toContain('/home/openclaw/.openclaw/.openclaw/workspace-' + agent + '/KNOWLEDGE.md');
         // Must have virtual FS fallback path
         expect(identity).toContain('$HOME/.openclaw/agents/' + agent + '/workspace/KNOWLEDGE.md');
         // Should NOT contain Darwin/macOS references (agents run in Docker only)
@@ -762,11 +762,11 @@ describe('GitHub App auth lifecycle', () => {
     // gh prioritises GITHUB_TOKEN env var, but child processes spawned
     // after gateway start won't inherit updated env. Writing hosts.yml
     // ensures gh reads the latest token regardless of process lineage.
-    expect(script).toContain('/root/.config/gh/hosts.yml');
+    expect(script).toContain('/home/openclaw/.config/gh/hosts.yml');
     expect(script).toContain('oauth_token');
     // Refresh script must also write hosts.yml
     const refresh = readScript('scripts/github-token-refresh.sh');
-    expect(refresh).toContain('/root/.config/gh/hosts.yml');
+    expect(refresh).toContain('/home/openclaw/.config/gh/hosts.yml');
   });
 
   test('gh auth login runs BEFORE gateway restart', () => {
@@ -841,7 +841,7 @@ describe('Zoho MCP server configuration', () => {
 
   test('creates Claude Desktop config file for Zoho MCP server', () => {
     // @macnishio/zoho-mcp-server reads config from this Claude Desktop path
-    expect(script).toContain('/root/AppData/Roaming/Claude');
+    expect(script).toContain('/home/openclaw/AppData/Roaming/Claude');
     expect(script).toContain('claude_desktop_config.json');
   });
 
@@ -1501,5 +1501,240 @@ describe('Agent Capability Matrix — Specialist Integration', () => {
   test('Scout specialization includes UX/accessibility', () => {
     expect(matrix).toContain('UX/accessibility');
     expect(matrix).toContain('ux-ui-designer specialist');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #44: Non-root Docker user
+// ---------------------------------------------------------------------------
+describe('Non-root Docker user (#44)', () => {
+  let dockerfile: string;
+  let compose: string;
+  let outerEntrypoint: string;
+  let innerEntrypoint: string;
+  let healthcheck: string;
+  let tokenRefresh: string;
+
+  beforeAll(() => {
+    dockerfile = readScript('docker/Dockerfile');
+    compose = readScript('docker-compose.yml');
+    outerEntrypoint = readScript('entrypoint.sh');
+    innerEntrypoint = readScript('docker/entrypoint.sh');
+    healthcheck = readScript('scripts/healthcheck.sh');
+    tokenRefresh = readScript('scripts/github-token-refresh.sh');
+  });
+
+  test('Dockerfile creates non-root openclaw user', () => {
+    expect(dockerfile).toContain('useradd');
+    expect(dockerfile).toContain('openclaw');
+    expect(dockerfile).toContain('1000');
+  });
+
+  test('Dockerfile sets OPENCLAW_HOME to /home/openclaw', () => {
+    expect(dockerfile).toContain('OPENCLAW_HOME=/home/openclaw/.openclaw');
+    expect(dockerfile).not.toContain('OPENCLAW_HOME=/root');
+  });
+
+  test('Dockerfile sets USER openclaw before EXPOSE', () => {
+    const userIdx = dockerfile.indexOf('USER openclaw');
+    const exposeIdx = dockerfile.indexOf('EXPOSE');
+    expect(userIdx).toBeGreaterThan(-1);
+    expect(exposeIdx).toBeGreaterThan(userIdx);
+  });
+
+  test('Dockerfile sets ownership of home directory', () => {
+    expect(dockerfile).toContain('chown -R openclaw:openclaw /home/openclaw');
+  });
+
+  test('docker-compose.yml uses /home/openclaw paths for container mounts', () => {
+    expect(compose).toContain('/home/openclaw/.openclaw/.openclaw/workspace-scout');
+    expect(compose).not.toContain('/root/.openclaw/.openclaw/workspace');
+  });
+
+  test('outer entrypoint uses /home/openclaw paths', () => {
+    expect(outerEntrypoint).toContain('/home/openclaw/.openclaw');
+    expect(outerEntrypoint).not.toContain('/root/.openclaw');
+  });
+
+  test('inner entrypoint uses /home/openclaw paths', () => {
+    expect(innerEntrypoint).toContain('/home/openclaw');
+    expect(innerEntrypoint).not.toContain('/root/.mcporter');
+  });
+
+  test('healthcheck uses /home/openclaw path for config grep', () => {
+    expect(healthcheck).toContain('/home/openclaw/.openclaw');
+    expect(healthcheck).not.toContain('/root/.openclaw');
+  });
+
+  test('github-token-refresh uses /home/openclaw path', () => {
+    expect(tokenRefresh).toContain('/home/openclaw/.config/gh');
+    expect(tokenRefresh).not.toContain('/root/.config/gh');
+  });
+
+  test('no /root/ references in any shell script or config', () => {
+    const files = [outerEntrypoint, innerEntrypoint, healthcheck, tokenRefresh, compose];
+    for (const content of files) {
+      // Allow /root only in comments
+      const lines = content.split('\n').filter(l => !l.trim().startsWith('#') && !l.trim().startsWith('//'));
+      const rootRefs = lines.filter(l => l.includes('/root/') && !l.includes('/root/.npm'));
+      expect(rootRefs).toEqual([]);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #54: Parameterized IDs
+// ---------------------------------------------------------------------------
+describe('Parameterized IDs (#54)', () => {
+  let healthcheck: string;
+  let compose: string;
+
+  beforeAll(() => {
+    healthcheck = readScript('scripts/healthcheck.sh');
+    compose = readScript('docker-compose.yml');
+  });
+
+  test('healthcheck SNS topic uses env var with default', () => {
+    expect(healthcheck).toContain('OPENCLAW_SNS_TOPIC:-');
+    expect(healthcheck).toContain('arn:aws:sns');
+  });
+
+  test('healthcheck Slack channel uses env var with default', () => {
+    expect(healthcheck).toContain('OPENCLAW_ALERT_CHANNEL:-');
+  });
+
+  test('docker-compose passes OPENCLAW_SNS_TOPIC', () => {
+    expect(compose).toContain('OPENCLAW_SNS_TOPIC');
+  });
+
+  test('docker-compose passes OPENCLAW_ALERT_CHANNEL', () => {
+    expect(compose).toContain('OPENCLAW_ALERT_CHANNEL');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #55: Log rotation and structured logging
+// ---------------------------------------------------------------------------
+describe('Log rotation and monitoring (#55)', () => {
+  let dockerfile: string;
+  let healthcheck: string;
+  let scheduler: string;
+  let outerEntrypoint: string;
+
+  beforeAll(() => {
+    dockerfile = readScript('docker/Dockerfile');
+    healthcheck = readScript('scripts/healthcheck.sh');
+    scheduler = readScript('scripts/proactive-scheduler.sh');
+    outerEntrypoint = readScript('entrypoint.sh');
+  });
+
+  test('Dockerfile logrotate covers all log files with wildcard', () => {
+    expect(dockerfile).toContain('/data/logs/*.log');
+  });
+
+  test('Dockerfile logrotate includes maxage for log expiry', () => {
+    expect(dockerfile).toContain('maxage');
+  });
+
+  test('healthcheck has structured JSON logging function', () => {
+    expect(healthcheck).toContain('log_json');
+    expect(healthcheck).toContain('.jsonl');
+  });
+
+  test('proactive scheduler has structured JSON logging', () => {
+    expect(scheduler).toContain('log_json');
+    expect(scheduler).toContain('.jsonl');
+  });
+
+  test('outer entrypoint sets up logrotate cron', () => {
+    expect(outerEntrypoint).toContain('logrotate');
+    expect(outerEntrypoint).toContain('crontab');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #53: Handoff HMAC authentication
+// ---------------------------------------------------------------------------
+describe('Handoff HMAC authentication (#53)', () => {
+  let handoffProtocol: string;
+  let outerEntrypoint: string;
+  let scheduler: string;
+  let compose: string;
+
+  beforeAll(() => {
+    handoffProtocol = readScript('config/proactive/handoff-protocol.json');
+    outerEntrypoint = readScript('entrypoint.sh');
+    scheduler = readScript('scripts/proactive-scheduler.sh');
+    compose = readScript('docker-compose.yml');
+  });
+
+  test('handoff protocol defines HMAC authentication', () => {
+    const parsed = JSON.parse(handoffProtocol);
+    expect(parsed.protocol.authentication).toBeDefined();
+    expect(parsed.protocol.authentication.method).toBe('hmac-sha256');
+    expect(parsed.protocol.authentication.key_env).toBe('HANDOFF_HMAC_KEY');
+  });
+
+  test('outer entrypoint generates HMAC key from API key', () => {
+    expect(outerEntrypoint).toContain('HANDOFF_HMAC_KEY');
+    expect(outerEntrypoint).toContain('sha256sum');
+    expect(outerEntrypoint).toContain('openclaw-handoff-');
+  });
+
+  test('proactive scheduler signs handoff messages with HMAC', () => {
+    expect(scheduler).toContain('openssl dgst -sha256 -hmac');
+    expect(scheduler).toContain('[HMAC:');
+    expect(scheduler).toContain('HANDOFF_HMAC_KEY');
+  });
+
+  test('docker-compose passes HANDOFF_HMAC_KEY', () => {
+    expect(compose).toContain('HANDOFF_HMAC_KEY');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #56: Dangerous action enforcement
+// ---------------------------------------------------------------------------
+describe('Dangerous action enforcement (#56)', () => {
+  let auditScript: string;
+  let scheduler: string;
+  let dockerfile: string;
+
+  beforeAll(() => {
+    auditScript = readScript('scripts/dangerous-action-audit.sh');
+    scheduler = readScript('scripts/proactive-scheduler.sh');
+    dockerfile = readScript('docker/Dockerfile');
+  });
+
+  test('dangerous-action-audit.sh exists and has tier validation', () => {
+    expect(auditScript).toContain('tier_level');
+    expect(auditScript).toContain('admin');
+    expect(auditScript).toContain('developer');
+    expect(auditScript).toContain('support');
+  });
+
+  test('audit script writes to append-only JSONL log', () => {
+    expect(auditScript).toContain('dangerous-actions-audit.jsonl');
+    expect(auditScript).toContain('>> "$AUDIT_LOG"');
+  });
+
+  test('audit script blocks actions when tier is insufficient', () => {
+    expect(auditScript).toContain('insufficient_tier');
+    expect(auditScript).toContain('exit 1');
+  });
+
+  test('audit script enforces confirmation requirements', () => {
+    expect(auditScript).toContain('missing_confirmation');
+    expect(auditScript).toContain('missing_double_confirmation');
+  });
+
+  test('proactive scheduler injects safety constraints for dangerous actions', () => {
+    expect(scheduler).toContain('PROACTIVE SAFETY CONSTRAINT');
+    expect(scheduler).toContain('dangerous-actions.json');
+  });
+
+  test('Dockerfile copies scripts including audit script', () => {
+    expect(dockerfile).toContain('COPY scripts/ /app/scripts/');
+    expect(dockerfile).toContain('chmod +x');
   });
 });

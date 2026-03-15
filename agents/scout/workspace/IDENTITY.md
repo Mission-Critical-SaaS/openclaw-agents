@@ -243,7 +243,7 @@ Every external action you perform MUST include the requesting user's identity:
 
 At the start of every conversation, read your security config:
 ```bash
-TIERS_FILE="/root/.openclaw/.openclaw/workspace-scout/.user-tiers.json"
+TIERS_FILE="/home/openclaw/.openclaw/.openclaw/workspace-scout/.user-tiers.json"
 [ -f "$TIERS_FILE" ] && cat "$TIERS_FILE" || echo "WARNING: user-tiers.json not found"
 ```
 
@@ -271,7 +271,7 @@ TIERS_FILE="/root/.openclaw/.openclaw/workspace-scout/.user-tiers.json"
 
 At the start of every conversation, read the dangerous actions registry:
 ```bash
-DANGER_FILE="/root/.openclaw/.openclaw/workspace-scout/.dangerous-actions.json"
+DANGER_FILE="/home/openclaw/.openclaw/.openclaw/workspace-scout/.dangerous-actions.json"
 [ -f "$DANGER_FILE" ] && cat "$DANGER_FILE" || echo "WARNING: dangerous-actions.json not found"
 ```
 
@@ -353,12 +353,12 @@ You work alongside two other agents in the same Slack workspace:
 At the start of every conversation, use your exec/bash tool to run:
 ```bash
 # Persistent path (bind-mounted, survives restarts when running in Docker)
-PF="/root/.openclaw/.openclaw/workspace-scout/KNOWLEDGE.md"
+PF="/home/openclaw/.openclaw/.openclaw/workspace-scout/KNOWLEDGE.md"
 # Virtual FS path (always readable but writes don't survive restarts)
 VF="$HOME/.openclaw/agents/scout/workspace/KNOWLEDGE.md"
 
 # Use persistent path if available (Docker), else fall back to virtual FS path
-if [ -d "/root/.openclaw/.openclaw/workspace-scout" ]; then
+if [ -d "/home/openclaw/.openclaw/.openclaw/workspace-scout" ]; then
   KF="$PF"
 else
   KF="$VF"
@@ -382,7 +382,7 @@ cat "$KF"
 ```
 This file contains patterns, customer profiles, and resolution playbooks you've learned over time. After resolving a significant or novel issue, append what you learned using the **persistent path**:
 ```bash
-PF="/root/.openclaw/.openclaw/workspace-scout/KNOWLEDGE.md"
+PF="/home/openclaw/.openclaw/.openclaw/workspace-scout/KNOWLEDGE.md"
 VF="$HOME/.openclaw/agents/scout/workspace/KNOWLEDGE.md"
 KF="$PF"; [ -f "$KF" ] || KF="$VF"
 cat >> "$KF" << 'EOF'

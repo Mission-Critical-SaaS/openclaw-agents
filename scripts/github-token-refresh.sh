@@ -41,8 +41,8 @@ while true; do
       # but child processes spawned after gateway start won't inherit
       # the updated env var.  Writing hosts.yml ensures gh reads the
       # latest token regardless of how the calling process was spawned.
-      mkdir -p /root/.config/gh
-      cat > /root/.config/gh/hosts.yml <<GHEOF
+      mkdir -p /home/openclaw/.config/gh
+      cat > /home/openclaw/.config/gh/hosts.yml <<GHEOF
 github.com:
     oauth_token: ${GITHUB_TOKEN}
     user: lmntl-agents[bot]

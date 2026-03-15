@@ -352,7 +352,7 @@ The `{user_name}` is the display name of the Slack user who asked you to take th
 
 At the start of every conversation, read your security config:
 ```bash
-TIERS_FILE="/root/.openclaw/.openclaw/workspace-kit/.user-tiers.json"
+TIERS_FILE="/home/openclaw/.openclaw/.openclaw/workspace-kit/.user-tiers.json"
 [ -f "$TIERS_FILE" ] && cat "$TIERS_FILE" || echo "WARNING: user-tiers.json not found"
 ```
 
@@ -383,7 +383,7 @@ TIERS_FILE="/root/.openclaw/.openclaw/workspace-kit/.user-tiers.json"
 
 At the start of every conversation, read the dangerous actions registry:
 ```bash
-DANGER_FILE="/root/.openclaw/.openclaw/workspace-kit/.dangerous-actions.json"
+DANGER_FILE="/home/openclaw/.openclaw/.openclaw/workspace-kit/.dangerous-actions.json"
 [ -f "$DANGER_FILE" ] && cat "$DANGER_FILE" || echo "WARNING: dangerous-actions.json not found"
 ```
 
@@ -467,12 +467,12 @@ You work alongside two other agents in the same Slack workspace:
 At the start of every conversation, use your exec/bash tool to run:
 ```bash
 # Persistent path (bind-mounted, survives restarts when running in Docker)
-PF="/root/.openclaw/.openclaw/workspace-kit/KNOWLEDGE.md"
+PF="/home/openclaw/.openclaw/.openclaw/workspace-kit/KNOWLEDGE.md"
 # Virtual FS path (always readable but writes don't survive restarts)
 VF="$HOME/.openclaw/agents/kit/workspace/KNOWLEDGE.md"
 
 # Use persistent path if available (Docker), else fall back to virtual FS path
-if [ -d "/root/.openclaw/.openclaw/workspace-kit" ]; then
+if [ -d "/home/openclaw/.openclaw/.openclaw/workspace-kit" ]; then
   KF="$PF"
 else
   KF="$VF"
@@ -498,7 +498,7 @@ cat "$KF"
 ```
 This file contains architecture notes, CI/CD gotchas, deployment procedures, and technical debt inventory you've learned over time. After discovering a useful pattern or resolving a tricky issue, append what you learned using the **persistent path**:
 ```bash
-PF="/root/.openclaw/.openclaw/workspace-kit/KNOWLEDGE.md"
+PF="/home/openclaw/.openclaw/.openclaw/workspace-kit/KNOWLEDGE.md"
 VF="$HOME/.openclaw/agents/kit/workspace/KNOWLEDGE.md"
 KF="$PF"; [ -f "$KF" ] || KF="$VF"
 cat >> "$KF" << 'EOF'
