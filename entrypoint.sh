@@ -349,6 +349,23 @@ GHEOF
   openclaw memory index --force 2>/dev/null || true
   echo "Memory index updated."
 
+  # ============================================================
+  # GITHUB TOKEN: UNSET ENV VAR BEFORE GATEWAY START
+  # GitHub App installation tokens expire after 1 hour. The
+  # background token refresh loop generates new tokens every
+  # 50 min and writes them to ~/.config/gh/hosts.yml.
+  #
+  # CRITICAL: gh CLI checks GITHUB_TOKEN env var BEFORE hosts.yml.
+  # If the gateway process has GITHUB_TOKEN in its env, agents
+  # inherit the original (now-expired) token via subprocess env,
+  # and gh ignores the fresh token in hosts.yml.
+  #
+  # Fix: unset GITHUB_TOKEN so gh always reads from hosts.yml,
+  # which the refresh loop keeps current. Token can never expire.
+  # ============================================================
+  echo "Unsetting GITHUB_TOKEN env var (gh will read from hosts.yml, kept fresh by refresh loop)..."
+  unset GITHUB_TOKEN
+
   # Start gateway DIRECTLY â one-time setup is already done
   # Workspace files are in place so the gateway discovers them on scan
   echo "Starting gateway with injected channel config..."
@@ -402,6 +419,6 @@ GHEOF
   echo "OpenClaw gateway is live."
   wait $GATEWAY_PID
 else
-  echo "WARNING: Gateway config not found after 90s"
+  echo "WARNING: Gateway config not found after 180s"
   wait $GATEWAY_PID
 fi

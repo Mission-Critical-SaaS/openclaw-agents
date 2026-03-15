@@ -354,8 +354,8 @@ describe('Inner entrypoint (docker/entrypoint.sh)', () => {
     expect(script).toMatch(/exec openclaw gateway run.*tee.*openclaw\.log/);
   });
 
-  test('sets up auth profiles for all three agents', () => {
-    expect(script).toMatch(/for agent in scout trak kit/);
+  test('sets up auth profiles for all five agents', () => {
+    expect(script).toMatch(/for agent in scout trak kit scribe probe/);
     expect(script).toContain('auth-profiles.json');
   });
 });
@@ -795,6 +795,22 @@ describe('GitHub App auth lifecycle', () => {
     const livenessIdx = script.indexOf('kill -0 $GATEWAY_PID');
     const refreshIdx = script.indexOf('github-token-refresh.sh');
     expect(refreshIdx).toBeGreaterThan(livenessIdx);
+  });
+
+  test('GITHUB_TOKEN env var is unset before gateway start so gh reads from hosts.yml', () => {
+    const unsetIdx = script.indexOf('unset GITHUB_TOKEN');
+    const gatewayStartIdx = script.indexOf('openclaw gateway run --allow-unconfigured >> /data/logs');
+    expect(unsetIdx).toBeGreaterThan(-1);
+    expect(gatewayStartIdx).toBeGreaterThan(-1);
+    expect(unsetIdx).toBeLessThan(gatewayStartIdx);
+  });
+
+  test('token refresh script includes health check watchdog', () => {
+    const refreshScript = readScript('scripts/github-token-refresh.sh');
+    expect(refreshScript).toContain('check_token_health');
+    expect(refreshScript).toContain('gh auth status');
+    expect(refreshScript).toContain('force refreshing');
+    expect(refreshScript).toContain('HEALTH_CHECK_INTERVAL');
   });
 
   test('scripts volume is mounted in docker-compose', () => {
