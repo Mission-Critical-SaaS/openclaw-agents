@@ -308,8 +308,8 @@ else
   echo "WARNING: zd-mcp-server not found in npx cache, skipping patch"
 fi
 
-# Set up agent auth profiles
-for agent in scout trak kit; do
+# Set up agent auth profiles (all 5 agents need Anthropic API auth)
+for agent in scout trak kit scribe probe; do
   AGENT_DIR="${OPENCLAW_HOME}/agents/${agent}/agent"
   mkdir -p "${AGENT_DIR}"
   cat > "${AGENT_DIR}/auth-profiles.json" << AUTHEOF
