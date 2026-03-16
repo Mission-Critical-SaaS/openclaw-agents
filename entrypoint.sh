@@ -128,8 +128,9 @@ fi
 echo "Handoff HMAC key derived and validated."
 
 # Start inner entrypoint (which starts the gateway) in background
-"$@" &
+"$@" > /tmp/gateway-init.log 2>&1 &
 GATEWAY_PID=$!
+disown $GATEWAY_PID 2>/dev/null || true  # suppress bash Killed notification
 
 # Wait for gateway to create its config file
 # Inner entrypoint installs mcporter + gh CLI which does Zoho setup, zd-mcp-server patching, MCP config etc.
@@ -142,6 +143,8 @@ for i in $(seq 1 180); do
 done
 
 if [ -f "$CONF" ]; then
+  # Show inner entrypoint output (strip doctor box-drawing noise)
+  sed '/[│├╮╯◇]/d' /tmp/gateway-init.log 2>/dev/null || true
   echo "Gateway config found, injecting Slack channels..."
   python3 << 'INJECT_PYEOF'
 import json, os
@@ -223,7 +226,7 @@ INJECT_PYEOF
   # files) was completed during the first run.
   # ============================================================
   echo "Restarting gateway to apply injected Slack channel config..."
-  kill -- -$GATEWAY_PID 2>/dev/null || kill $GATEWAY_PID 2>/dev/null || true
+  kill -9 -- -$GATEWAY_PID 2>/dev/null || kill -9 $GATEWAY_PID 2>/dev/null || true
   # Kill any respawned gateway child (the gateway may self-restart via
   # SIGUSR1 before our kill arrives, spawning a child process)
   sleep 1

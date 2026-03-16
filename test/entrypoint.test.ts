@@ -30,8 +30,8 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(script).toMatch(/aws secretsmanager get-secret-value.*--secret-id openclaw\/agents/);
   });
 
-  test('exports all required Slack bot tokens (all 5 agents)', () => {
-    for (const agent of ['SCOUT', 'TRAK', 'KIT', 'SCRIBE', 'PROBE']) {
+  test('exports all required Slack bot tokens (all 6 agents)', () => {
+    for (const agent of ['SCOUT', 'TRAK', 'KIT', 'SCRIBE', 'PROBE', 'CHIEF']) {
       expect(script).toContain(`SLACK_BOT_TOKEN_${agent}`);
       expect(script).toContain(`SLACK_APP_TOKEN_${agent}`);
     }
@@ -116,8 +116,8 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
   });
 
   // --- Slack injection ---
-  test('injects all five Slack accounts (scout, trak, kit, scribe, probe)', () => {
-    for (const name of ['scout', 'trak', 'kit', 'scribe', 'probe']) {
+  test('injects all six Slack accounts (scout, trak, kit, scribe, probe, chief)', () => {
+    for (const name of ['scout', 'trak', 'kit', 'scribe', 'probe', 'chief']) {
       expect(script).toContain(`'${name}'`);
     }
   });
@@ -438,8 +438,8 @@ describe('Inner entrypoint (docker/entrypoint.sh)', () => {
     expect(script).toMatch(/exec openclaw gateway run.*tee.*openclaw\.log/);
   });
 
-  test('sets up auth profiles for all five agents', () => {
-    expect(script).toMatch(/for agent in scout trak kit scribe probe/);
+  test('sets up auth profiles for all six agents', () => {
+    expect(script).toMatch(/for agent in scout trak kit scribe probe chief/);
     expect(script).toContain('auth-profiles.json');
   });
 });
@@ -466,16 +466,16 @@ describe('docker-compose.yml', () => {
     expect(compose).toContain('/opt/openclaw/docker/entrypoint.sh:/entrypoint.sh');
   });
 
-  test('has git-managed workspace bind mounts for all three agents', () => {
-    for (const agent of ['scout', 'trak', 'kit']) {
+  test('has git-managed workspace bind mounts for all six agents', () => {
+    for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe', 'chief']) {
       expect(compose).toContain(`/opt/openclaw/agents/${agent}/workspace:/tmp/agents/${agent}/workspace`);
     }
   });
 
-  test('has persistent runtime workspace bind mounts for all three agents', () => {
+  test('has persistent runtime workspace bind mounts for all six agents', () => {
     // Must target OpenClaw's actual runtime workspace path:
     // /home/openclaw/.openclaw/.openclaw/workspace-{agent}
-    for (const agent of ['scout', 'trak', 'kit']) {
+    for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe', 'chief']) {
       expect(compose).toContain(
         `/opt/openclaw-persist/workspace-${agent}:/home/openclaw/.openclaw/.openclaw/workspace-${agent}`
       );
@@ -515,8 +515,8 @@ describe('deploy.sh', () => {
     expect(script).toMatch(/mkdir -p.*openclaw-persist/);
   });
 
-  test('creates persist dirs for all three agents', () => {
-    expect(script).toMatch(/for agent in scout trak kit/);
+  test('creates persist dirs for all six agents', () => {
+    expect(script).toMatch(/for agent in scout trak kit scribe probe chief/);
     expect(script).toContain('openclaw-persist/workspace-${agent}');
   });
 
@@ -653,7 +653,7 @@ describe('Agent IDENTITY.md files', () => {
 // Agent KNOWLEDGE.md files
 // ---------------------------------------------------------------------------
 describe('Agent KNOWLEDGE.md files', () => {
-  for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe']) {
+  for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe', 'chief']) {
     test(`${agent} KNOWLEDGE.md exists and is non-empty`, () => {
       const knowledge = readScript(`agents/${agent}/workspace/KNOWLEDGE.md`);
       expect(knowledge.length).toBeGreaterThan(50);
@@ -673,11 +673,11 @@ describe('.env.example', () => {
     envExample = readScript('.env.example');
   });
 
-  test('SLACK_ALLOW_FROM contains 12 IDs (3 LMNTL + 6 Spartan + 3 agents)', () => {
+  test('SLACK_ALLOW_FROM contains 15 IDs (3 LMNTL + 6 Spartan + 6 agents)', () => {
     const match = envExample.match(/SLACK_ALLOW_FROM=\[([^\]]+)\]/);
     expect(match).toBeTruthy();
     const ids = match![1].split(',').map(s => s.trim().replace(/"/g, ''));
-    expect(ids.length).toBe(12);
+    expect(ids.length).toBe(15);
     // Verify all IDs look like Slack user IDs
     for (const id of ids) {
       expect(id).toMatch(/^U[A-Z0-9]+$/);
@@ -699,10 +699,13 @@ describe('.env.example', () => {
     expect(envExample).toContain('U08NGTS8Y5B'); // Duc Hoang
   });
 
-  test('SLACK_ALLOW_FROM includes all three agent bot IDs for cross-agent dispatch', () => {
+  test('SLACK_ALLOW_FROM includes all six agent bot IDs for cross-agent dispatch', () => {
     expect(envExample).toContain('U0AKF614URE'); // Kit bot
     expect(envExample).toContain('U0AJLT30KMG'); // Scout bot
     expect(envExample).toContain('U0AJEGUSELB'); // Trak bot
+    expect(envExample).toContain('U0AM170694Z'); // Scribe bot
+    expect(envExample).toContain('U0ALRTLF752'); // Probe bot
+    expect(envExample).toContain('U0ALERF7F9V'); // Chief bot
   });
 });
 
@@ -1972,7 +1975,7 @@ describe('Cross-agent handoff configuration', () => {
   });
 
   test('all agent IDENTITY.md files have cross-agent handoff protocol', () => {
-    for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe']) {
+    for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe', 'chief']) {
       const identity = readScript(`agents/${agent}/workspace/IDENTITY.md`);
       expect(identity).toContain('Cross-Agent Handoff Protocol');
       expect(identity).toContain('sessions_send');
@@ -1982,7 +1985,7 @@ describe('Cross-agent handoff configuration', () => {
     }
   });
 
-  test('handoff protocol includes agent_slack_ids map with all 5 agents', () => {
+  test('handoff protocol includes agent_slack_ids map with all 6 agents', () => {
     const parsed = JSON.parse(handoffProtocol);
     expect(parsed.agent_slack_ids).toBeDefined();
     const agents = Object.keys(parsed.agent_slack_ids);
@@ -1991,6 +1994,7 @@ describe('Cross-agent handoff configuration', () => {
     expect(agents).toContain('kit');
     expect(agents).toContain('scribe');
     expect(agents).toContain('probe');
+    expect(agents).toContain('chief');
     // Each agent has user_id and session_target
     for (const agent of agents) {
       expect(parsed.agent_slack_ids[agent].user_id).toMatch(/^U0/);
@@ -1999,14 +2003,15 @@ describe('Cross-agent handoff configuration', () => {
   });
 
   test('all IDENTITY.md files have fallback @mention lookup with Slack user IDs', () => {
-    const agentIds = {
+    const agentIds: Record<string, string> = {
       scout: 'U0AJLT30KMG',
       trak: 'U0AJEGUSELB',
       kit: 'U0AKF614URE',
       scribe: 'U0AM170694Z',
       probe: 'U0ALRTLF752',
+      chief: 'U0ALERF7F9V',
     };
-    for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe']) {
+    for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe', 'chief']) {
       const identity = readScript(`agents/${agent}/workspace/IDENTITY.md`);
       expect(identity).toContain('Fallback @mention lookup');
       // Should contain user IDs for all OTHER agents (not self)
@@ -2018,16 +2023,16 @@ describe('Cross-agent handoff configuration', () => {
     }
   });
 
-  test('all IDENTITY.md files have Inter-Agent Delegation section with 4 siblings', () => {
+  test('all IDENTITY.md files have Inter-Agent Delegation section with 5 siblings', () => {
     for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe']) {
       const identity = readScript(`agents/${agent}/workspace/IDENTITY.md`);
       expect(identity).toContain('Inter-Agent Delegation & Communication');
-      expect(identity).toContain('four other agents');
+      expect(identity).toContain('five other agents');
     }
   });
 
   test('no IDENTITY.md files reference bot-to-bot Slack DMs as a delivery method', () => {
-    for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe']) {
+    for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe', 'chief']) {
       const identity = readScript(`agents/${agent}/workspace/IDENTITY.md`);
       // The old Scribe instruction
       expect(identity).not.toContain('Confirm completion back to the requesting agent via Slack DM');
@@ -2036,4 +2041,106 @@ describe('Cross-agent handoff configuration', () => {
     }
   });
 
+});
+
+// ---------------------------------------------------------------------------
+// Chief agent — access restriction & financial API integration
+// ---------------------------------------------------------------------------
+describe('Chief agent configuration', () => {
+  let identity: string;
+  let knowledge: string;
+  let userTiers: any;
+  let budgetCaps: any;
+  let handoffProtocol: any;
+
+  beforeAll(() => {
+    identity = readScript('agents/chief/workspace/IDENTITY.md');
+    knowledge = readScript('agents/chief/workspace/KNOWLEDGE.md');
+    userTiers = JSON.parse(readScript('config/user-tiers.json'));
+    budgetCaps = JSON.parse(readScript('config/proactive/budget-caps.json'));
+    handoffProtocol = JSON.parse(readScript('config/proactive/handoff-protocol.json'));
+  });
+
+  // --- Access restriction ---
+  test('Chief IDENTITY.md restricts access to admin-only users', () => {
+    expect(identity).toContain('U082DEF37PC'); // David Allison
+    expect(identity).toContain('U081YTU8JCX'); // Michael Wong
+    expect(identity).toContain('Access restriction');
+  });
+
+  test('Chief IDENTITY.md has Security Enforcement section', () => {
+    expect(identity).toContain('Security Enforcement');
+    expect(identity).toContain('admin-tier users');
+  });
+
+  test('Chief bot user ID is in agent tier', () => {
+    expect(userTiers.tier_lookup['U0ALERF7F9V']).toBe('agent');
+  });
+
+  test('user-tiers agent description includes Chief', () => {
+    expect(userTiers.tiers.agent.description).toContain('Chief');
+  });
+
+  // --- Financial API integration ---
+  test('entrypoint exports all financial API tokens', () => {
+    const script = readScript('entrypoint.sh');
+    expect(script).toContain('STRIPE_KEY_MINUTE7');
+    expect(script).toContain('STRIPE_KEY_GOODHELP');
+    expect(script).toContain('STRIPE_KEY_HTS');
+    expect(script).toContain('STRIPE_KEY_LMNTL');
+    expect(script).toContain('MERCURY_API_TOKEN');
+    expect(script).toContain('QBO_CLIENT_ID_CHIEF');
+    expect(script).toContain('QBO_CLIENT_SECRET_CHIEF');
+  });
+
+  test('Chief IDENTITY.md references financial tools (Stripe, Mercury, QBO)', () => {
+    expect(identity).toContain('Stripe');
+    expect(identity).toContain('Mercury');
+    expect(identity).toMatch(/QuickBooks|QBO/);
+  });
+
+  // --- Budget caps ---
+  test('budget-caps.json has Chief with financial API limits', () => {
+    expect(budgetCaps.caps.chief).toBeDefined();
+    expect(budgetCaps.caps.chief.daily.stripe_api_calls).toBeGreaterThan(0);
+    expect(budgetCaps.caps.chief.daily.mercury_api_calls).toBeGreaterThan(0);
+    expect(budgetCaps.caps.chief.daily.qbo_api_calls).toBeGreaterThan(0);
+    expect(budgetCaps.caps.chief.monthly.stripe_api_calls).toBeGreaterThan(
+      budgetCaps.caps.chief.daily.stripe_api_calls
+    );
+  });
+
+  // --- Handoff routes ---
+  test('handoff protocol has Chief-related routes', () => {
+    const chiefRoutes = handoffProtocol.handoffs.filter(
+      (h: any) => h.from === 'chief' || h.to === 'chief' ||
+        (Array.isArray(h.to) && h.to.includes('chief'))
+    );
+    // Chief should have both inbound and outbound handoff routes
+    expect(chiefRoutes.length).toBeGreaterThanOrEqual(4);
+    const outbound = chiefRoutes.filter((h: any) => h.from === 'chief');
+    const inbound = chiefRoutes.filter((h: any) =>
+      h.to === 'chief' || (Array.isArray(h.to) && h.to.includes('chief'))
+    );
+    expect(outbound.length).toBeGreaterThanOrEqual(2);
+    expect(inbound.length).toBeGreaterThanOrEqual(2);
+  });
+
+  // --- KNOWLEDGE.md ---
+  test('Chief KNOWLEDGE.md has API budget tracking', () => {
+    expect(knowledge).toContain('API Budget');
+  });
+
+  // --- Docker compose ---
+  test('docker-compose has Chief workspace mounts', () => {
+    const compose = readScript('docker-compose.yml');
+    expect(compose).toContain('/opt/openclaw/agents/chief/workspace:/tmp/agents/chief/workspace');
+    expect(compose).toContain('/opt/openclaw-persist/workspace-chief');
+  });
+
+  // --- Cross-agent delegation ---
+  test('Chief IDENTITY.md has Inter-Agent Delegation section', () => {
+    expect(identity).toContain('Inter-Agent Delegation');
+    expect(identity).toContain('agent:chief:main');
+  });
 });
