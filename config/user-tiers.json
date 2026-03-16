@@ -30,7 +30,7 @@
       ]
     },
     "agent": {
-      "description": "Sibling agents (Kit, Trak, Scout, Scribe, Probe) \u2014 cross-agent dispatch only",
+      "description": "Sibling agents (Kit, Trak, Scout, Scribe, Probe, Chief) \u2014 cross-agent dispatch only",
       "permissions": [
         "read",
         "write",
@@ -55,6 +55,7 @@
     "U0AJLT30KMG": "agent",
     "U0AJEGUSELB": "agent",
     "U0AM170694Z": "agent",
-    "U0ALRTLF752": "agent"
+    "U0ALRTLF752": "agent",
+    "U0ALERF7F9V": "agent"
   }
 }

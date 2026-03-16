@@ -63,7 +63,8 @@
         "kit",
         "trak",
         "scout",
-        "probe"
+        "probe",
+        "chief"
       ],
       "trigger": "Scribe detects documentation that's 90+ days stale and references active systems",
       "payload": "Document link, last updated date, systems referenced, suggested owner",
@@ -141,6 +142,78 @@
       "payload": "List of documentation gaps with severity, suggested owners, Jira task IDs",
       "action": "Trak prioritizes documentation tasks within sprint planning",
       "priority": "medium"
+    },
+    {
+      "id": "chief-to-trak-ops-improvement",
+      "from": "chief",
+      "to": "trak",
+      "trigger": "Chief identifies an operational improvement that needs project tracking",
+      "payload": "Improvement title, current state, proposed change, expected impact, priority",
+      "action": "Trak creates a Jira improvement task with Chief's analysis",
+      "priority": "medium"
+    },
+    {
+      "id": "chief-to-scout-customer-cost",
+      "from": "chief",
+      "to": "scout",
+      "trigger": "Chief identifies high-cost customer support patterns from financial data",
+      "payload": "Cost breakdown, customer segment, support ticket volume, recommended changes",
+      "action": "Scout reviews support patterns and suggests process improvements",
+      "priority": "medium"
+    },
+    {
+      "id": "chief-to-kit-infra-cost",
+      "from": "chief",
+      "to": "kit",
+      "trigger": "Chief detects infrastructure costs that could be optimized",
+      "payload": "Service costs, usage patterns, optimization recommendations",
+      "action": "Kit evaluates technical feasibility of cost optimization",
+      "priority": "low"
+    },
+    {
+      "id": "chief-to-scribe-financial-report",
+      "from": "chief",
+      "to": "scribe",
+      "trigger": "Chief completes a financial or operational analysis",
+      "payload": "Analysis summary, key metrics, recommendations, supporting data",
+      "action": "Scribe documents the analysis in Notion for stakeholder review",
+      "priority": "medium"
+    },
+    {
+      "id": "trak-to-chief-resource-allocation",
+      "from": "trak",
+      "to": "chief",
+      "trigger": "Trak detects resource allocation issues from sprint data",
+      "payload": "Sprint metrics, team velocity, bottleneck areas, allocation data",
+      "action": "Chief analyzes resource utilization and proposes rebalancing",
+      "priority": "medium"
+    },
+    {
+      "id": "scout-to-chief-support-costs",
+      "from": "scout",
+      "to": "chief",
+      "trigger": "Scout identifies a surge in support costs or ticket volume",
+      "payload": "Ticket volume trends, resolution times, cost per ticket, category breakdown",
+      "action": "Chief correlates with financial data and assesses business impact",
+      "priority": "high"
+    },
+    {
+      "id": "kit-to-chief-deploy-impact",
+      "from": "kit",
+      "to": "chief",
+      "trigger": "Kit completes a deploy that has potential financial impact",
+      "payload": "Deploy tag, changes summary, affected services, estimated cost impact",
+      "action": "Chief monitors financial metrics post-deploy for impact assessment",
+      "priority": "medium"
+    },
+    {
+      "id": "probe-to-chief-outage-cost",
+      "from": "probe",
+      "to": "chief",
+      "trigger": "Probe detects service degradation or outage",
+      "payload": "Outage duration, affected services, user impact, error rates",
+      "action": "Chief estimates financial impact and prepares incident cost report",
+      "priority": "high"
     }
   ],
   "protocol": {
@@ -197,6 +270,10 @@
     "probe": {
       "user_id": "U0ALRTLF752",
       "session_target": "agent:probe:main"
+    },
+    "chief": {
+      "user_id": "U0ALERF7F9V",
+      "session_target": "agent:chief:main"
     }
   }
 }
