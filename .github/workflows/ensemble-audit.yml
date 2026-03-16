@@ -61,7 +61,7 @@ jobs:
         id: structure_check
         run: |
           ERRORS=0
-          for agent in scout trak kit scribe; do
+          for agent in scout trak kit scribe probe chief; do
             IDENTITY="agents/$agent/workspace/IDENTITY.md"
             if [ ! -f "$IDENTITY" ]; then
               echo "::error::Missing $IDENTITY"
@@ -94,7 +94,7 @@ jobs:
             # Check each ID is referenced in at least one IDENTITY.md
             for hid in $PROTOCOL_IDS; do
               FOUND=false
-              for agent in scout trak kit scribe; do
+              for agent in scout trak kit scribe probe chief; do
                 if grep -q "$hid" "agents/$agent/workspace/IDENTITY.md" 2>/dev/null; then
                   FOUND=true
                   break
@@ -110,10 +110,17 @@ jobs:
       - name: Verify entrypoint agent loops
         id: entrypoint_check
         run: |
-          EXPECTED_AGENTS="kit scout scribe trak"
+          # entrypoint.sh has two types of agent loops:
+          # 1. Validation loops (UPPERCASE): for agent in SCOUT TRAK KIT; for agent in SCRIBE PROBE CHIEF
+          # 2. Workspace injection loops (lowercase): for agent in scout trak kit scribe probe chief
+          # We only check workspace loops (lowercase) since validation loops intentionally split agents
+          EXPECTED_AGENTS="kit scout scribe trak probe chief"
           ERRORS=0
           LOOP_NUM=0
+          # Only check lowercase loops (workspace injection) — these must have all agents
           while IFS= read -r line; do
+            # Skip UPPERCASE validation loops (they intentionally split required vs optional)
+            if echo "$line" | grep -q '[A-Z]\{3,\}'; then continue; fi
             LOOP_NUM=$((LOOP_NUM + 1))
             for agent in $EXPECTED_AGENTS; do
               if ! echo "$line" | grep -qw "$agent"; then
@@ -122,8 +129,12 @@ jobs:
               fi
             done
           done < <(grep 'for agent in' entrypoint.sh)
+          if [ $LOOP_NUM -eq 0 ]; then
+            echo "::error::No lowercase agent loops found in entrypoint.sh"
+            exit 1
+          fi
           if [ $ERRORS -gt 0 ]; then exit 1; fi
-          echo "All agents present in all $LOOP_NUM entrypoint loops"
+          echo "All agents present in all $LOOP_NUM workspace injection loops"
 
       - name: Build pre-check summary
         id: summary

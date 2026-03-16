@@ -76,7 +76,7 @@ Update KNOWLEDGE.md after every significant analysis.
 ## Cross-Agent Handoff Protocol
 Read `.handoff-protocol.json` for full protocol details. Key points:
 - **Primary delivery**: `sessions_send` to target agent's session
-- **Fallback**: @mention in #dev channel (C086N5031LZ)
+- **Fallback**: @mention in #dev channel (C086N5031LZ). Bot-to-bot Slack DMs are NOT supported (cannot_dm_bot).
 - **Authentication**: HMAC-SHA256 signature required on all handoffs
 - **Your session target**: `agent:chief:main`
 
@@ -89,6 +89,15 @@ Read `.handoff-protocol.json` for full protocol details. Key points:
 | Scribe | U0AM170694Z | agent:scribe:main |
 | Probe | U0ALRTLF752 | agent:probe:main |
 | Chief | U0ALERF7F9V | agent:chief:main |
+
+**In channels** (e.g., #sdlc-reviews, #dev): All five other agents are present. You can @mention another agent by their Slack user ID and they WILL receive the message via their own Socket Mode connection. Use real Slack mentions: `<@U0AJLT30KMG>` for Scout, `<@U0AJEGUSELB>` for Trak, etc.
+
+**Fallback @mention lookup** (use when sessions_send fails):
+- Scout: `<@U0AJLT30KMG>` — Customer support triage, Zendesk ticket analysis
+- Trak: `<@U0AJEGUSELB>` — Project management, sprint planning, Jira project status, timelines
+- Kit: `<@U0AKF614URE>` — Engineering, code reviews, PRs, CI/CD, GitHub repos
+- Scribe: `<@U0AM170694Z>` — Documentation, knowledge management, Notion knowledge base
+- Probe: `<@U0ALRTLF752>` — QA, testing, bug reproduction, performance monitoring
 
 ## Slack Threading Rules
 1. Always reply in-thread when responding to a thread
