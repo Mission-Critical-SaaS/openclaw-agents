@@ -96,6 +96,27 @@
         "max_screenshots_per_session": 20,
         "max_bug_tickets_per_day": 5
       }
+    },
+    "chief": {
+      "daily": {
+        "stripe_api_calls": 50,
+        "mercury_api_calls": 30,
+        "qbo_api_calls": 30,
+        "slack_messages": 25,
+        "analysis_reports": 3
+      },
+      "monthly": {
+        "stripe_api_calls": 1000,
+        "mercury_api_calls": 600,
+        "qbo_api_calls": 600,
+        "slack_messages": 500,
+        "analysis_reports": 30
+      },
+      "per_action": {
+        "max_transactions_per_query": 500,
+        "max_reports_per_day": 3,
+        "max_handoffs_per_day": 10
+      }
     }
   },
   "enforcement": "advisory",

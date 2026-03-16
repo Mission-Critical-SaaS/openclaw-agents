@@ -54,6 +54,8 @@ export SLACK_BOT_TOKEN_SCRIBE=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_SCRIBE 
 export SLACK_APP_TOKEN_SCRIBE=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_SCRIBE // empty')
 export SLACK_BOT_TOKEN_PROBE=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_PROBE // empty')
 export SLACK_APP_TOKEN_PROBE=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_PROBE // empty')
+export SLACK_BOT_TOKEN_CHIEF=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_CHIEF // empty')
+export SLACK_APP_TOKEN_CHIEF=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_CHIEF // empty')
 
 # ── Validate critical Slack tokens ────────────────────────────
 echo "Validating Slack tokens..."
@@ -63,8 +65,8 @@ for agent in SCOUT TRAK KIT; do
   validate_token "$bot_var" "${!bot_var}" "xoxb" || exit 1
   validate_token "$app_var" "${!app_var}" "xapp" || exit 1
 done
-# Scribe and Probe are newer — warn but don't block startup
-for agent in SCRIBE PROBE; do
+# Scribe, Probe, and Chief are newer — warn but don't block startup
+for agent in SCRIBE PROBE CHIEF; do
   bot_var="SLACK_BOT_TOKEN_${agent}"
   app_var="SLACK_APP_TOKEN_${agent}"
   if [ -n "${!bot_var}" ] && [ "${!bot_var}" != "null" ]; then
@@ -102,6 +104,13 @@ export ZOHO_CLIENT_ID=$(echo "$SECRET" | jq -r '.ZOHO_CLIENT_ID // empty')
 export ZOHO_CLIENT_SECRET=$(echo "$SECRET" | jq -r '.ZOHO_CLIENT_SECRET // empty')
 export ZOHO_REFRESH_TOKEN=$(echo "$SECRET" | jq -r '.ZOHO_REFRESH_TOKEN // empty')
 export ZOHO_API_DOMAIN=$(echo "$SECRET" | jq -r '.ZOHO_API_DOMAIN // "https://www.zohoapis.com"')
+export STRIPE_KEY_MINUTE7=$(echo "$SECRET" | jq -r '.STRIPE_KEY_MINUTE7 // empty')
+export STRIPE_KEY_GOODHELP=$(echo "$SECRET" | jq -r '.STRIPE_KEY_GOODHELP // empty')
+export STRIPE_KEY_HTS=$(echo "$SECRET" | jq -r '.STRIPE_KEY_HTS // empty')
+export STRIPE_KEY_LMNTL=$(echo "$SECRET" | jq -r '.STRIPE_KEY_LMNTL // empty')
+export MERCURY_API_TOKEN=$(echo "$SECRET" | jq -r '.MERCURY_API_TOKEN // empty')
+export QBO_CLIENT_ID_CHIEF=$(echo "$SECRET" | jq -r '.QBO_CLIENT_ID_CHIEF // empty')
+export QBO_CLIENT_SECRET_CHIEF=$(echo "$SECRET" | jq -r '.QBO_CLIENT_SECRET_CHIEF // empty')
 export SLACK_ALLOW_FROM=$(echo "$SECRET" | jq -r .SLACK_ALLOW_FROM)
 export ANTHROPIC_API_KEY=$(echo "$SECRET" | jq -r .ANTHROPIC_API_KEY)
 if [ -z "$ANTHROPIC_API_KEY" ] || [ "$ANTHROPIC_API_KEY" = "null" ]; then
@@ -119,9 +128,8 @@ fi
 echo "Handoff HMAC key derived and validated."
 
 # Start inner entrypoint (which starts the gateway) in background
-"$@" > /tmp/gateway-init.log 2>&1 &
+"$@" &
 GATEWAY_PID=$!
-disown $GATEWAY_PID 2>/dev/null || true  # suppress bash Killed notification
 
 # Wait for gateway to create its config file
 # Inner entrypoint installs mcporter + gh CLI which does Zoho setup, zd-mcp-server patching, MCP config etc.
@@ -134,8 +142,6 @@ for i in $(seq 1 180); do
 done
 
 if [ -f "$CONF" ]; then
-  # Show inner entrypoint output (strip doctor box-drawing noise)
-  sed '/[│├╮╯◇]/d' /tmp/gateway-init.log 2>/dev/null || true
   echo "Gateway config found, injecting Slack channels..."
   python3 << 'INJECT_PYEOF'
 import json, os
@@ -161,6 +167,7 @@ for name, bk, ak in [
     ('kit', 'SLACK_BOT_TOKEN_KIT', 'SLACK_APP_TOKEN_KIT'),
     ('scribe', 'SLACK_BOT_TOKEN_SCRIBE', 'SLACK_APP_TOKEN_SCRIBE'),
     ('probe', 'SLACK_BOT_TOKEN_PROBE', 'SLACK_APP_TOKEN_PROBE'),
+    ('chief', 'SLACK_BOT_TOKEN_CHIEF', 'SLACK_APP_TOKEN_CHIEF'),
 ]:
     bot = os.environ.get(bk, '')
     app = os.environ.get(ak, '')
@@ -216,7 +223,7 @@ INJECT_PYEOF
   # files) was completed during the first run.
   # ============================================================
   echo "Restarting gateway to apply injected Slack channel config..."
-  kill -9 -- -$GATEWAY_PID 2>/dev/null || kill -9 $GATEWAY_PID 2>/dev/null || true
+  kill -- -$GATEWAY_PID 2>/dev/null || kill $GATEWAY_PID 2>/dev/null || true
   # Kill any respawned gateway child (the gateway may self-restart via
   # SIGUSR1 before our kill arrives, spawning a child process)
   sleep 1
@@ -348,7 +355,7 @@ WRAPPER_EOF
   # Note: symlinks don't work â OpenClaw virtual FS doesn't resolve them.
   # ============================================================
   echo "Injecting workspace files into agent workspaces..."
-  for agent in scout trak kit scribe probe; do
+  for agent in scout trak kit scribe probe chief; do
     SRC="/tmp/agents/${agent}/workspace"
     CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
@@ -385,7 +392,7 @@ WRAPPER_EOF
   # Dot-prefixed to avoid cluttering the agent's visible workspace.
   # ============================================================
   echo "Injecting security configs into agent workspaces..."
-  for agent in scout trak kit scribe probe; do
+  for agent in scout trak kit scribe probe chief; do
     CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     for target_dir in "$CFG" "$PERSIST"; do
@@ -403,7 +410,7 @@ WRAPPER_EOF
   # agent workspace for proactive capability governance.
   # ============================================================
   echo "Injecting proactive capability configs into agent workspaces..."
-  for agent in scout trak kit scribe probe; do
+  for agent in scout trak kit scribe probe chief; do
     CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     for target_dir in "$CFG" "$PERSIST"; do
@@ -427,7 +434,7 @@ WRAPPER_EOF
   echo "Populating main workspace for memory indexing..."
   MAIN_WS="/home/openclaw/.openclaw/.openclaw/workspace"
   mkdir -p "$MAIN_WS/memory"
-  for agent in scout trak kit scribe probe; do
+  for agent in scout trak kit scribe probe chief; do
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     if [ -f "$PERSIST/KNOWLEDGE.md" ]; then
       cp "$PERSIST/KNOWLEDGE.md" "$MAIN_WS/memory/KNOWLEDGE-${agent}.md"
