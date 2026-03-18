@@ -494,6 +494,12 @@ WRAPPER_EOF
     echo "Python dependencies already present."
   fi
 
+  # Fix ownership AGAIN after all file operations (pip install, workspace
+  # injection, memory indexing all create files as root). Without this,
+  # the gateway gets EACCES on workspace/AGENTS.md and agents can't respond.
+  chown -R openclaw:openclaw /home/openclaw/.openclaw 2>/dev/null || true
+  echo "Ownership fixed (pre-gateway chown)."
+
   # Start gateway DIRECTLY â one-time setup is already done
   # Workspace files are in place so the gateway discovers them on scan
   echo "Starting gateway with injected channel config..."
