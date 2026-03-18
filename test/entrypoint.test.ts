@@ -205,7 +205,7 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
   });
 
   test('gateway kill happens before logrotate setup', () => {
-    const killIdx = script.indexOf('kill -9 -- -');
+    const killIdx = script.indexOf('kill -- -');
     const logrotateIdx = script.indexOf('logrotate');
     expect(killIdx).toBeGreaterThan(-1);
     expect(killIdx).toBeLessThan(logrotateIdx);
@@ -893,7 +893,7 @@ describe('GitHub App auth lifecycle', () => {
   test('token generation happens before inner entrypoint starts', () => {
     const tokenGenIdx = script.indexOf('github-app-token.sh');
     // Find the "$@" & that starts the inner entrypoint (not eval "$@" in aws_retry)
-    const innerStartIdx = script.indexOf('"$@" >');
+    const innerStartIdx = script.indexOf('"$@" &');
     expect(tokenGenIdx).toBeGreaterThan(-1);
     expect(innerStartIdx).toBeGreaterThan(-1);
     expect(tokenGenIdx).toBeLessThan(innerStartIdx);
@@ -1949,23 +1949,23 @@ describe('Cross-agent handoff configuration', () => {
     expect(outerEntrypoint).toContain("cross-agent handoffs");
   });
 
-  test('handoff protocol specifies sessions_send as primary delivery', () => {
+test('handoff protocol specifies sessions_send as primary delivery', () => {
     const parsed = JSON.parse(handoffProtocol);
-    expect(parsed.protocol.delivery_methods).toBeDefined();
-    expect(parsed.protocol.delivery_methods.primary.method).toBe('sessions_send');
-    expect(parsed.protocol.delivery_methods.fallback.method).toBe('channel_mention');
-    expect(parsed.protocol.delivery_methods.blocked.method).toBe('slack_dm');
+    expect(parsed.protocol.forbidden_delivery_methods).toBeDefined();
+    expect(parsed.protocol.forbidden_delivery_methods.sessions_send.method).toBe('sessions_send');
+    expect(parsed.protocol.forbidden_delivery_methods.sessions_send.status).toBe('disabled_for_security');
+    expect(parsed.protocol.available_delivery_methods.channel_mention_dev.method).toBe('channel_mention');
   });
 
-  test('handoff protocol marks bot-to-bot DMs as blocked', () => {
+test('handoff protocol marks bot-to-bot DMs as blocked', () => {
     const parsed = JSON.parse(handoffProtocol);
-    expect(parsed.protocol.delivery_methods.blocked.status).toBe('blocked_by_slack_api');
-    expect(parsed.protocol.delivery_methods.blocked.description).toContain('cannot_dm_bot');
+    expect(parsed.protocol.forbidden_delivery_methods.slack_dm.status).toBe('blocked_by_slack_api');
+    expect(parsed.protocol.forbidden_delivery_methods.slack_dm.reason).toContain('cannot_dm_bot');
   });
 
-  test('handoff protocol includes fallback channel ID for #dev', () => {
+test('handoff protocol includes fallback channel ID for #dev', () => {
     const parsed = JSON.parse(handoffProtocol);
-    expect(parsed.protocol.delivery_methods.fallback.channel_id).toBe('C086N5031LZ');
+    expect(parsed.protocol.available_delivery_methods.channel_mention_dev.channel_id).toBe('C086N5031LZ');
   });
 
   test('handoff protocol retains HMAC authentication', () => {
@@ -1985,20 +1985,18 @@ describe('Cross-agent handoff configuration', () => {
     }
   });
 
-  test('handoff protocol includes agent_slack_ids map with all 6 agents', () => {
+test('handoff protocol includes agent_slack_ids map with all 6 agents', () => {
     const parsed = JSON.parse(handoffProtocol);
     expect(parsed.agent_slack_ids).toBeDefined();
-    const agents = Object.keys(parsed.agent_slack_ids);
-    expect(agents).toContain('scout');
-    expect(agents).toContain('trak');
-    expect(agents).toContain('kit');
-    expect(agents).toContain('scribe');
-    expect(agents).toContain('probe');
-    expect(agents).toContain('chief');
-    // Each agent has user_id and session_target
-    for (const agent of agents) {
+    const originalAgents = ['scout', 'trak', 'kit', 'scribe', 'probe', 'chief', 'ledger'];
+    for (const agent of originalAgents) {
+      expect(parsed.agent_slack_ids[agent]).toBeDefined();
       expect(parsed.agent_slack_ids[agent].user_id).toMatch(/^U0/);
       expect(parsed.agent_slack_ids[agent].session_target).toMatch(/^agent:[a-z]+:main$/);
+    }
+    const newAgents = ['harvest', 'prospector', 'outreach', 'cadence'];
+    for (const agent of newAgents) {
+      expect(parsed.agent_slack_ids[agent]).toBeDefined();
     }
   });
 
