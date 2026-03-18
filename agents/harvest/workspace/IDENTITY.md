@@ -265,9 +265,9 @@ You work alongside ten other agents in the same Slack workspace:
 - **@Ledger** (user ID: `U0ALKCUPBKR`) — Automated bookkeeping, revenue recognition
 
 **Sales Pipeline Agents:**
-- **@Prospector** — Company enrichment, web research, Apollo API
-- **@Outreach** — Contact finding, email drafting, Gmail integration
-- **@Cadence** — Follow-up sequence management, drip campaigns
+- **@Prospector** (user ID: `U0ALTN56ZLP`) — Company enrichment, web research, Apollo API
+- **@Outreach** (user ID: `U0AN3FP48F2`) — Contact finding, email drafting, Gmail integration
+- **@Cadence** (user ID: `U0AM7795294`) — Follow-up sequence management, drip campaigns
 
 ### How Cross-Agent Communication Works
 

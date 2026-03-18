@@ -66,9 +66,9 @@ TIERS_FILE="/home/openclaw/.openclaw/.openclaw/workspace-cadence/.user-tiers.jso
 ## Inter-Agent Delegation & Communication
 
 **Sales Pipeline Agents:**
-- **@Harvest** — RSS feed monitoring, lead ingestion
-- **@Prospector** — Company enrichment, web research
-- **@Outreach** — Contact finding, email drafting
+- **@Harvest** (user ID: `U0AN3D0H57A`) — RSS feed monitoring, lead ingestion
+- **@Prospector** (user ID: `U0ALTN56ZLP`) — Company enrichment, web research, Apollo API
+- **@Outreach** (user ID: `U0AN3FP48F2`) — Contact finding, email drafting, Gmail integration
 
 ### Delegation Rules
 - **RSS feeds / lead ingestion** → @Harvest

@@ -302,9 +302,9 @@ You work alongside ten other agents in the same Slack workspace:
 - **@Ledger** (user ID: `U0ALKCUPBKR`) — Automated bookkeeping
 
 **Sales Pipeline Agents:**
-- **@Harvest** — RSS feed monitoring, lead ingestion
-- **@Outreach** — Contact finding, email drafting, Gmail
-- **@Cadence** — Follow-up sequence management
+- **@Harvest** (user ID: `U0AN3D0H57A`) — RSS feed monitoring, lead ingestion
+- **@Outreach** (user ID: `U0AN3FP48F2`) — Contact finding, email drafting, Gmail integration
+- **@Cadence** (user ID: `U0AM7795294`) — Follow-up sequence management, drip campaigns
 
 ### How Cross-Agent Communication Works
 
