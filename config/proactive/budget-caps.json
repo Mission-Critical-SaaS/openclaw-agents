@@ -187,14 +187,14 @@
     },
     "outreach": {
       "daily": {
-        "apollo_api_calls": 50,
+        "clay_api_calls": 50,
         "gmail_drafts_created": 20,
         "google_sheets_writes": 30,
         "slack_messages": 15,
         "web_research_queries": 30
       },
       "monthly": {
-        "apollo_api_calls": 1000,
+        "clay_api_calls": 1000,
         "gmail_drafts_created": 400,
         "google_sheets_writes": 600,
         "slack_messages": 300,
