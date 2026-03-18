@@ -488,7 +488,7 @@ WRAPPER_EOF
   echo "Installing Python dependencies for sales agents..."
   if ! python3 -c "import feedparser" 2>/dev/null; then
     curl -sS https://bootstrap.pypa.io/get-pip.py | python3 > /dev/null 2>&1
-    python3 -m pip install feedparser google-api-python-client google-auth boto3 beautifulsoup4 requests --root-user-action=ignore > /dev/null 2>&1
+    python3 -m pip install feedparser google-api-python-client google-auth beautifulsoup4 requests --root-user-action=ignore > /dev/null 2>&1
     echo "Python dependencies installed."
   else
     echo "Python dependencies already present."
