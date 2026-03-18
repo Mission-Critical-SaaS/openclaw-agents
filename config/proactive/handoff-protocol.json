@@ -431,19 +431,19 @@
       "session_target": "agent:ledger:main"
     },
     "harvest": {
-      "user_id": "PENDING_SLACK_APP_SETUP",
+      "user_id": "U0AN3D0H57A",
       "session_target": "agent:harvest:main"
     },
     "prospector": {
-      "user_id": "PENDING_SLACK_APP_SETUP",
+      "user_id": "U0ALTN56ZLP",
       "session_target": "agent:prospector:main"
     },
     "outreach": {
-      "user_id": "PENDING_SLACK_APP_SETUP",
+      "user_id": "U0AN3FP48F2",
       "session_target": "agent:outreach:main"
     },
     "cadence": {
-      "user_id": "PENDING_SLACK_APP_SETUP",
+      "user_id": "U0AM7795294",
       "session_target": "agent:cadence:main"
     }
   }
