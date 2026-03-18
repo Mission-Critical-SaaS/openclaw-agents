@@ -214,10 +214,100 @@
       "payload": "Outage duration, affected services, user impact, error rates",
       "action": "Chief estimates financial impact and prepares incident cost report",
       "priority": "high"
+    },
+    {
+      "id": "ledger-to-chief-reconciliation",
+      "from": "ledger",
+      "to": "chief",
+      "trigger": "Ledger completes a reconciliation cycle or finds discrepancies",
+      "payload": "Reconciliation summary, matched/unmatched counts, discrepancy details, period covered",
+      "action": "Chief incorporates reconciliation data into financial analysis and runway calculations",
+      "priority": "medium"
+    },
+    {
+      "id": "chief-to-ledger-booking-request",
+      "from": "chief",
+      "to": "ledger",
+      "trigger": "Chief identifies unbooked revenue or expenses during financial analysis",
+      "payload": "Transaction details, suggested accounts, amounts, source data references",
+      "action": "Ledger drafts journal entries and queues them for human approval",
+      "priority": "high"
+    },
+    {
+      "id": "ledger-to-trak-booking-gap",
+      "from": "ledger",
+      "to": "trak",
+      "trigger": "Ledger identifies recurring booking gaps or process issues",
+      "payload": "Gap description, affected verticals, frequency, suggested fix",
+      "action": "Trak creates a Jira task to track resolution of the bookkeeping gap",
+      "priority": "medium"
+    },
+    {
+      "id": "ledger-to-scribe-month-end",
+      "from": "ledger",
+      "to": "scribe",
+      "trigger": "Ledger completes month-end reconciliation",
+      "payload": "Reconciliation report, journal entries created, outstanding items, P&L summary",
+      "action": "Scribe publishes the month-end reconciliation report to Notion",
+      "priority": "medium"
+    },
+    {
+      "id": "harvest-to-prospector-new-leads",
+      "from": "harvest",
+      "to": "prospector",
+      "trigger": "Harvest completes an RSS polling cycle and finds new leads",
+      "payload": "List of new incoming_ids, source feeds, article titles, stream_ids",
+      "action": "Prospector enriches each new lead with company data and qualification checks",
+      "priority": "high"
+    },
+    {
+      "id": "prospector-to-outreach-qualified",
+      "from": "prospector",
+      "to": "outreach",
+      "trigger": "Prospector completes enrichment and a company passes qualification filters",
+      "payload": "Company_id, company_name, website, contract details, enrichment summary",
+      "action": "Outreach finds decision-maker contacts and drafts personalized emails",
+      "priority": "high"
+    },
+    {
+      "id": "outreach-to-cadence-initial-sent",
+      "from": "outreach",
+      "to": "cadence",
+      "trigger": "Outreach creates initial email drafts for a qualified contact",
+      "payload": "Outreach_id, contact_id, company_id, template_id, gmail_draft_id",
+      "action": "Cadence adds the contact to the follow-up sequence and schedules next touchpoints",
+      "priority": "medium"
+    },
+    {
+      "id": "harvest-to-trak-pipeline-issue",
+      "from": "harvest",
+      "to": "trak",
+      "trigger": "Harvest encounters persistent RSS feed failures or data quality issues",
+      "payload": "Feed name, error description, failure count, last successful poll timestamp",
+      "action": "Trak creates a Jira issue in GTMS to track the pipeline problem",
+      "priority": "medium"
+    },
+    {
+      "id": "prospector-to-trak-enrichment-gap",
+      "from": "prospector",
+      "to": "trak",
+      "trigger": "Prospector identifies systematic gaps in enrichment data sources",
+      "payload": "Gap description, affected companies count, suggested data source improvements",
+      "action": "Trak creates a Jira task to address the enrichment gap",
+      "priority": "low"
+    },
+    {
+      "id": "cadence-to-chief-pipeline-metrics",
+      "from": "cadence",
+      "to": "chief",
+      "trigger": "Cadence completes a weekly pipeline metrics roll-up",
+      "payload": "Leads ingested, companies enriched, contacts found, emails sent, reply rate, pipeline value",
+      "action": "Chief incorporates sales pipeline metrics into business performance analysis",
+      "priority": "medium"
     }
   ],
   "protocol": {
-    "delivery": "Primary: sessions_send to the target agent's active session (requires tools.sessions.visibility=all in gateway config). Fallback: @mention the target agent in #dev channel with the full handoff payload. Bot-to-bot Slack DMs are NOT supported by Slack's API.",
+    "delivery": "Two channels based on sensitivity. Non-sensitive handoffs: @mention target in #dev (C086N5031LZ). Sensitive/financial handoffs or anything involving Chief or Ledger: @mention target in #agent-ops (C0AMHF5J9Q9). All agents are members of #agent-ops. Session-to-session delivery is disabled (visibility=tree). Bot-to-bot Slack DMs are NOT supported by Slack's API.",
     "format": "Include handoff ID, trigger context, and payload. Use thread for follow-up.",
     "acknowledgment": "Target agent must acknowledge within the conversation",
     "timeout": "If no acknowledgment in 30 minutes, retry once. After second failure, log and notify admin.",
@@ -229,26 +319,87 @@
       "format": "Include `[HMAC:<hex-signature>]` at the end of the handoff message. Signature is HMAC-SHA256 of the message body (everything before the HMAC tag) using the shared key from HANDOFF_HMAC_KEY environment variable.",
       "verification": "Receiving agent must verify the HMAC signature before processing the handoff. Reject messages with missing or invalid signatures."
     },
-    "delivery_methods": {
-      "primary": {
-        "method": "sessions_send",
-        "description": "Send handoff message directly to the target agent's session via OpenClaw's internal session messaging. This is the fastest and most reliable method.",
-        "how": "Use the sessions_send tool with target agent:TARGET_NAME:main and include the HMAC-signed handoff payload.",
-        "requires": "tools.sessions.visibility must be set to 'all' in gateway config"
-      },
-      "fallback": {
-        "method": "channel_mention",
-        "description": "Post handoff message to #dev (C086N5031LZ) with @mention of target agent. Used when sessions_send fails or target has no active session.",
-        "how": "Post to #dev channel with @TARGET_USER_ID mention and full handoff payload including HMAC signature.",
+    "channels": {
+      "dev": {
         "channel_id": "C086N5031LZ",
-        "note": "Use agent_slack_ids map to look up the correct user ID for the @mention"
+        "name": "#dev",
+        "visibility": "public",
+        "purpose": "General ops handoffs between Scout, Trak, Kit, Scribe, and Probe. No financial or confidential data here.",
+        "members": ["scout", "trak", "kit", "scribe", "probe"],
+        "excluded": ["chief", "ledger"],
+        "use_for": "Non-sensitive cross-agent handoffs, status updates, coordination"
       },
-      "blocked": {
+      "agent_ops": {
+        "channel_id": "C0AMHF5J9Q9",
+        "name": "#agent-ops",
+        "visibility": "private",
+        "purpose": "Sensitive and financial handoffs. ALL agents are members. David and Michael monitor this channel.",
+        "members": ["scout", "trak", "kit", "scribe", "probe", "chief", "ledger", "harvest", "prospector", "outreach", "cadence"],
+        "use_for": "Any handoff involving financial data, confidential information, or targeting Chief/Ledger. Also used for multi-agent coordination that involves sensitive context."
+      },
+      "sales_ops": {
+        "channel_id": "C0AMC03JJSY",
+        "name": "#sales-ops",
+        "visibility": "private",
+        "purpose": "Sales pipeline coordination. All 4 sales agents plus sales team (Nate, David, Debbie, Michael).",
+        "members": ["harvest", "prospector", "outreach", "cadence"],
+        "use_for": "Sales pipeline handoffs, lead status updates, enrichment coordination, outreach tracking"
+      }
+    },
+    "financial_agents": {
+      "description": "Chief and Ledger handle sensitive financial data. They operate in DMs with authorized users (David, Michael) and in #agent-ops only. They must NEVER be added to #dev or any public channel.",
+      "agents": ["chief", "ledger"],
+      "allowed_channels": ["C0AMHF5J9Q9"],
+      "forbidden_channels": ["C086N5031LZ"],
+      "authorized_users": ["U082DEF37PC", "U081YTU8JCX"]
+    },
+    "available_delivery_methods": {
+      "channel_mention_dev": {
+        "method": "channel_mention",
+        "description": "Post handoff to #dev (C086N5031LZ) with @mention of target agent. Use for non-sensitive handoffs between ops agents only.",
+        "how": "Post to #dev with @TARGET_USER_ID mention and HMAC-signed payload.",
+        "channel_id": "C086N5031LZ",
+        "valid_targets": ["scout", "trak", "kit", "scribe", "probe"],
+        "note": "NEVER post financial data or mention Chief/Ledger in #dev."
+      },
+      "channel_mention_agent_ops": {
+        "method": "channel_mention",
+        "description": "Post handoff to #agent-ops (C0AMHF5J9Q9) with @mention of target agent. Use for any handoff involving financial/sensitive data, or targeting Chief or Ledger.",
+        "how": "Post to #agent-ops with @TARGET_USER_ID mention and HMAC-signed payload.",
+        "channel_id": "C0AMHF5J9Q9",
+        "valid_targets": ["scout", "trak", "kit", "scribe", "probe", "chief", "ledger", "harvest", "prospector", "outreach", "cadence"],
+        "note": "All agents are members. David and Michael also monitor this channel."
+      },
+      "channel_mention_sales_ops": {
+        "method": "channel_mention",
+        "description": "Post handoff to #sales-ops (C0AMC03JJSY) with @mention of target agent. Use for sales pipeline handoffs between sales agents.",
+        "how": "Post to #sales-ops with @TARGET_USER_ID mention and HMAC-signed payload.",
+        "channel_id": "C0AMC03JJSY",
+        "valid_targets": ["harvest", "prospector", "outreach", "cadence"],
+        "note": "Sales pipeline agents only. Sales team (Nate, David, Debbie, Michael) also monitor."
+      }
+    },
+    "forbidden_delivery_methods": {
+      "sessions_send": {
+        "method": "sessions_send",
+        "reason": "DISABLED. tools.sessions.visibility is set to 'tree' for agent isolation. Do NOT attempt — will return 'forbidden'.",
+        "status": "disabled_for_security"
+      },
+      "slack_dm": {
         "method": "slack_dm",
-        "description": "Bot-to-bot Slack DMs are NOT supported. Slack returns 'cannot_dm_bot'. Do NOT attempt this.",
+        "reason": "Bot-to-bot Slack DMs are NOT supported. Slack returns 'cannot_dm_bot'. Do NOT attempt.",
         "status": "blocked_by_slack_api"
       }
-    }
+    },
+    "routing_rules": [
+      {"from": "any", "to": ["chief", "ledger"], "channel": "agent_ops", "reason": "Financial agents only operate in #agent-ops"},
+      {"from": ["chief", "ledger"], "to": "any", "channel": "agent_ops", "reason": "Financial agents only post in #agent-ops"},
+      {"from": ["scout", "trak", "kit", "scribe", "probe"], "to": ["scout", "trak", "kit", "scribe", "probe"], "channel": "dev", "reason": "Non-sensitive ops handoffs go to #dev"},
+      {"from": ["scout", "trak", "kit", "scribe", "probe"], "to": ["scout", "trak", "kit", "scribe", "probe"], "channel": "agent_ops", "reason": "Use #agent-ops instead of #dev when handoff involves sensitive/financial context"},
+      {"from": ["harvest", "prospector", "outreach", "cadence"], "to": ["harvest", "prospector", "outreach", "cadence"], "channel": "sales_ops", "reason": "Sales pipeline handoffs go to #sales-ops"},
+      {"from": ["harvest", "prospector", "outreach", "cadence"], "to": ["trak", "kit", "scribe"], "channel": "agent_ops", "reason": "Cross-domain sales→ops handoffs go to #agent-ops"},
+      {"from": ["cadence"], "to": ["chief"], "channel": "agent_ops", "reason": "Pipeline metrics to Chief go to #agent-ops"}
+    ]
   },
   "agent_slack_ids": {
     "scout": {
@@ -274,6 +425,26 @@
     "chief": {
       "user_id": "U0ALERF7F9V",
       "session_target": "agent:chief:main"
+    },
+    "ledger": {
+      "user_id": "U0ALKCUPBKR",
+      "session_target": "agent:ledger:main"
+    },
+    "harvest": {
+      "user_id": "PENDING_SLACK_APP_SETUP",
+      "session_target": "agent:harvest:main"
+    },
+    "prospector": {
+      "user_id": "PENDING_SLACK_APP_SETUP",
+      "session_target": "agent:prospector:main"
+    },
+    "outreach": {
+      "user_id": "PENDING_SLACK_APP_SETUP",
+      "session_target": "agent:outreach:main"
+    },
+    "cadence": {
+      "user_id": "PENDING_SLACK_APP_SETUP",
+      "session_target": "agent:cadence:main"
     }
   }
 }

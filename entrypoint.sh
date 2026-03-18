@@ -57,6 +57,16 @@ export SLACK_APP_TOKEN_PROBE=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_PROBE //
 export SLACK_BOT_TOKEN_CHIEF=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_CHIEF // empty')
 export SLACK_APP_TOKEN_CHIEF=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_CHIEF // empty')
 
+# Sales pipeline agents (Phase 1+)
+export SLACK_BOT_TOKEN_HARVEST=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_HARVEST // empty')
+export SLACK_APP_TOKEN_HARVEST=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_HARVEST // empty')
+export SLACK_BOT_TOKEN_PROSPECTOR=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_PROSPECTOR // empty')
+export SLACK_APP_TOKEN_PROSPECTOR=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_PROSPECTOR // empty')
+export SLACK_BOT_TOKEN_OUTREACH=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_OUTREACH // empty')
+export SLACK_APP_TOKEN_OUTREACH=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_OUTREACH // empty')
+export SLACK_BOT_TOKEN_CADENCE=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_CADENCE // empty')
+export SLACK_APP_TOKEN_CADENCE=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_CADENCE // empty')
+
 # ── Validate critical Slack tokens ────────────────────────────
 echo "Validating Slack tokens..."
 for agent in SCOUT TRAK KIT; do
@@ -65,8 +75,8 @@ for agent in SCOUT TRAK KIT; do
   validate_token "$bot_var" "${!bot_var}" "xoxb" || exit 1
   validate_token "$app_var" "${!app_var}" "xapp" || exit 1
 done
-# Scribe, Probe, and Chief are newer — warn but don't block startup
-for agent in SCRIBE PROBE CHIEF; do
+# Scribe, Probe, Chief, and sales agents are newer — warn but don't block startup
+for agent in SCRIBE PROBE CHIEF HARVEST PROSPECTOR OUTREACH CADENCE; do
   bot_var="SLACK_BOT_TOKEN_${agent}"
   app_var="SLACK_APP_TOKEN_${agent}"
   if [ -n "${!bot_var}" ] && [ "${!bot_var}" != "null" ]; then
@@ -128,9 +138,8 @@ fi
 echo "Handoff HMAC key derived and validated."
 
 # Start inner entrypoint (which starts the gateway) in background
-"$@" > /tmp/gateway-init.log 2>&1 &
+"$@" &
 GATEWAY_PID=$!
-disown $GATEWAY_PID 2>/dev/null || true  # suppress bash Killed notification
 
 # Wait for gateway to create its config file
 # Inner entrypoint installs mcporter + gh CLI which does Zoho setup, zd-mcp-server patching, MCP config etc.
@@ -143,8 +152,6 @@ for i in $(seq 1 180); do
 done
 
 if [ -f "$CONF" ]; then
-  # Show inner entrypoint output (strip doctor box-drawing noise)
-  sed '/[│├╮╯◇]/d' /tmp/gateway-init.log 2>/dev/null || true
   echo "Gateway config found, injecting Slack channels..."
   python3 << 'INJECT_PYEOF'
 import json, os
@@ -171,6 +178,10 @@ for name, bk, ak in [
     ('scribe', 'SLACK_BOT_TOKEN_SCRIBE', 'SLACK_APP_TOKEN_SCRIBE'),
     ('probe', 'SLACK_BOT_TOKEN_PROBE', 'SLACK_APP_TOKEN_PROBE'),
     ('chief', 'SLACK_BOT_TOKEN_CHIEF', 'SLACK_APP_TOKEN_CHIEF'),
+    ('harvest', 'SLACK_BOT_TOKEN_HARVEST', 'SLACK_APP_TOKEN_HARVEST'),
+    ('prospector', 'SLACK_BOT_TOKEN_PROSPECTOR', 'SLACK_APP_TOKEN_PROSPECTOR'),
+    ('outreach', 'SLACK_BOT_TOKEN_OUTREACH', 'SLACK_APP_TOKEN_OUTREACH'),
+    ('cadence', 'SLACK_BOT_TOKEN_CADENCE', 'SLACK_APP_TOKEN_CADENCE'),
 ]:
     bot = os.environ.get(bk, '')
     app = os.environ.get(ak, '')
@@ -226,7 +237,7 @@ INJECT_PYEOF
   # files) was completed during the first run.
   # ============================================================
   echo "Restarting gateway to apply injected Slack channel config..."
-  kill -9 -- -$GATEWAY_PID 2>/dev/null || kill -9 $GATEWAY_PID 2>/dev/null || true
+  kill -- -$GATEWAY_PID 2>/dev/null || kill $GATEWAY_PID 2>/dev/null || true
   # Kill any respawned gateway child (the gateway may self-restart via
   # SIGUSR1 before our kill arrives, spawning a child process)
   sleep 1
@@ -358,7 +369,7 @@ WRAPPER_EOF
   # Note: symlinks don't work â OpenClaw virtual FS doesn't resolve them.
   # ============================================================
   echo "Injecting workspace files into agent workspaces..."
-  for agent in scout trak kit scribe probe chief; do
+  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence; do
     SRC="/tmp/agents/${agent}/workspace"
     CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
@@ -395,7 +406,7 @@ WRAPPER_EOF
   # Dot-prefixed to avoid cluttering the agent's visible workspace.
   # ============================================================
   echo "Injecting security configs into agent workspaces..."
-  for agent in scout trak kit scribe probe chief; do
+  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence; do
     CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     for target_dir in "$CFG" "$PERSIST"; do
@@ -413,7 +424,7 @@ WRAPPER_EOF
   # agent workspace for proactive capability governance.
   # ============================================================
   echo "Injecting proactive capability configs into agent workspaces..."
-  for agent in scout trak kit scribe probe chief; do
+  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence; do
     CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     for target_dir in "$CFG" "$PERSIST"; do
@@ -437,7 +448,7 @@ WRAPPER_EOF
   echo "Populating main workspace for memory indexing..."
   MAIN_WS="/home/openclaw/.openclaw/.openclaw/workspace"
   mkdir -p "$MAIN_WS/memory"
-  for agent in scout trak kit scribe probe chief; do
+  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence; do
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     if [ -f "$PERSIST/KNOWLEDGE.md" ]; then
       cp "$PERSIST/KNOWLEDGE.md" "$MAIN_WS/memory/KNOWLEDGE-${agent}.md"
