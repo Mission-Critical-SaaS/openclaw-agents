@@ -478,6 +478,22 @@ WRAPPER_EOF
   echo "Unsetting GITHUB_TOKEN env var (gh will read from hosts.yml, kept fresh by refresh loop)..."
   unset GITHUB_TOKEN
 
+  # ============================================================
+  # PYTHON DEPENDENCIES FOR SALES AGENTS
+  # Install pip + packages needed by Harvest, Prospector, and
+  # Outreach agents for Google Sheets, RSS feeds, Apollo API,
+  # Gmail API, and web scraping. These are not in the base
+  # Docker image and must be installed on every container start.
+  # ============================================================
+  echo "Installing Python dependencies for sales agents..."
+  if ! python3 -c "import feedparser" 2>/dev/null; then
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3 > /dev/null 2>&1
+    python3 -m pip install feedparser google-api-python-client google-auth boto3 beautifulsoup4 requests --root-user-action=ignore > /dev/null 2>&1
+    echo "Python dependencies installed."
+  else
+    echo "Python dependencies already present."
+  fi
+
   # Start gateway DIRECTLY â one-time setup is already done
   # Workspace files are in place so the gateway discovers them on scan
   echo "Starting gateway with injected channel config..."
