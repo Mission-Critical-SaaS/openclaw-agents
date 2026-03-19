@@ -80,13 +80,112 @@ export class OpenclawAgentsStack extends cdk.Stack {
     }));
 
     // ──────────────────────────────────────────────
-    // CloudWatch Logs
+    // CloudWatch Logs (Tier-Specific)
     // ──────────────────────────────────────────────
-    const logGroup = new logs.LogGroup(this, 'OpenClawLogs', {
-      logGroupName: '/openclaw/agents',
+    // Admin tier log group
+    const adminLogGroup = new logs.LogGroup(this, 'OpenClawAdminLogs', {
+      logGroupName: '/openclaw/agents/admin',
       retention: logs.RetentionDays.TWO_WEEKS,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
+
+    // Standard tier log group
+    const standardLogGroup = new logs.LogGroup(this, 'OpenClawStandardLogs', {
+      logGroupName: '/openclaw/agents/standard',
+      retention: logs.RetentionDays.TWO_WEEKS,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // ──────────────────────────────────────────────
+    // IAM Policies for Log Access Control
+    // ──────────────────────────────────────────────
+    // IAM policy that grants access to admin logs - attach ONLY to admin users/roles
+    // ATTACHMENT TARGETS: Michael Wong, David Allison (admin-tier users)
+    const adminLogAccessPolicy = new iam.ManagedPolicy(this, 'AdminLogAccessPolicy', {
+      managedPolicyName: 'openclaw-admin-log-access',
+      description: 'Grants read access to admin tier CloudWatch logs. Attach to: Michael, David',
+      statements: [
+        new iam.PolicyStatement({
+          sid: 'AllowAdminLogAccess',
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'logs:GetLogEvents',
+            'logs:FilterLogEvents',
+            'logs:DescribeLogStreams',
+            'logs:DescribeLogGroups',
+            'logs:StartQuery',
+            'logs:GetQueryResults',
+          ],
+          resources: [
+            adminLogGroup.logGroupArn,
+            `${adminLogGroup.logGroupArn}:*`,
+          ],
+        }),
+      ],
+    });
+
+    // Standard log access - available to all authorized users
+    // ATTACHMENT TARGETS: All team members (developers, support, admins)
+    const standardLogAccessPolicy = new iam.ManagedPolicy(this, 'StandardLogAccessPolicy', {
+      managedPolicyName: 'openclaw-standard-log-access',
+      description: 'Grants read access to standard tier CloudWatch logs. Attach to: all team members',
+      statements: [
+        new iam.PolicyStatement({
+          sid: 'AllowStandardLogAccess',
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'logs:GetLogEvents',
+            'logs:FilterLogEvents',
+            'logs:DescribeLogStreams',
+            'logs:DescribeLogGroups',
+            'logs:StartQuery',
+            'logs:GetQueryResults',
+          ],
+          resources: [
+            standardLogGroup.logGroupArn,
+            `${standardLogGroup.logGroupArn}:*`,
+          ],
+        }),
+      ],
+    });
+
+    // Deny policy for standard users trying to access admin logs
+    // ATTACHMENT TARGETS: Non-admin team members (developers, support - NOT Michael/David)
+    const denyAdminLogAccessPolicy = new iam.ManagedPolicy(this, 'DenyAdminLogAccessPolicy', {
+      managedPolicyName: 'openclaw-deny-admin-log-access',
+      description: 'Denies access to admin tier CloudWatch logs. Attach to: non-admin users',
+      statements: [
+        new iam.PolicyStatement({
+          sid: 'DenyAdminLogAccess',
+          effect: iam.Effect.DENY,
+          actions: [
+            'logs:GetLogEvents',
+            'logs:FilterLogEvents',
+            'logs:DescribeLogStreams',
+            'logs:DescribeLogGroups',
+            'logs:StartQuery',
+            'logs:GetQueryResults',
+          ],
+          resources: [
+            adminLogGroup.logGroupArn,
+            `${adminLogGroup.logGroupArn}:*`,
+          ],
+        }),
+      ],
+    });
+
+    // EC2 instance needs to write to BOTH log groups
+    // NOTE: Single EC2 hosts both containers, so it needs write access to both
+    role.addToPolicy(new iam.PolicyStatement({
+      sid: 'CloudWatchLogsWrite',
+      actions: ['logs:CreateLogStream', 'logs:PutLogEvents'],
+      resources: [
+        adminLogGroup.logGroupArn,
+        `${adminLogGroup.logGroupArn}:*`,
+        standardLogGroup.logGroupArn,
+        `${standardLogGroup.logGroupArn}:*`,
+      ],
+    }));
 
     // ──────────────────────────────────────────────
     // User Data — reads scripts/bootstrap.sh
@@ -232,8 +331,24 @@ export class OpenclawAgentsStack extends cdk.Stack {
       value: sg.securityGroupId,
     });
 
-    new cdk.CfnOutput(this, 'LogGroup', {
-      value: logGroup.logGroupName,
+    new cdk.CfnOutput(this, 'AdminLogGroup', {
+      value: adminLogGroup.logGroupName,
+      description: 'Admin tier CloudWatch log group',
+    });
+
+    new cdk.CfnOutput(this, 'StandardLogGroup', {
+      value: standardLogGroup.logGroupName,
+      description: 'Standard tier CloudWatch log group',
+    });
+
+    new cdk.CfnOutput(this, 'AdminLogAccessPolicyArn', {
+      value: adminLogAccessPolicy.managedPolicyArn,
+      description: 'Attach to admin IAM users (Michael, David) for admin log access',
+    });
+
+    new cdk.CfnOutput(this, 'DenyAdminLogAccessPolicyArn', {
+      value: denyAdminLogAccessPolicy.managedPolicyArn,
+      description: 'Attach to non-admin IAM users to block admin log access',
     });
 
     new cdk.CfnOutput(this, 'DeployRoleArn', {

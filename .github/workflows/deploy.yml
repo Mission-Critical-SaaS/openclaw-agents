@@ -88,12 +88,13 @@ jobs:
           echo "Timed out waiting for deploy"
           exit 1
 
-      - name: Verify deployment
+      - name: Verify deployment (both containers)
         run: |
+          # Verify both tier containers are running
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ env.INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --parameters "commands=[\"cd /opt/openclaw && docker ps --filter name=openclaw-agents --format '{{.Names}} {{.Status}}' && docker logs openclaw-agents 2>&1 | grep -E '(BOOTSTRAP_OK|gateway is live|socket mode connected|ERROR)' | tail -10\"]" \
+            --parameters "commands=[\"cd /opt/openclaw && echo '=== Container Status ===' && docker ps --filter name=openclaw-agents --format '{{.Names}} {{.Status}}' && echo '' && echo '=== Admin Container ===' && docker logs openclaw-agents-admin 2>&1 | grep -E '(BOOTSTRAP_OK|gateway is live|socket mode connected|ERROR)' | tail -5 && echo '' && echo '=== Standard Container ===' && docker logs openclaw-agents-standard 2>&1 | grep -E '(BOOTSTRAP_OK|gateway is live|socket mode connected|ERROR)' | tail -5\"]" \
             --timeout-seconds 30 \
             --query "Command.CommandId" \
             --output text)
@@ -110,10 +111,9 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
 
-          # Only notify if this is NOT a re-run of the same tag
-          # (prevents duplicate failure messages)
+          # Get Scout token from standard tier secret (Scout is in standard tier)
           SLACK_TOKEN=$(aws secretsmanager get-secret-value \
-            --secret-id openclaw/agents \
+            --secret-id openclaw/agents-standard \
             --query SecretString --output text | python3 -c "import sys,json; print(json.loads(sys.stdin.read())['SLACK_BOT_TOKEN_SCOUT'])")
 
           curl -s -X POST https://slack.com/api/chat.postMessage \

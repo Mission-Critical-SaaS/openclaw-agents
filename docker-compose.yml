@@ -1,19 +1,25 @@
 services:
-  openclaw:
+  # ─────────────────────────────────────────────────────────────
+  # ADMIN TIER
+  # Currently contains: Chief, Ledger
+  # Purpose: Agents with access to sensitive financial data
+  # Access: Restricted to admin-tier users (Michael, David)
+  # ─────────────────────────────────────────────────────────────
+  openclaw-admin:
     build:
       context: .
       dockerfile: docker/Dockerfile
     image: openclaw:latest
-    container_name: openclaw-agents
+    container_name: openclaw-agents-admin
     restart: unless-stopped
     deploy:
       resources:
         limits:
-          memory: 4G
-          cpus: "2.0"
-        reservations:
           memory: 2G
           cpus: "1.0"
+        reservations:
+          memory: 1G
+          cpus: "0.5"
     healthcheck:
       test: ["CMD", "pgrep", "-f", "openclaw.gateway"]
       interval: 30s
@@ -21,44 +27,100 @@ services:
       retries: 3
       start_period: 120s
     volumes:
+      # Shared configs and entrypoints
+      # NOTE: /app/config contains user-tiers.json and dangerous-actions.json
+      # These files contain RBAC rules, not secrets - safe to share
       - /opt/openclaw/config:/app/config
       - /opt/openclaw/entrypoint.sh:/app/entrypoint.sh
       - /opt/openclaw/scripts:/app/scripts
       - /opt/openclaw/docker/entrypoint.sh:/entrypoint.sh
-      - /opt/openclaw/logs:/opt/openclaw/logs
-      # Git-managed workspace (source for IDENTITY.md updates on deploy)
+      # Admin tier logs (both paths)
+      - /opt/openclaw/logs/admin:/opt/openclaw/logs
+      - /opt/openclaw/logs/admin/data:/data/logs
+      # Admin tier memory database (ISOLATED)
+      - /opt/openclaw-persist/memory-admin:/home/openclaw/.openclaw/.openclaw/memory
+      # Admin tier agent workspaces only
+      - /opt/openclaw/agents/chief/workspace:/tmp/agents/chief/workspace
+      - /opt/openclaw/agents/ledger/workspace:/tmp/agents/ledger/workspace
+      - /opt/openclaw-persist/workspace-chief:/home/openclaw/.openclaw/.openclaw/workspace-chief
+      - /opt/openclaw-persist/workspace-ledger:/home/openclaw/.openclaw/.openclaw/workspace-ledger
+    entrypoint: ["/app/entrypoint.sh"]
+    command: ["/entrypoint.sh"]
+    environment:
+      - AGENTS_LIST=chief,ledger
+      - OPENCLAW_TIER=admin
+      - OPENCLAW_SECRET_NAME=openclaw/agents-admin
+      - AWS_DEFAULT_REGION=us-east-1
+      - OPENCLAW_SNS_TOPIC=${OPENCLAW_SNS_TOPIC:-arn:aws:sns:us-east-1:122015479852:openclaw-alerts}
+      - OPENCLAW_ALERT_CHANNEL=${OPENCLAW_ALERT_CHANNEL:-C089JBLCFLL}
+      - HANDOFF_HMAC_KEY=${HANDOFF_HMAC_KEY:-}
+
+  # ─────────────────────────────────────────────────────────────
+  # STANDARD TIER
+  # Currently contains: Scout, Trak, Kit, Scribe, Probe + sales agents
+  # Purpose: General-purpose agents for team collaboration and sales
+  # Access: All authorized Slack users
+  # ─────────────────────────────────────────────────────────────
+  openclaw-standard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: openclaw:latest
+    container_name: openclaw-agents-standard
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+          cpus: "3.0"
+        reservations:
+          memory: 3G
+          cpus: "1.5"
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "openclaw.gateway"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    volumes:
+      # Shared configs and entrypoints (same note as above - RBAC only, no secrets)
+      - /opt/openclaw/config:/app/config
+      - /opt/openclaw/entrypoint.sh:/app/entrypoint.sh
+      - /opt/openclaw/scripts:/app/scripts
+      - /opt/openclaw/docker/entrypoint.sh:/entrypoint.sh
+      # Standard tier logs (both paths)
+      - /opt/openclaw/logs/standard:/opt/openclaw/logs
+      - /opt/openclaw/logs/standard/data:/data/logs
+      # Standard tier memory database (ISOLATED)
+      - /opt/openclaw-persist/memory-standard:/home/openclaw/.openclaw/.openclaw/memory
+      # Standard tier agent workspaces - core agents
       - /opt/openclaw/agents/scout/workspace:/tmp/agents/scout/workspace
       - /opt/openclaw/agents/trak/workspace:/tmp/agents/trak/workspace
       - /opt/openclaw/agents/kit/workspace:/tmp/agents/kit/workspace
       - /opt/openclaw/agents/scribe/workspace:/tmp/agents/scribe/workspace
       - /opt/openclaw/agents/probe/workspace:/tmp/agents/probe/workspace
-      - /opt/openclaw/agents/chief/workspace:/tmp/agents/chief/workspace
+      # Standard tier agent workspaces - sales agents
       - /opt/openclaw/agents/harvest/workspace:/tmp/agents/harvest/workspace
       - /opt/openclaw/agents/prospector/workspace:/tmp/agents/prospector/workspace
       - /opt/openclaw/agents/outreach/workspace:/tmp/agents/outreach/workspace
       - /opt/openclaw/agents/cadence/workspace:/tmp/agents/cadence/workspace
-      # Persistent runtime workspace (survives deploys + restarts).
-      # OpenClaw creates workspace files here on first boot; bind mount
-      # ensures they persist. Path matches OpenClaw's actual runtime
-      # workspace: /home/openclaw/.openclaw/.openclaw/workspace-{agent}
+      # Persistent workspaces - core agents
       - /opt/openclaw-persist/workspace-scout:/home/openclaw/.openclaw/.openclaw/workspace-scout
       - /opt/openclaw-persist/workspace-trak:/home/openclaw/.openclaw/.openclaw/workspace-trak
       - /opt/openclaw-persist/workspace-kit:/home/openclaw/.openclaw/.openclaw/workspace-kit
       - /opt/openclaw-persist/workspace-scribe:/home/openclaw/.openclaw/.openclaw/workspace-scribe
       - /opt/openclaw-persist/workspace-probe:/home/openclaw/.openclaw/.openclaw/workspace-probe
-      - /opt/openclaw-persist/workspace-chief:/home/openclaw/.openclaw/.openclaw/workspace-chief
+      # Persistent workspaces - sales agents
       - /opt/openclaw-persist/workspace-harvest:/home/openclaw/.openclaw/.openclaw/workspace-harvest
       - /opt/openclaw-persist/workspace-prospector:/home/openclaw/.openclaw/.openclaw/workspace-prospector
       - /opt/openclaw-persist/workspace-outreach:/home/openclaw/.openclaw/.openclaw/workspace-outreach
       - /opt/openclaw-persist/workspace-cadence:/home/openclaw/.openclaw/.openclaw/workspace-cadence
-      # Memory database (agent knowledge, virtual FS state).
-      # Without this mount, agent file edits (e.g. KNOWLEDGE.md updates)
-      # are lost on container restart because the virtual FS stores
-      # modifications in SQLite, not on the real filesystem.
-      - /opt/openclaw-persist/memory:/home/openclaw/.openclaw/.openclaw/memory
     entrypoint: ["/app/entrypoint.sh"]
     command: ["/entrypoint.sh"]
     environment:
+      - AGENTS_LIST=scout,trak,kit,scribe,probe,harvest,prospector,outreach,cadence
+      - OPENCLAW_TIER=standard
+      - OPENCLAW_SECRET_NAME=openclaw/agents-standard
       - AWS_DEFAULT_REGION=us-east-1
       - OPENCLAW_SNS_TOPIC=${OPENCLAW_SNS_TOPIC:-arn:aws:sns:us-east-1:122015479852:openclaw-alerts}
       - OPENCLAW_ALERT_CHANNEL=${OPENCLAW_ALERT_CHANNEL:-C089JBLCFLL}

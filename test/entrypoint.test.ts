@@ -26,15 +26,18 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
   });
 
   // --- AWS Secrets ---
-  test('fetches secrets from AWS Secrets Manager', () => {
-    expect(script).toMatch(/aws secretsmanager get-secret-value.*--secret-id openclaw\/agents/);
+  test('fetches secrets from AWS Secrets Manager using OPENCLAW_SECRET_NAME', () => {
+    expect(script).toContain('OPENCLAW_SECRET_NAME');
+    expect(script).toMatch(/aws secretsmanager get-secret-value.*\$SECRET_NAME/);
   });
 
-  test('exports all required Slack bot tokens (all 6 agents)', () => {
-    for (const agent of ['SCOUT', 'TRAK', 'KIT', 'SCRIBE', 'PROBE', 'CHIEF']) {
-      expect(script).toContain(`SLACK_BOT_TOKEN_${agent}`);
-      expect(script).toContain(`SLACK_APP_TOKEN_${agent}`);
-    }
+  test('supports all Slack bot tokens (referenced dynamically via AGENTS_LIST)', () => {
+    // Script should dynamically extract tokens based on AGENTS_LIST, not hardcode them
+    expect(script).toContain('AGENTS_LIST');
+    expect(script).toContain('parse_agents_list');
+    // It should still reference the token names in the extraction logic
+    expect(script).toContain('SLACK_BOT_TOKEN_');
+    expect(script).toContain('SLACK_APP_TOKEN_');
   });
 
   test('quotes $SECRET in all jq extractions to prevent word splitting', () => {
@@ -116,10 +119,13 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
   });
 
   // --- Slack injection ---
-  test('injects all six Slack accounts (scout, trak, kit, scribe, probe, chief)', () => {
-    for (const name of ['scout', 'trak', 'kit', 'scribe', 'probe', 'chief']) {
-      expect(script).toContain(`'${name}'`);
-    }
+  test('injects Slack accounts dynamically from AGENTS_LIST', () => {
+    // Script should dynamically inject based on AGENTS_LIST, not hardcode all 6
+    expect(script).toContain("agents_list = os.environ.get('AGENTS_LIST'");
+    // Should still set up proper Slack account config structure
+    expect(script).toContain("'mode': 'socket'");
+    expect(script).toContain("'botToken':");
+    expect(script).toContain("'appToken':");
   });
 
   test('sets groupPolicy to open', () => {
@@ -253,7 +259,8 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
   // --- Agent bootstrap (warms MCP tools automatically) ---
   test('bootstraps agent to warm MCP tools after gateway starts', () => {
     expect(script).toContain('Bootstrapping agents');
-    expect(script).toContain('openclaw agent --agent main');
+    // Uses FIRST_AGENT from AGENTS_LIST, not hardcoded "main"
+    expect(script).toContain('openclaw agent --agent "$FIRST_AGENT"');
     expect(script).toContain('BOOTSTRAP_OK');
   });
 
@@ -271,14 +278,14 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
 
   test('bootstrap runs AFTER gateway liveness check', () => {
     const livenessIdx = script.indexOf('kill -0 $GATEWAY_PID');
-    const bootstrapIdx = script.indexOf('openclaw agent --agent main');
+    const bootstrapIdx = script.indexOf('openclaw agent --agent "$FIRST_AGENT"');
     expect(bootstrapIdx).toBeGreaterThan(livenessIdx);
   });
 
   test('bootstrap is non-fatal (does not exit 1 on failure)', () => {
     // The bootstrap command block must have || true so a failed bootstrap
     // doesn't kill the container. The command spans multiple lines via \
-    const bootstrapIdx = script.indexOf('openclaw agent --agent main');
+    const bootstrapIdx = script.indexOf('openclaw agent --agent "$FIRST_AGENT"');
     expect(bootstrapIdx).toBeGreaterThan(-1);
     // Get a window around the bootstrap command (covers continuation lines)
     const bootstrapBlock = script.substring(bootstrapIdx, bootstrapIdx + 300);
@@ -334,7 +341,7 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     const doctorIdx = script.indexOf('openclaw doctor --fix');
     const injectionIdx = script.indexOf('Injecting workspace files');
     const restartIdx = script.indexOf('openclaw gateway run');
-    const bootstrapIdx = script.indexOf('openclaw agent --agent main');
+    const bootstrapIdx = script.indexOf('openclaw agent --agent "$FIRST_AGENT"');
     expect(injectionIdx).toBeGreaterThan(doctorIdx);
     expect(injectionIdx).toBeLessThan(restartIdx);
     expect(injectionIdx).toBeLessThan(bootstrapIdx);
@@ -349,7 +356,7 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     const wsInjectIdx = script.indexOf('Injecting workspace files');
     const restartIdx = script.indexOf('openclaw gateway run');
     const verifyIdx = script.indexOf('kill -0 $GATEWAY_PID');
-    const bootstrapIdx = script.indexOf('openclaw agent --agent main');
+    const bootstrapIdx = script.indexOf('openclaw agent --agent "$FIRST_AGENT"');
 
     expect(secretsIdx).toBeGreaterThan(-1);
     expect(configWaitIdx).toBeGreaterThan(secretsIdx);
@@ -362,9 +369,12 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     });
 
 
-  test('Scribe Slack tokens are extracted from secrets', () => {
-    expect(script).toContain('SLACK_BOT_TOKEN_SCRIBE');
-    expect(script).toContain('SLACK_APP_TOKEN_SCRIBE');
+  test('Slack tokens are extracted dynamically from AGENTS_LIST', () => {
+    // New pattern extracts tokens dynamically based on AGENTS_LIST
+    expect(script).toContain('SLACK_BOT_TOKEN_${AGENT_UPPER}');
+    expect(script).toContain('SLACK_APP_TOKEN_${AGENT_UPPER}');
+    // Should use parse_agents_list for the extraction loop
+    expect(script).toMatch(/for agent in \$\(parse_agents_list.*AGENTS_LIST/);
   });
 
   test('proactive configs are injected into agent workspaces', () => {
@@ -373,9 +383,11 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(script).toContain('proactive configs injected');
   });
 
-  test('Scribe is included in workspace injection loops', () => {
-    const scribeLoops = (script.match(/for agent in.*scribe/g) || []);
-    expect(scribeLoops.length).toBeGreaterThanOrEqual(3);
+  test('workspace injection loops use parse_agents_list (dynamic, not hardcoded)', () => {
+    // New pattern uses parse_agents_list instead of hardcoded agent names
+    const parseAgentsLoops = (script.match(/for agent in \$\(parse_agents_list/g) || []);
+    // Should have at least 4 loops using parse_agents_list (workspace, security, proactive, memory)
+    expect(parseAgentsLoops.length).toBeGreaterThanOrEqual(4);
   });
 });
 
@@ -438,8 +450,9 @@ describe('Inner entrypoint (docker/entrypoint.sh)', () => {
     expect(script).toMatch(/exec openclaw gateway run.*tee.*openclaw\.log/);
   });
 
-  test('sets up auth profiles for all six agents', () => {
-    expect(script).toMatch(/for agent in scout trak kit scribe probe chief/);
+  test('sets up auth profiles using parse_agents_list (dynamic)', () => {
+    // New pattern uses parse_agents_list instead of hardcoded agent names
+    expect(script).toMatch(/for agent in \$\(parse_agents_list.*AGENTS_LIST/);
     expect(script).toContain('auth-profiles.json');
   });
 });
@@ -482,13 +495,13 @@ describe('docker-compose.yml', () => {
     }
   });
 
-  test('has memory database bind mount for virtual FS persistence', () => {
-    // Without this mount, agent file edits (KNOWLEDGE.md updates) are lost
+  test('has tier-specific memory database bind mounts for virtual FS persistence', () => {
+    // Without these mounts, agent file edits (KNOWLEDGE.md updates) are lost
     // on container restart because the virtual FS stores modifications in
     // SQLite, not on the real filesystem.
-    expect(compose).toContain(
-      '/opt/openclaw-persist/memory:/home/openclaw/.openclaw/.openclaw/memory'
-    );
+    // Each tier has its own isolated memory database
+    expect(compose).toContain('memory-admin:/home/openclaw/.openclaw/.openclaw/memory');
+    expect(compose).toContain('memory-standard:/home/openclaw/.openclaw/.openclaw/memory');
   });
 
   test('uses /app/entrypoint.sh as the container entrypoint', () => {
@@ -1688,9 +1701,12 @@ describe('Non-root Docker user (#44)', () => {
     expect(innerEntrypoint).not.toContain('/root/.mcporter');
   });
 
-  test('healthcheck uses /home/openclaw path for config grep', () => {
-    expect(healthcheck).toContain('/home/openclaw/.openclaw');
-    expect(healthcheck).not.toContain('/root/.openclaw');
+  test('healthcheck checks both tier containers', () => {
+    // New tier-aware healthcheck checks both admin and standard containers
+    expect(healthcheck).toContain('ADMIN_CONTAINER');
+    expect(healthcheck).toContain('STANDARD_CONTAINER');
+    expect(healthcheck).toContain('openclaw-agents-admin');
+    expect(healthcheck).toContain('openclaw-agents-standard');
   });
 
   test('github-token-refresh uses /home/openclaw path', () => {
@@ -2140,5 +2156,187 @@ describe('Chief agent configuration', () => {
   test('Chief IDENTITY.md has Inter-Agent Delegation section', () => {
     expect(identity).toContain('Inter-Agent Delegation');
     expect(identity).toContain('agent:chief:main');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tier Isolation Tests (2-Container Architecture)
+// ---------------------------------------------------------------------------
+describe('Tier isolation (2-container architecture)', () => {
+  let outerEntrypoint: string;
+  let innerEntrypoint: string;
+  let compose: string;
+
+  beforeAll(() => {
+    outerEntrypoint = readScript('entrypoint.sh');
+    innerEntrypoint = readScript('docker/entrypoint.sh');
+    compose = readScript('docker-compose.yml');
+  });
+
+  // --- docker-compose.yml tier structure ---
+  describe('docker-compose.yml tier structure', () => {
+    test('has exactly 2 services: openclaw-admin and openclaw-standard', () => {
+      expect(compose).toContain('openclaw-admin:');
+      expect(compose).toContain('openclaw-standard:');
+      // Should NOT have the old single service
+      expect(compose).not.toMatch(/^\s*openclaw:\s*$/m);
+    });
+
+    test('uses openclaw:latest image (not openclaw-agents:latest)', () => {
+      expect(compose).toContain('image: openclaw:latest');
+      expect(compose).not.toContain('image: openclaw-agents:latest');
+    });
+
+    test('admin service has AGENTS_LIST=chief', () => {
+      // Find admin service section and check its environment
+      const adminSection = compose.split('openclaw-admin:')[1]?.split('openclaw-standard:')[0] || '';
+      expect(adminSection).toContain('AGENTS_LIST=chief');
+    });
+
+    test('standard service has AGENTS_LIST=scout,trak,kit,scribe,probe', () => {
+      const standardSection = compose.split('openclaw-standard:')[1] || '';
+      expect(standardSection).toContain('AGENTS_LIST=scout,trak,kit,scribe,probe');
+    });
+
+    test('admin service only mounts workspace-chief', () => {
+      const adminSection = compose.split('openclaw-admin:')[1]?.split('openclaw-standard:')[0] || '';
+      expect(adminSection).toContain('workspace-chief');
+      expect(adminSection).not.toContain('workspace-scout');
+      expect(adminSection).not.toContain('workspace-trak');
+    });
+
+    test('standard service does NOT mount workspace-chief', () => {
+      const standardSection = compose.split('openclaw-standard:')[1] || '';
+      expect(standardSection).not.toContain('workspace-chief');
+      expect(standardSection).toContain('workspace-scout');
+      expect(standardSection).toContain('workspace-trak');
+    });
+
+    test('each service has isolated memory mount', () => {
+      const adminSection = compose.split('openclaw-admin:')[1]?.split('openclaw-standard:')[0] || '';
+      const standardSection = compose.split('openclaw-standard:')[1] || '';
+      expect(adminSection).toContain('memory-admin');
+      expect(standardSection).toContain('memory-standard');
+    });
+
+    test('services use tier-specific secrets', () => {
+      const adminSection = compose.split('openclaw-admin:')[1]?.split('openclaw-standard:')[0] || '';
+      const standardSection = compose.split('openclaw-standard:')[1] || '';
+      expect(adminSection).toContain('OPENCLAW_SECRET_NAME=openclaw/agents-admin');
+      expect(standardSection).toContain('OPENCLAW_SECRET_NAME=openclaw/agents-standard');
+    });
+
+    test('services have OPENCLAW_TIER environment variable', () => {
+      const adminSection = compose.split('openclaw-admin:')[1]?.split('openclaw-standard:')[0] || '';
+      const standardSection = compose.split('openclaw-standard:')[1] || '';
+      expect(adminSection).toContain('OPENCLAW_TIER=admin');
+      expect(standardSection).toContain('OPENCLAW_TIER=standard');
+    });
+  });
+
+  // --- entrypoint.sh AGENTS_LIST parsing ---
+  describe('entrypoint.sh AGENTS_LIST parsing', () => {
+    test('has parse_agents_list function', () => {
+      expect(outerEntrypoint).toContain('parse_agents_list()');
+    });
+
+    test('extracts tokens only for AGENTS_LIST agents', () => {
+      // Token extraction loop should use parse_agents_list
+      expect(outerEntrypoint).toMatch(/for agent in \$\(parse_agents_list.*AGENTS_LIST/);
+    });
+
+    test('does NOT have hardcoded agent list in token extraction', () => {
+      // Should not have the old hardcoded pattern in token loops
+      expect(outerEntrypoint).not.toMatch(/for agent in scout trak kit scribe probe chief.*do\s+AGENT_UPPER/s);
+    });
+
+    test('uses OPENCLAW_SECRET_NAME for secrets fetch', () => {
+      expect(outerEntrypoint).toContain('OPENCLAW_SECRET_NAME');
+      expect(outerEntrypoint).toMatch(/aws secretsmanager.*\$SECRET_NAME/);
+    });
+
+    test('only extracts financial API tokens for admin tier', () => {
+      expect(outerEntrypoint).toContain('if [ "$OPENCLAW_TIER" = "admin" ]');
+      expect(outerEntrypoint).toContain('MERCURY_API_TOKEN');
+      expect(outerEntrypoint).toContain('QBO_CLIENT_ID_CHIEF');
+    });
+
+    test('clears SECRET from memory after extraction', () => {
+      expect(outerEntrypoint).toContain('unset SECRET');
+      expect(outerEntrypoint).toContain('cleared from memory');
+    });
+
+    test('validates tokens for all agents in AGENTS_LIST', () => {
+      // Validation should use parse_agents_list, not hardcoded list
+      expect(outerEntrypoint).toMatch(/Validating Slack tokens for agents:.*AGENTS_LIST/);
+    });
+  });
+
+  // --- Python injection tier awareness ---
+  describe('Python injection tier awareness', () => {
+    test('uses /home/openclaw path not /root', () => {
+      expect(outerEntrypoint).toContain('/home/openclaw/.openclaw/agents/');
+      expect(outerEntrypoint).not.toContain('/root/.openclaw/agents/');
+    });
+
+    test('filters agents by AGENTS_LIST in Python', () => {
+      expect(outerEntrypoint).toContain("agents_list = os.environ.get('AGENTS_LIST'");
+    });
+
+    test('updates agents.list configuration', () => {
+      expect(outerEntrypoint).toContain("config['agents']['list']");
+    });
+  });
+
+  // --- docker/entrypoint.sh AGENTS_LIST filtering ---
+  describe('docker/entrypoint.sh AGENTS_LIST filtering', () => {
+    test('has parse_agents_list function', () => {
+      expect(innerEntrypoint).toContain('parse_agents_list()');
+    });
+
+    test('auth-profiles loop uses AGENTS_LIST', () => {
+      expect(innerEntrypoint).toMatch(/for agent in \$\(parse_agents_list.*AGENTS_LIST/);
+    });
+
+    test('does NOT have hardcoded agent list in auth-profiles loop', () => {
+      // The old pattern should be replaced
+      expect(innerEntrypoint).not.toMatch(/for agent in scout trak kit scribe probe chief.*auth-profiles/s);
+    });
+  });
+
+  // --- Bootstrap uses first agent from AGENTS_LIST ---
+  describe('Bootstrap agent selection', () => {
+    test('extracts first agent from AGENTS_LIST', () => {
+      expect(outerEntrypoint).toContain('FIRST_AGENT=$(echo "$AGENTS_LIST" | cut');
+    });
+
+    test('uses FIRST_AGENT for bootstrap, not hardcoded "main"', () => {
+      expect(outerEntrypoint).toContain('openclaw agent --agent "$FIRST_AGENT"');
+      expect(outerEntrypoint).not.toContain('openclaw agent --agent main');
+    });
+  });
+
+  // --- Workspace injection uses AGENTS_LIST ---
+  describe('Workspace injection uses AGENTS_LIST', () => {
+    test('workspace file injection loop uses parse_agents_list', () => {
+      // Should have the pattern "for agent in $(parse_agents_list" in workspace sections
+      const workspaceSection = outerEntrypoint.split('Injecting workspace files')[1]?.split('SECURITY CONFIG')[0] || '';
+      expect(workspaceSection).toContain('parse_agents_list');
+    });
+
+    test('security config injection uses parse_agents_list', () => {
+      const securitySection = outerEntrypoint.split('Injecting security configs')[1]?.split('PROACTIVE')[0] || '';
+      expect(securitySection).toContain('parse_agents_list');
+    });
+
+    test('proactive config injection uses parse_agents_list', () => {
+      const proactiveSection = outerEntrypoint.split('Injecting proactive capability configs')[1]?.split('MEMORY INDEXING')[0] || '';
+      expect(proactiveSection).toContain('parse_agents_list');
+    });
+
+    test('memory indexing uses parse_agents_list', () => {
+      const memorySection = outerEntrypoint.split('Populating main workspace for memory indexing')[1]?.split('Rebuilding memory')[0] || '';
+      expect(memorySection).toContain('parse_agents_list');
+    });
   });
 });

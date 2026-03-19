@@ -1,9 +1,17 @@
 #!/bin/bash
-# OpenClaw Health Check Script
+# ──────────────────────────────────────────────────────────
+# OpenClaw Health Check Script (Tier-Aware)
 # Runs via cron, posts alerts to Slack #leads and SNS email on failure
+# Checks both admin and standard tier containers
+# ──────────────────────────────────────────────────────────
 set -uo pipefail
 
-CONTAINER="openclaw-agents"
+# Configuration
+ADMIN_CONTAINER="openclaw-agents-admin"
+STANDARD_CONTAINER="openclaw-agents-standard"
+ADMIN_EXPECTED_AGENTS=1    # Chief
+STANDARD_EXPECTED_AGENTS=5 # Scout, Trak, Kit, Scribe, Probe
+
 SNS_TOPIC="${OPENCLAW_SNS_TOPIC:-arn:aws:sns:us-east-1:122015479852:openclaw-alerts}"
 LOG="/opt/openclaw/logs/healthcheck.log"
 ALERT_COOLDOWN_FILE="/tmp/openclaw_alert_cooldown"
@@ -21,12 +29,12 @@ log_json() {
   echo "{\"ts\":\"$ts\",\"level\":\"$level\",\"event\":\"$event\",\"host\":\"$(hostname)\"${extra:+,$extra}}" >> "${LOG%.log}.jsonl"
 }
 
-# Get Slack token from container env (only reads the specific var, not all of /proc/1/environ)
+# Get Slack token from standard container (Scout is always available)
 get_slack_token() {
-    docker exec "$CONTAINER" printenv SLACK_BOT_TOKEN_SCOUT 2>/dev/null
+    docker exec "$STANDARD_CONTAINER" printenv SLACK_BOT_TOKEN_SCOUT 2>/dev/null
 }
 
-# Slack #leads channel ID (use ID not name — survives channel renames)
+# Slack #leads channel ID (use ID not name - survives channel renames)
 SLACK_ALERT_CHANNEL="${OPENCLAW_ALERT_CHANNEL:-C089JBLCFLL}"
 
 send_slack_alert() {
@@ -75,55 +83,74 @@ send_recovery() {
     fi
 }
 
-ERRORS=""
+# Check a single container
+check_container() {
+    local container=$1
+    local expected_agents=$2
+    local tier=$3
+    local errors=""
 
-# Check 1: Container running
-CS=$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null || echo "not_found")
-if [ "$CS" != "running" ]; then
-    ERRORS="${ERRORS}Container not running (status: $CS)\n"
-    log "FAIL: Container status=$CS"
-fi
-
-# Check 2: MCP servers (only if container is running)
-if [ "$CS" = "running" ]; then
-    MCP_OUT=$(docker exec "$CONTAINER" openclaw status 2>/dev/null || echo "status_failed")
-
-    HEALTHY_COUNT=$(echo "$MCP_OUT" | grep -c "OK" || true)
-    if [ "$HEALTHY_COUNT" -lt 1 ]; then
-        ERRORS="${ERRORS}OpenClaw status check failed\n"
-        log "FAIL: openclaw status returned no OK"
+    # Check container exists and is running
+    local status=$(docker inspect -f '{{.State.Status}}' "$container" 2>/dev/null || echo "not_found")
+    if [ "$status" != "running" ]; then
+        errors="${errors}${tier} tier container ($container) not running: $status\n"
+        log "FAIL: $tier container status=$status"
+        echo "$errors"
+        return 1
     fi
 
-    # Check 3: Slack connections (all 5 agents: scout, trak, kit, scribe, probe)
-    SLACK_CONNS=$(docker logs "$CONTAINER" 2>&1 | grep -c "socket mode connected" || true)
-    if [ "$SLACK_CONNS" -lt 5 ]; then
-        RECENT_SLACK=$(docker logs --since 5m "$CONTAINER" 2>&1 | grep -c "socket mode connected" || true)
-        if [ "$RECENT_SLACK" -lt 1 ] && [ "$SLACK_CONNS" -lt 5 ]; then
-            ERRORS="${ERRORS}Slack: fewer than 5 socket connections detected (${SLACK_CONNS} found, need 5 for all agents)\n"
-            log "WARN: Slack connections low (${SLACK_CONNS}/5)"
-        fi
+    # Check gateway process
+    if ! docker exec "$container" pgrep -f "openclaw.gateway" > /dev/null 2>&1; then
+        errors="${errors}${tier} tier gateway process not found in $container\n"
+        log "FAIL: $tier gateway process not found"
+        echo "$errors"
+        return 1
     fi
 
-    # Check 4: Per-agent connectivity (verify each agent is configured)
-    for agent in scout trak kit scribe probe; do
-        AGENT_CONFIGURED=$(docker exec "$CONTAINER" grep -c "\"${agent}\"" /home/openclaw/.openclaw/.openclaw/openclaw.json 2>/dev/null || echo "0")
-        if [ "$AGENT_CONFIGURED" -lt 1 ]; then
-            ERRORS="${ERRORS}Agent '${agent}' not found in gateway config\n"
-            log "WARN: Agent ${agent} missing from gateway config"
-        fi
-    done
-fi
+    # Check Slack connections via docker logs (more reliable than openclaw status)
+    local slack_conns=$(docker logs "$container" 2>&1 | grep -c "socket mode connected" || echo "0")
+    if [ "$slack_conns" -lt "$expected_agents" ]; then
+        errors="${errors}${tier} tier has only $slack_conns Slack connections (expected $expected_agents)\n"
+        log "WARN: $tier Slack connections low (${slack_conns}/${expected_agents})"
+        echo "$errors"
+        return 1
+    fi
 
-# Report
-if [ -n "$ERRORS" ]; then
-    ALERT_MSG=":rotating_light: *OpenClaw Health Alert*\nHost: $(hostname)\nTime: $(date -Iseconds)\n\nIssues:\n${ERRORS}\nRun \`docker logs openclaw-agents --tail 50\` for details."
-    log "ALERT: $ERRORS"
-    log_json "error" "healthcheck_failed" "\"errors\":\"$(echo -n "$ERRORS" | tr '\n' ' ')\""
-    send_alert "$ALERT_MSG"
-    exit 1
-else
-    log "OK: container=$CS, mcp=$HEALTHY_COUNT, slack=$SLACK_CONNS"
-    log_json "info" "healthcheck_ok" "\"container\":\"$CS\",\"mcp\":$HEALTHY_COUNT,\"slack\":$SLACK_CONNS"
-    send_recovery ":white_check_mark: *OpenClaw Recovered*\nAll systems healthy: container running, MCP servers OK, 5/5 agents connected.\nTime: $(date -Iseconds)"
-    exit 0
-fi
+    log "OK: $tier tier ($container): healthy ($slack_conns Slack connections)"
+    return 0
+}
+
+# Main health check
+main() {
+    local all_errors=""
+    local admin_result=""
+    local standard_result=""
+
+    admin_result=$(check_container "$ADMIN_CONTAINER" "$ADMIN_EXPECTED_AGENTS" "Admin")
+    admin_ok=$?
+
+    standard_result=$(check_container "$STANDARD_CONTAINER" "$STANDARD_EXPECTED_AGENTS" "Standard")
+    standard_ok=$?
+
+    if [ $admin_ok -ne 0 ]; then
+        all_errors="${all_errors}${admin_result}"
+    fi
+    if [ $standard_ok -ne 0 ]; then
+        all_errors="${all_errors}${standard_result}"
+    fi
+
+    if [ -n "$all_errors" ]; then
+        ALERT_MSG=":rotating_light: *OpenClaw Health Alert*\nHost: $(hostname)\nTime: $(date -Iseconds)\n\nIssues:\n${all_errors}\nRun \`docker logs openclaw-agents-admin --tail 50\` or \`docker logs openclaw-agents-standard --tail 50\` for details."
+        log "ALERT: $all_errors"
+        log_json "error" "healthcheck_failed" "\"errors\":\"$(echo -n "$all_errors" | tr '\n' ' ')\""
+        send_alert "$ALERT_MSG"
+        exit 1
+    else
+        log "OK: All containers healthy"
+        log_json "info" "healthcheck_ok" "\"admin\":\"healthy\",\"standard\":\"healthy\""
+        send_recovery ":white_check_mark: *OpenClaw Recovered*\nAll systems healthy: both tier containers running, gateways OK, all agents connected.\nTime: $(date -Iseconds)"
+        exit 0
+    fi
+}
+
+main "$@"

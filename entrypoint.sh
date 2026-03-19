@@ -36,66 +36,105 @@ validate_token() {
   return 0
 }
 
-# Fetch secrets from AWS Secrets Manager
-SECRET=$(aws_retry 'aws secretsmanager get-secret-value --secret-id openclaw/agents --region us-east-1 --query SecretString --output text')
+# ── Parse AGENTS_LIST ──────────────────────────────────────────
+# Simple version since we control the input (no spaces allowed in docker-compose.yml)
+# AGENTS_LIST format: "agent1,agent2,agent3" (no spaces)
+parse_agents_list() {
+  local IFS=','
+  echo $1
+}
+
+# Tier configuration (set by docker-compose.yml)
+export AGENTS_LIST="${AGENTS_LIST:-scout,trak,kit,scribe,probe}"
+export OPENCLAW_TIER="${OPENCLAW_TIER:-standard}"
+echo "Container tier: $OPENCLAW_TIER"
+echo "Agents in this container: $AGENTS_LIST"
+
+# Fetch secrets from AWS Secrets Manager (tier-specific secret)
+SECRET_NAME="${OPENCLAW_SECRET_NAME:-openclaw/agents}"
+echo "Fetching secrets from: $SECRET_NAME"
+SECRET=$(aws_retry "aws secretsmanager get-secret-value --secret-id $SECRET_NAME --region us-east-1 --query SecretString --output text")
 if ! echo "$SECRET" | jq empty 2>/dev/null; then
   echo "FATAL: Secret value is not valid JSON" >&2
   exit 1
 fi
 echo "Secrets fetched and validated as JSON."
-export SLACK_BOT_TOKEN_SCOUT=$(echo "$SECRET" | jq -r .SLACK_BOT_TOKEN_SCOUT)
-export SLACK_APP_TOKEN_SCOUT=$(echo "$SECRET" | jq -r .SLACK_APP_TOKEN_SCOUT)
-export SLACK_BOT_TOKEN_TRAK=$(echo "$SECRET" | jq -r .SLACK_BOT_TOKEN_TRAK)
-export SLACK_APP_TOKEN_TRAK=$(echo "$SECRET" | jq -r .SLACK_APP_TOKEN_TRAK)
-export SLACK_BOT_TOKEN_KIT=$(echo "$SECRET" | jq -r .SLACK_BOT_TOKEN_KIT)
-export SLACK_APP_TOKEN_KIT=$(echo "$SECRET" | jq -r .SLACK_APP_TOKEN_KIT)
 
-export SLACK_BOT_TOKEN_SCRIBE=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_SCRIBE // empty')
-export SLACK_APP_TOKEN_SCRIBE=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_SCRIBE // empty')
-export SLACK_BOT_TOKEN_PROBE=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_PROBE // empty')
-export SLACK_APP_TOKEN_PROBE=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_PROBE // empty')
-export SLACK_BOT_TOKEN_CHIEF=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_CHIEF // empty')
-export SLACK_APP_TOKEN_CHIEF=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_CHIEF // empty')
+# ── Extract tokens ONLY for agents in AGENTS_LIST ─────────────
+# Security: don't expose other tier's tokens in this container's environment
+echo "Extracting Slack tokens for agents: $AGENTS_LIST"
+for agent in $(parse_agents_list "$AGENTS_LIST"); do
+  AGENT_UPPER=$(echo "$agent" | tr '[:lower:]' '[:upper:]')
+  export "SLACK_BOT_TOKEN_${AGENT_UPPER}"=$(echo "$SECRET" | jq -r ".SLACK_BOT_TOKEN_${AGENT_UPPER} // empty")
+  export "SLACK_APP_TOKEN_${AGENT_UPPER}"=$(echo "$SECRET" | jq -r ".SLACK_APP_TOKEN_${AGENT_UPPER} // empty")
+done
 
-# Sales pipeline agents (Phase 1+)
-export SLACK_BOT_TOKEN_HARVEST=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_HARVEST // empty')
-export SLACK_APP_TOKEN_HARVEST=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_HARVEST // empty')
-export SLACK_BOT_TOKEN_PROSPECTOR=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_PROSPECTOR // empty')
-export SLACK_APP_TOKEN_PROSPECTOR=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_PROSPECTOR // empty')
-export SLACK_BOT_TOKEN_OUTREACH=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_OUTREACH // empty')
-export SLACK_APP_TOKEN_OUTREACH=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_OUTREACH // empty')
-export SLACK_BOT_TOKEN_CADENCE=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_CADENCE // empty')
-export SLACK_APP_TOKEN_CADENCE=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_CADENCE // empty')
-
-# ── Validate critical Slack tokens ────────────────────────────
-echo "Validating Slack tokens..."
-for agent in SCOUT TRAK KIT; do
-  bot_var="SLACK_BOT_TOKEN_${agent}"
-  app_var="SLACK_APP_TOKEN_${agent}"
+# ── Validate tokens for all agents in AGENTS_LIST (ALL REQUIRED) ──
+echo "Validating Slack tokens for agents: $AGENTS_LIST"
+for agent in $(parse_agents_list "$AGENTS_LIST"); do
+  AGENT_UPPER=$(echo "$agent" | tr '[:lower:]' '[:upper:]')
+  bot_var="SLACK_BOT_TOKEN_${AGENT_UPPER}"
+  app_var="SLACK_APP_TOKEN_${AGENT_UPPER}"
   validate_token "$bot_var" "${!bot_var}" "xoxb" || exit 1
   validate_token "$app_var" "${!app_var}" "xapp" || exit 1
 done
-# Scribe, Probe, Chief, and sales agents are newer — warn but don't block startup
-for agent in SCRIBE PROBE CHIEF HARVEST PROSPECTOR OUTREACH CADENCE; do
-  bot_var="SLACK_BOT_TOKEN_${agent}"
-  app_var="SLACK_APP_TOKEN_${agent}"
-  if [ -n "${!bot_var}" ] && [ "${!bot_var}" != "null" ]; then
-    validate_token "$bot_var" "${!bot_var}" "xoxb" || echo "WARN: $bot_var has invalid format (non-fatal)"
-    validate_token "$app_var" "${!app_var}" "xapp" || echo "WARN: $app_var has invalid format (non-fatal)"
-  else
-    echo "INFO: $agent tokens not configured (optional)"
-  fi
-done
-echo "Token validation complete."
+echo "All required Slack tokens validated."
 
-export ATLASSIAN_SITE_NAME=$(echo "$SECRET" | jq -r .ATLASSIAN_SITE_NAME)
-export ATLASSIAN_USER_EMAIL=$(echo "$SECRET" | jq -r .ATLASSIAN_USER_EMAIL)
-export ATLASSIAN_API_TOKEN=$(echo "$SECRET" | jq -r .ATLASSIAN_API_TOKEN)
+# ── Extract shared tokens (present in both tier secrets) ──────
+export ANTHROPIC_API_KEY=$(echo "$SECRET" | jq -r '.ANTHROPIC_API_KEY // empty')
+if [ -z "$ANTHROPIC_API_KEY" ] || [ "$ANTHROPIC_API_KEY" = "null" ]; then
+  echo "FATAL: ANTHROPIC_API_KEY not found in Secrets Manager secret" >&2
+  exit 1
+fi
+
+export SLACK_ALLOW_FROM=$(echo "$SECRET" | jq -r '.SLACK_ALLOW_FROM // "[]"')
+export ATLASSIAN_SITE_NAME=$(echo "$SECRET" | jq -r '.ATLASSIAN_SITE_NAME // empty')
+export ATLASSIAN_USER_EMAIL=$(echo "$SECRET" | jq -r '.ATLASSIAN_USER_EMAIL // empty')
+export ATLASSIAN_API_TOKEN=$(echo "$SECRET" | jq -r '.ATLASSIAN_API_TOKEN // empty')
 
 # Derived Jira env vars (backward compat only)
 export JIRA_BASE_URL="https://${ATLASSIAN_SITE_NAME}.atlassian.net"
 export JIRA_USER_EMAIL="${ATLASSIAN_USER_EMAIL}"
 export JIRA_API_TOKEN="${ATLASSIAN_API_TOKEN}"
+
+export ZENDESK_SUBDOMAIN=$(echo "$SECRET" | jq -r '.ZENDESK_SUBDOMAIN // empty')
+export ZENDESK_EMAIL=$(echo "$SECRET" | jq -r '.ZENDESK_EMAIL // empty')
+export ZENDESK_API_TOKEN=$(echo "$SECRET" | jq -r '.ZENDESK_API_TOKEN // empty')
+export ZENDESK_TOKEN="${ZENDESK_API_TOKEN}"
+export NOTION_API_TOKEN=$(echo "$SECRET" | jq -r '.NOTION_API_TOKEN // empty')
+export NOTION_API_KEY=${NOTION_API_TOKEN}
+export ZOHO_CLIENT_ID=$(echo "$SECRET" | jq -r '.ZOHO_CLIENT_ID // empty')
+export ZOHO_CLIENT_SECRET=$(echo "$SECRET" | jq -r '.ZOHO_CLIENT_SECRET // empty')
+export ZOHO_REFRESH_TOKEN=$(echo "$SECRET" | jq -r '.ZOHO_REFRESH_TOKEN // empty')
+export ZOHO_API_DOMAIN=$(echo "$SECRET" | jq -r '.ZOHO_API_DOMAIN // "https://www.zohoapis.com"')
+
+# ── Extract admin tier-specific API tokens ────────────────────
+# Financial API tokens are ONLY available in the admin container
+if [ "$OPENCLAW_TIER" = "admin" ]; then
+  echo "Extracting admin tier financial API tokens..."
+  export MERCURY_API_TOKEN=$(echo "$SECRET" | jq -r '.MERCURY_API_TOKEN // empty')
+  export QBO_CLIENT_ID_CHIEF=$(echo "$SECRET" | jq -r '.QBO_CLIENT_ID_CHIEF // empty')
+  export QBO_CLIENT_SECRET_CHIEF=$(echo "$SECRET" | jq -r '.QBO_CLIENT_SECRET_CHIEF // empty')
+  export QBO_REFRESH_TOKEN_CHIEF=$(echo "$SECRET" | jq -r '.QBO_REFRESH_TOKEN_CHIEF // empty')
+  export QBO_REALM_ID_CHIEF=$(echo "$SECRET" | jq -r '.QBO_REALM_ID_CHIEF // empty')
+  # Ledger uses same QBO credentials as Chief
+  export QBO_CLIENT_ID_LEDGER=$(echo "$SECRET" | jq -r '.QBO_CLIENT_ID_LEDGER // empty')
+  export QBO_CLIENT_SECRET_LEDGER=$(echo "$SECRET" | jq -r '.QBO_CLIENT_SECRET_LEDGER // empty')
+  export QBO_REFRESH_TOKEN_LEDGER=$(echo "$SECRET" | jq -r '.QBO_REFRESH_TOKEN_LEDGER // empty')
+  export QBO_REALM_ID_LEDGER=$(echo "$SECRET" | jq -r '.QBO_REALM_ID_LEDGER // empty')
+  export STRIPE_KEY_LIVE=$(echo "$SECRET" | jq -r '.STRIPE_KEY_LIVE // empty')
+  export STRIPE_KEY_TEST=$(echo "$SECRET" | jq -r '.STRIPE_KEY_TEST // empty')
+  # Legacy Stripe keys for backward compatibility
+  export STRIPE_KEY_MINUTE7=$(echo "$SECRET" | jq -r '.STRIPE_KEY_MINUTE7 // empty')
+  export STRIPE_KEY_GOODHELP=$(echo "$SECRET" | jq -r '.STRIPE_KEY_GOODHELP // empty')
+  export STRIPE_KEY_HTS=$(echo "$SECRET" | jq -r '.STRIPE_KEY_HTS // empty')
+  export STRIPE_KEY_LMNTL=$(echo "$SECRET" | jq -r '.STRIPE_KEY_LMNTL // empty')
+fi
+
+# SECURITY: Clear raw secret JSON from memory
+unset SECRET
+echo "Secrets extracted and cleared from memory"
+
 # GitHub App token (replaces static PAT)
 export GH_APP_ID=$(aws_retry 'aws ssm get-parameter --name /openclaw/github-app/app-id --region us-east-1 --query Parameter.Value --output text')
 export GH_APP_INSTALLATION_ID=$(aws_retry 'aws ssm get-parameter --name /openclaw/github-app/installation-id --region us-east-1 --query Parameter.Value --output text')
@@ -104,29 +143,6 @@ export GH_APP_PRIVATE_KEY_FILE=/tmp/.github-app-key.pem
 # Write private key with restrictive permissions from the start (no race window)
 (umask 077 && echo "$GH_APP_PRIVATE_KEY" > "$GH_APP_PRIVATE_KEY_FILE")
 source /app/scripts/github-app-token.sh
-export ZENDESK_SUBDOMAIN=$(echo "$SECRET" | jq -r .ZENDESK_SUBDOMAIN)
-export ZENDESK_EMAIL=$(echo "$SECRET" | jq -r .ZENDESK_EMAIL)
-export ZENDESK_API_TOKEN=$(echo "$SECRET" | jq -r .ZENDESK_API_TOKEN)
-export ZENDESK_TOKEN="${ZENDESK_API_TOKEN}"
-export NOTION_API_TOKEN=$(echo "$SECRET" | jq -r .NOTION_API_TOKEN)
-export NOTION_API_KEY=${NOTION_API_TOKEN}
-export ZOHO_CLIENT_ID=$(echo "$SECRET" | jq -r '.ZOHO_CLIENT_ID // empty')
-export ZOHO_CLIENT_SECRET=$(echo "$SECRET" | jq -r '.ZOHO_CLIENT_SECRET // empty')
-export ZOHO_REFRESH_TOKEN=$(echo "$SECRET" | jq -r '.ZOHO_REFRESH_TOKEN // empty')
-export ZOHO_API_DOMAIN=$(echo "$SECRET" | jq -r '.ZOHO_API_DOMAIN // "https://www.zohoapis.com"')
-export STRIPE_KEY_MINUTE7=$(echo "$SECRET" | jq -r '.STRIPE_KEY_MINUTE7 // empty')
-export STRIPE_KEY_GOODHELP=$(echo "$SECRET" | jq -r '.STRIPE_KEY_GOODHELP // empty')
-export STRIPE_KEY_HTS=$(echo "$SECRET" | jq -r '.STRIPE_KEY_HTS // empty')
-export STRIPE_KEY_LMNTL=$(echo "$SECRET" | jq -r '.STRIPE_KEY_LMNTL // empty')
-export MERCURY_API_TOKEN=$(echo "$SECRET" | jq -r '.MERCURY_API_TOKEN // empty')
-export QBO_CLIENT_ID_CHIEF=$(echo "$SECRET" | jq -r '.QBO_CLIENT_ID_CHIEF // empty')
-export QBO_CLIENT_SECRET_CHIEF=$(echo "$SECRET" | jq -r '.QBO_CLIENT_SECRET_CHIEF // empty')
-export SLACK_ALLOW_FROM=$(echo "$SECRET" | jq -r .SLACK_ALLOW_FROM)
-export ANTHROPIC_API_KEY=$(echo "$SECRET" | jq -r .ANTHROPIC_API_KEY)
-if [ -z "$ANTHROPIC_API_KEY" ] || [ "$ANTHROPIC_API_KEY" = "null" ]; then
-  echo "FATAL: ANTHROPIC_API_KEY not found in Secrets Manager secret" >&2
-  exit 1
-fi
 
 # Generate HMAC signing key for cross-agent handoff authentication
 # Derived from API key hash so it's deterministic across restarts without needing another secret
@@ -170,19 +186,12 @@ try:
 except:
     allow_from = []
 
+# Filter by AGENTS_LIST (dynamically, not hardcoded)
+agents_list = os.environ.get('AGENTS_LIST', 'scout,trak,kit,scribe,probe').split(',')
 accounts = {}
-for name, bk, ak in [
-    ('scout', 'SLACK_BOT_TOKEN_SCOUT', 'SLACK_APP_TOKEN_SCOUT'),
-    ('trak', 'SLACK_BOT_TOKEN_TRAK', 'SLACK_APP_TOKEN_TRAK'),
-    ('kit', 'SLACK_BOT_TOKEN_KIT', 'SLACK_APP_TOKEN_KIT'),
-    ('scribe', 'SLACK_BOT_TOKEN_SCRIBE', 'SLACK_APP_TOKEN_SCRIBE'),
-    ('probe', 'SLACK_BOT_TOKEN_PROBE', 'SLACK_APP_TOKEN_PROBE'),
-    ('chief', 'SLACK_BOT_TOKEN_CHIEF', 'SLACK_APP_TOKEN_CHIEF'),
-    ('harvest', 'SLACK_BOT_TOKEN_HARVEST', 'SLACK_APP_TOKEN_HARVEST'),
-    ('prospector', 'SLACK_BOT_TOKEN_PROSPECTOR', 'SLACK_APP_TOKEN_PROSPECTOR'),
-    ('outreach', 'SLACK_BOT_TOKEN_OUTREACH', 'SLACK_APP_TOKEN_OUTREACH'),
-    ('cadence', 'SLACK_BOT_TOKEN_CADENCE', 'SLACK_APP_TOKEN_CADENCE'),
-]:
+for name in [a.strip() for a in agents_list]:
+    bk = f'SLACK_BOT_TOKEN_{name.upper()}'
+    ak = f'SLACK_APP_TOKEN_{name.upper()}'
     bot = os.environ.get(bk, '')
     app = os.environ.get(ak, '')
     if bot and app and bot != 'null' and app != 'null':
@@ -203,8 +212,19 @@ for name, bk, ak in [
 
 if accounts:
     config['channels'] = {'slack': {'accounts': accounts}}
+    # Update bindings
     config['bindings'] = [
         {'agentId': name, 'match': {'channel': 'slack', 'accountId': name}}
+        for name in accounts
+    ]
+    # Update agents.list with correct paths (use /home/openclaw not /root)
+    config['agents'] = config.get('agents', {})
+    config['agents']['list'] = [
+        {
+            'id': name,
+            'workspace': f'/home/openclaw/.openclaw/agents/{name}/workspace',
+            'agentDir': f'/home/openclaw/.openclaw/agents/{name}/agent'
+        }
         for name in accounts
     ]
     config['plugins'] = {'entries': {'slack': {'enabled': True}}}
@@ -223,7 +243,7 @@ if accounts:
 
     with open(conf_path, 'w') as f:
         json.dump(config, f, indent=2)
-    print(f'Injected {len(accounts)} Slack accounts + bindings')
+    print(f'Injected {len(accounts)} Slack accounts + bindings + agents.list')
 else:
     print('WARNING: No valid Slack tokens found')
 INJECT_PYEOF
@@ -231,7 +251,7 @@ INJECT_PYEOF
   # ============================================================
   # GATEWAY KILL (immediately after config injection)
   # Kill the initial gateway BEFORE it detects the config change
-  # IMPORTANT: Only restart the gateway process â do NOT re-run
+  # IMPORTANT: Only restart the gateway process - do NOT re-run
   # the full inner entrypoint (/entrypoint.sh). All one-time
   # setup (mcporter config, auth-profiles, gh CLI auth, workspace
   # files) was completed during the first run.
@@ -361,15 +381,15 @@ WRAPPER_EOF
   # in the agent's virtual workspace view.
   #
   # Two workspace paths per agent:
-  #   CFG  = /home/openclaw/.openclaw/agents/{agent}/workspace  (configured â agent reads/writes here)
-  #   PERSIST = /home/openclaw/.openclaw/.openclaw/workspace-{agent}  (bind-mounted â survives restarts)
+  #   CFG  = /home/openclaw/.openclaw/agents/{agent}/workspace  (configured - agent reads/writes here)
+  #   PERSIST = /home/openclaw/.openclaw/.openclaw/workspace-{agent}  (bind-mounted - survives restarts)
   # Strategy:
-  #   IDENTITY.md  â always copy from git to CFG (deploy may update instructions)
-  #   KNOWLEDGE.md â seed PERSIST from git if missing, then copy PERSIST â CFG
-  # Note: symlinks don't work â OpenClaw virtual FS doesn't resolve them.
+  #   IDENTITY.md  - always copy from git to CFG (deploy may update instructions)
+  #   KNOWLEDGE.md - seed PERSIST from git if missing, then copy PERSIST -> CFG
+  # Note: symlinks don't work - OpenClaw virtual FS doesn't resolve them.
   # ============================================================
   echo "Injecting workspace files into agent workspaces..."
-  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence; do
+  for agent in $(parse_agents_list "$AGENTS_LIST"); do
     SRC="/tmp/agents/${agent}/workspace"
     CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
@@ -377,7 +397,7 @@ WRAPPER_EOF
     mkdir -p "$CFG" "$PERSIST"
 
     # IDENTITY.md: always overwrite from git (instructions may change per deploy)
-    # Must copy to BOTH paths â OpenClaw reads from PERSIST (runtime workspace),
+    # Must copy to BOTH paths - OpenClaw reads from PERSIST (runtime workspace),
     # not CFG (configured workspace). CFG copy is kept for consistency.
     if [ -f "$SRC/IDENTITY.md" ]; then
       cp "$SRC/IDENTITY.md" "$CFG/IDENTITY.md"
@@ -392,7 +412,7 @@ WRAPPER_EOF
     fi
 
     # Copy KNOWLEDGE.md from persist dir to configured workspace
-    # (symlinks don't work â OpenClaw virtual FS doesn't resolve them)
+    # (symlinks don't work - OpenClaw virtual FS doesn't resolve them)
     if [ -f "$PERSIST/KNOWLEDGE.md" ]; then
       cp "$PERSIST/KNOWLEDGE.md" "$CFG/KNOWLEDGE.md"
       echo "  ${agent}: KNOWLEDGE.md copied from persist to cfg"
@@ -406,7 +426,7 @@ WRAPPER_EOF
   # Dot-prefixed to avoid cluttering the agent's visible workspace.
   # ============================================================
   echo "Injecting security configs into agent workspaces..."
-  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence; do
+  for agent in $(parse_agents_list "$AGENTS_LIST"); do
     CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     for target_dir in "$CFG" "$PERSIST"; do
@@ -424,7 +444,7 @@ WRAPPER_EOF
   # agent workspace for proactive capability governance.
   # ============================================================
   echo "Injecting proactive capability configs into agent workspaces..."
-  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence; do
+  for agent in $(parse_agents_list "$AGENTS_LIST"); do
     CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     for target_dir in "$CFG" "$PERSIST"; do
@@ -448,7 +468,7 @@ WRAPPER_EOF
   echo "Populating main workspace for memory indexing..."
   MAIN_WS="/home/openclaw/.openclaw/.openclaw/workspace"
   mkdir -p "$MAIN_WS/memory"
-  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence; do
+  for agent in $(parse_agents_list "$AGENTS_LIST"); do
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     if [ -f "$PERSIST/KNOWLEDGE.md" ]; then
       cp "$PERSIST/KNOWLEDGE.md" "$MAIN_WS/memory/KNOWLEDGE-${agent}.md"
@@ -500,7 +520,7 @@ WRAPPER_EOF
   chown -R openclaw:openclaw /home/openclaw/.openclaw 2>/dev/null || true
   echo "Ownership fixed (pre-gateway chown)."
 
-  # Start gateway DIRECTLY â one-time setup is already done
+  # Start gateway DIRECTLY - one-time setup is already done
   # Workspace files are in place so the gateway discovers them on scan
   echo "Starting gateway with injected channel config..."
   openclaw gateway run --allow-unconfigured >> /data/logs/openclaw.log 2>&1 &
@@ -532,13 +552,17 @@ WRAPPER_EOF
   # Give Slack socket-mode connections time to establish
   sleep 10
 
+  # Use first agent from AGENTS_LIST instead of hardcoded "main"
+  FIRST_AGENT=$(echo "$AGENTS_LIST" | cut -d',' -f1 | tr -d ' ')
+  echo "Bootstrapping with agent: $FIRST_AGENT"
+
   # Fire a bootstrap turn through the gateway. The agent will
   # enumerate its tools during the turn, forcing the gateway to
   # start all configured MCP servers.
   BOOTSTRAP_RESP=""
   for BOOT_ATTEMPT in 1 2; do
     echo "  Bootstrap attempt ${BOOT_ATTEMPT}/2..."
-    BOOTSTRAP_RESP=$(openclaw agent --agent main \
+    BOOTSTRAP_RESP=$(openclaw agent --agent "$FIRST_AGENT" \
       --message "Bootstrap health check. List every MCP tool name you have access to, one per line. Then say BOOTSTRAP_OK." \
       --timeout 120 2>&1 | grep -v "Gateway failed to start\|Port.*already in use\|install lsof") || true
 
@@ -551,7 +575,7 @@ WRAPPER_EOF
   done
 
   if echo "$BOOTSTRAP_RESP" | grep -q "BOOTSTRAP_OK"; then
-    echo "Agent bootstrap succeeded â MCP tools confirmed warm."
+    echo "Agent bootstrap succeeded - MCP tools confirmed warm."
   else
     echo "WARNING: Agent bootstrap did not confirm after 2 attempts."
     echo "  Tools will load on first user message (adds ~10s latency)."

@@ -156,9 +156,15 @@ describe('GitHub OIDC Deploy', () => {
 
 // ─── CloudWatch ────────────────────────────────────────
 describe('CloudWatch', () => {
-  test('creates a log group', () => {
+  test('creates tier-specific log groups', () => {
+    // Admin tier log group
     template.hasResourceProperties('AWS::Logs::LogGroup', {
-      LogGroupName: '/openclaw/agents',
+      LogGroupName: '/openclaw/agents/admin',
+      RetentionInDays: 14,
+    });
+    // Standard tier log group
+    template.hasResourceProperties('AWS::Logs::LogGroup', {
+      LogGroupName: '/openclaw/agents/standard',
       RetentionInDays: 14,
     });
   });

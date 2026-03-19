@@ -3,6 +3,13 @@ set -euo pipefail
 OPENCLAW_HOME="${OPENCLAW_HOME:-/home/openclaw/.openclaw}"
 echo "OpenClaw Multi-Agent Gateway starting..."
 
+# ── Parse AGENTS_LIST ──────────────────────────────────────────
+# Simple version (same as outer entrypoint) - no spaces allowed
+parse_agents_list() {
+  local IFS=','
+  echo $1
+}
+
 # ── Fix bind-mount permissions ─────────────────────────────────
 # Host-mounted volumes are typically owned by root. Fix ownership
 # so the openclaw user can write to them. This runs as root (the
@@ -308,8 +315,8 @@ else
   echo "WARNING: zd-mcp-server not found in npx cache, skipping patch"
 fi
 
-# Set up agent auth profiles (all 6 agents need Anthropic API auth)
-for agent in scout trak kit scribe probe chief; do
+# Set up agent auth profiles (only for agents in AGENTS_LIST)
+for agent in $(parse_agents_list "${AGENTS_LIST:-scout,trak,kit,scribe,probe,chief}"); do
   AGENT_DIR="${OPENCLAW_HOME}/agents/${agent}/agent"
   mkdir -p "${AGENT_DIR}"
   cat > "${AGENT_DIR}/auth-profiles.json" << AUTHEOF
