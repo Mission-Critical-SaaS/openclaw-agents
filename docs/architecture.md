@@ -2,7 +2,7 @@
 
 ## Overview
 
-OpenClaw Agents runs as a single Docker container on an EC2 instance. The container runs the `openclaw` npm package in gateway mode, which manages five Slack bot agents (Scout, Trak, Kit, Scribe, Probe) through a unified configuration.
+OpenClaw Agents runs as a single Docker container on an EC2 instance. The container runs the `openclaw` npm package in gateway mode, which manages six Slack bot agents (Scout, Trak, Kit, Scribe, Probe, Beacon) through a unified configuration.
 
 ## How OpenClaw Works
 
@@ -44,10 +44,10 @@ EC2 boot
                  8. Bootstraps agents to warm MCP tools
                  └─> Inner entrypoint (docker/entrypoint.sh → /entrypoint.sh):
                       1. Configures MCP servers (Jira, Zendesk, Notion) via mcporter
-                      2. Creates agent auth profiles (scout, trak, kit, scribe, probe)
+                      2. Creates agent auth profiles (scout, trak, kit, scribe, probe, beacon)
                       3. Registers Anthropic API key
                       4. Runs: openclaw gateway run --allow-unconfigured
-                      5. OpenClaw connects all five agents to Slack via Socket Mode
+                      5. OpenClaw connects all six agents to Slack via Socket Mode
 ```
 
 ### Two-Layer Entrypoint Architecture
@@ -184,6 +184,7 @@ Each agent has a different set of tools and primary responsibilities. The OpenCl
 | Scout | ✅ Full | ✅ Full | ❌ | ⚠️ Limited (issue search) | Customer Support |
 | Trak | ✅ Full (primary) | ❌ | ❌ | ✅ Full | Project Management |
 | Kit | ⚠️ Limited | ❌ | ❌ | ✅ Full (primary) | Engineering/Dev |
+| Beacon | ✅ Full (HK project) | ✅ Full | ⚠️ Read-only | ⚠️ Limited (issues only) | HourTimesheet Support |
 
 **Notes:**
 - Tool access is defined in each agent's IDENTITY.md, not in gateway config

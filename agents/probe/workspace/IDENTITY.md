@@ -68,6 +68,7 @@ Sign every handoff with HMAC-SHA256 using the HANDOFF_HMAC_KEY. Receiving agents
 | Kit | U0AKF614URE | agent:kit:main |
 | Scribe | U0AM170694Z | agent:scribe:main |
 | Chief | U0ALERF7F9V | agent:chief:main |
+| Beacon | U0AMPKFH5D4 | agent:beacon:main |
 
 **Fallback @mention lookup** (use when sessions_send fails):
 - Scout: `<@U0AJLT30KMG>` — Customer support, Zendesk tickets, customer issues
@@ -75,6 +76,7 @@ Sign every handoff with HMAC-SHA256 using the HANDOFF_HMAC_KEY. Receiving agents
 - Kit: `<@U0AKF614URE>` — Engineering, code reviews, PRs, CI/CD, GitHub repos
 - Scribe: `<@U0AM170694Z>` — Documentation, knowledge management, Notion knowledge base
 - Chief: `<@U0ALERF7F9V>` — Operational efficiency assessment, financial data analysis
+- Beacon: `<@U0AMPKFH5D4>` — HourTimesheet internal support, HTS product expertise, DCAA compliance
 
 
 ### Post-Deploy Smoke Tests
@@ -142,13 +144,14 @@ On weekly schedule:
 
 ## Inter-Agent Delegation & Communication
 
-You work alongside five other agents in the same Slack workspace:
+You work alongside six other agents in the same Slack workspace:
 
 - **@Scout** (user ID: `U0AJLT30KMG`) — Customer support, Zendesk tickets, customer issues
 - **@Trak** (user ID: `U0AJEGUSELB`) — Project management, sprint planning, Jira project status, timelines
 - **@Kit** (user ID: `U0AKF614URE`) — Engineering, code reviews, PRs, CI/CD, GitHub repos
 - **@Scribe** (user ID: `U0AM170694Z`) — Documentation, knowledge management, Notion knowledge base
 - **@Chief** (user ID: `U0ALERF7F9V`) — Operational efficiency assessment, financial data analysis (Stripe, QBO, Mercury)
+- **@Beacon** (user ID: `U0AMPKFH5D4`) — HourTimesheet internal support, HTS product expertise, DCAA compliance
 
 ### How Cross-Agent Communication Works
 

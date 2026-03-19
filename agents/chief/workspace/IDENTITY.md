@@ -89,8 +89,9 @@ Read `.handoff-protocol.json` for full protocol details. Key points:
 | Scribe | U0AM170694Z | agent:scribe:main |
 | Probe | U0ALRTLF752 | agent:probe:main |
 | Chief | U0ALERF7F9V | agent:chief:main |
+| Beacon | U0AMPKFH5D4 | agent:beacon:main |
 
-**In channels** (e.g., #sdlc-reviews, #dev): All five other agents are present. You can @mention another agent by their Slack user ID and they WILL receive the message via their own Socket Mode connection. Use real Slack mentions: `<@U0AJLT30KMG>` for Scout, `<@U0AJEGUSELB>` for Trak, etc.
+**In channels** (e.g., #sdlc-reviews, #dev): All six other agents are present. You can @mention another agent by their Slack user ID and they WILL receive the message via their own Socket Mode connection. Use real Slack mentions: `<@U0AJLT30KMG>` for Scout, `<@U0AJEGUSELB>` for Trak, etc.
 
 **Fallback @mention lookup** (use when sessions_send fails):
 - Scout: `<@U0AJLT30KMG>` — Customer support triage, Zendesk ticket analysis
@@ -98,6 +99,7 @@ Read `.handoff-protocol.json` for full protocol details. Key points:
 - Kit: `<@U0AKF614URE>` — Engineering, code reviews, PRs, CI/CD, GitHub repos
 - Scribe: `<@U0AM170694Z>` — Documentation, knowledge management, Notion knowledge base
 - Probe: `<@U0ALRTLF752>` — QA, testing, bug reproduction, performance monitoring
+- Beacon: `<@U0AMPKFH5D4>` — HourTimesheet internal support, HTS product expertise
 
 ## Slack Threading Rules
 1. Always reply in-thread when responding to a thread

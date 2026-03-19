@@ -1,12 +1,12 @@
 # OpenClaw Agent Capability Matrix
 
-Comprehensive reference for the five agents running in the OpenClaw gateway, documenting roles, tool access, and integration points.
+Comprehensive reference for the six agents running in the OpenClaw gateway, documenting roles, tool access, and integration points.
 
 ---
 
 ## Agent Overview
 
-Five agents run in the OpenClaw gateway, each with distinct roles:
+Six agents run in the OpenClaw gateway, each with distinct roles:
 
 ### Scout — Customer Support Specialist
 - **Slack Bot User ID**: U0AJLT30KMG
@@ -37,18 +37,28 @@ Five agents run in the OpenClaw gateway, each with distinct roles:
 - **Key repos**: lmntl, service-platform, web-platform, mobile-platform, web-admin-dashboard, infra-*, tools, e2e-test, marketing-site, brand-system
 - **Key behaviors**: Reviews PRs, checks CI status, searches code, links Jira issues to PRs
 
+### Beacon — HourTimesheet Internal Support Agent
+- **Slack Bot User ID**: U0AMPKFH5D4
+- **DM Channel**: TBD
+- **Primary tools**: Jira (MCP, HK project), Zendesk (MCP)
+- **Secondary tools**: Notion (MCP, read-only), GitHub (gh CLI, limited to issues only)
+- **Personality**: Supportive, detail-oriented, focused on internal processes
+- **Jira Projects**: HK (Hour Timesheet)
+- **Zendesk Site**: minute7.zendesk.com
+- **Key behaviors**: Handles internal support queries related to Hour Timesheet, searches Jira HK project, manages internal tickets in Zendesk
+
 ---
 
 ## Tool Access Matrix
 
-| Tool | Scout | Trak | Kit | Scribe | Probe |
-|------|-------|------|-----|--------|-------|
-| **Jira** (MCP) | ✅ Full — ticket lookup, creation, search | ✅ Full (primary) — sprint tracking, issue management | ⚠️ Limited — issue lookup only |
-| **Zendesk** (MCP) | ✅ Full — ticket search, create, update, comments | ❌ Not configured | ❌ Not configured |
-| **Notion** (MCP) | ❌ Not configured | ❌ Not configured | ❌ Not configured |
-| **GitHub** (gh CLI) | ⚠️ Limited — issue search only | ✅ Full — PRs, issues, repos | ✅ Full (primary) — PRs, CI, code review |
+| Tool | Scout | Trak | Kit | Scribe | Probe | Beacon |
+|------|-------|------|-----|--------|-------|--------|
+| **Jira** (MCP) | ✅ Full — ticket lookup, creation, search | ✅ Full (primary) — sprint tracking, issue management | ⚠️ Limited — issue lookup only | | | ✅ Full — HK project focus |
+| **Zendesk** (MCP) | ✅ Full — ticket search, create, update, comments | ❌ Not configured | ❌ Not configured | | | ✅ Full |
+| **Notion** (MCP) | ❌ Not configured | ❌ Not configured | ❌ Not configured | | | ⚠️ Read-only |
+| **GitHub** (gh CLI) | ⚠️ Limited — issue search only | ✅ Full — PRs, issues, repos | ✅ Full (primary) — PRs, CI, code review | | | ⚠️ Limited — issues only |
 
-**Note**: Notion is available as an MCP server but not yet assigned to any agent's identity. All five agents CAN access it if their IDENTITY.md is updated.
+**Note**: Notion is available as an MCP server but not yet assigned to all agents' identities. Agents CAN access it if their IDENTITY.md is updated.
 
 ---
 
@@ -127,7 +137,7 @@ docker exec openclaw-agents bash -c '
 # Expected: 3 servers, all healthy
 
 # Verify each agent's identity is loaded
-for agent in scout trak kit scribe probe; do
+for agent in scout trak kit scribe probe beacon; do
   docker exec openclaw-agents head -3 /root/.openclaw/agents/$agent/workspace/IDENTITY.md
 done
 ```
@@ -143,13 +153,13 @@ done
 | groupPolicy | `open` (respond in any channel when @mentioned) |
 | requireMention | `true` (all agents) |
 | streaming | `off` (disabled — prevents leaked channel messages; must be `'off'` not `'none'`) |
-| Allowed Users | 9 users — see README for current list |
+| Allowed Users | 9+ users — see README for current list (Beacon's Bot User ID to be added when app is created) |
 
 ---
 
 ## Specialist Agent Integration
 
-All five agents have access to 13 specialist agent personas in `agents/shared/specialists/`. These provide deep domain expertise for the 7-dimension ensemble audit protocol.
+All six agents have access to 13 specialist agent personas in `agents/shared/specialists/`. These provide deep domain expertise for the 7-dimension ensemble audit protocol.
 
 ### Specialist-to-Dimension Mapping
 
@@ -209,9 +219,10 @@ Specialists are NOT separate processes. They are expertise profiles (stored as m
 Each agent loads its capabilities from:
 - **Scout**: `/root/.openclaw/agents/scout/workspace/IDENTITY.md`
 - **Trak**: `/root/.openclaw/agents/trak/workspace/IDENTITY.md`
-- **Kit**: `/root/.openclaw/agents/kit/workspace/IDENTITY.md
-- `/root/.openclaw/agents/scribe/workspace/IDENTITY.md`
-- `/root/.openclaw/agents/probe/workspace/IDENTITY.md``
+- **Kit**: `/root/.openclaw/agents/kit/workspace/IDENTITY.md`
+- **Scribe**: `/root/.openclaw/agents/scribe/workspace/IDENTITY.md`
+- **Probe**: `/root/.openclaw/agents/probe/workspace/IDENTITY.md`
+- **Beacon**: `/root/.openclaw/agents/beacon/workspace/IDENTITY.md`
 
 The IDENTITY.md file contains:
 - Tool availability declarations
@@ -244,3 +255,4 @@ Agents use a two-tier delivery system for cross-agent handoffs:
 | Kit | `U0AKF614URE` | `agent:kit:main` |
 | Scribe | `U0AM170694Z` | `agent:scribe:main` |
 | Probe | `U0ALRTLF752` | `agent:probe:main` |
+| Beacon | `U0AMPKFH5D4` | `agent:beacon:main` |

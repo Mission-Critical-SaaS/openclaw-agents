@@ -51,6 +51,11 @@
         "id": "probe",
         "workspace": "/root/.openclaw/agents/probe/workspace",
         "agentDir": "/root/.openclaw/agents/probe/agent"
+      },
+      {
+        "id": "beacon",
+        "workspace": "/root/.openclaw/agents/beacon/workspace",
+        "agentDir": "/root/.openclaw/agents/beacon/agent"
       }
     ]
   },
@@ -91,6 +96,13 @@
       "match": {
         "channel": "slack",
         "accountId": "probe"
+      }
+    },
+    {
+      "agentId": "beacon",
+      "match": {
+        "channel": "slack",
+        "accountId": "beacon"
       }
     }
   ],

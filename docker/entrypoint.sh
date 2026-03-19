@@ -309,7 +309,7 @@ else
 fi
 
 # Set up agent auth profiles (all 6 agents need Anthropic API auth)
-for agent in scout trak kit scribe probe chief; do
+for agent in scout trak kit scribe probe chief beacon; do
   AGENT_DIR="${OPENCLAW_HOME}/agents/${agent}/agent"
   mkdir -p "${AGENT_DIR}"
   cat > "${AGENT_DIR}/auth-profiles.json" << AUTHEOF

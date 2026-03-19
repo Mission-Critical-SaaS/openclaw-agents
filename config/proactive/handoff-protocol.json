@@ -304,6 +304,60 @@
       "payload": "Leads ingested, companies enriched, contacts found, emails sent, reply rate, pipeline value",
       "action": "Chief incorporates sales pipeline metrics into business performance analysis",
       "priority": "medium"
+    },
+    {
+      "id": "beacon-to-scribe-resolution-pattern",
+      "from": "beacon",
+      "to": "scribe",
+      "trigger": "Beacon resolves an HTS customer issue that reveals a common pattern",
+      "payload": "Issue description, resolution steps, frequency data, HTS feature area",
+      "action": "Scribe creates/updates HourTimesheet FAQ or troubleshooting guide",
+      "priority": "medium"
+    },
+    {
+      "id": "beacon-to-kit-bug-report",
+      "from": "beacon",
+      "to": "kit",
+      "trigger": "Beacon receives multiple HTS customer reports about the same bug",
+      "payload": "Bug description, affected customers count, reproduction steps, ticket links",
+      "action": "Kit investigates the HTS bug and creates a GitHub issue if confirmed",
+      "priority": "high"
+    },
+    {
+      "id": "beacon-to-trak-feature-request",
+      "from": "beacon",
+      "to": "trak",
+      "trigger": "Beacon identifies repeated HourTimesheet feature requests",
+      "payload": "Feature description, customer count, business impact estimate",
+      "action": "Trak creates a Jira feature request in HK project with customer evidence",
+      "priority": "medium"
+    },
+    {
+      "id": "beacon-to-chief-support-costs",
+      "from": "beacon",
+      "to": "chief",
+      "trigger": "Beacon identifies a surge in HTS support costs or ticket volume",
+      "payload": "Ticket volume trends, resolution times, cost per ticket, category breakdown",
+      "action": "Chief correlates with financial data and assesses HTS business impact",
+      "priority": "high"
+    },
+    {
+      "id": "scout-to-beacon-hts-escalation",
+      "from": "scout",
+      "to": "beacon",
+      "trigger": "Scout receives an HourTimesheet-specific support question outside general support scope",
+      "payload": "Customer ticket link, issue description, HTS feature area, customer context",
+      "action": "Beacon provides HTS-specific expertise and resolution guidance",
+      "priority": "medium"
+    },
+    {
+      "id": "chief-to-beacon-customer-cost",
+      "from": "chief",
+      "to": "beacon",
+      "trigger": "Chief identifies high-cost HTS customer support patterns from financial data",
+      "payload": "Cost breakdown, customer segment, support ticket volume, recommended changes",
+      "action": "Beacon reviews HTS support patterns and suggests process improvements",
+      "priority": "medium"
     }
   ],
   "protocol": {
@@ -325,7 +379,7 @@
         "name": "#dev",
         "visibility": "public",
         "purpose": "General ops handoffs between Scout, Trak, Kit, Scribe, and Probe. No financial or confidential data here.",
-        "members": ["scout", "trak", "kit", "scribe", "probe"],
+        "members": ["scout", "trak", "kit", "scribe", "probe", "beacon"],
         "excluded": ["chief", "ledger"],
         "use_for": "Non-sensitive cross-agent handoffs, status updates, coordination"
       },
@@ -334,7 +388,7 @@
         "name": "#agent-ops",
         "visibility": "private",
         "purpose": "Sensitive and financial handoffs. ALL agents are members. David and Michael monitor this channel.",
-        "members": ["scout", "trak", "kit", "scribe", "probe", "chief", "ledger", "harvest", "prospector", "outreach", "cadence"],
+        "members": ["scout", "trak", "kit", "scribe", "probe", "chief", "ledger", "harvest", "prospector", "outreach", "cadence", "beacon"],
         "use_for": "Any handoff involving financial data, confidential information, or targeting Chief/Ledger. Also used for multi-agent coordination that involves sensitive context."
       },
       "sales_ops": {
@@ -359,7 +413,7 @@
         "description": "Post handoff to #dev (C086N5031LZ) with @mention of target agent. Use for non-sensitive handoffs between ops agents only.",
         "how": "Post to #dev with @TARGET_USER_ID mention and HMAC-signed payload.",
         "channel_id": "C086N5031LZ",
-        "valid_targets": ["scout", "trak", "kit", "scribe", "probe"],
+        "valid_targets": ["scout", "trak", "kit", "scribe", "probe", "beacon"],
         "note": "NEVER post financial data or mention Chief/Ledger in #dev."
       },
       "channel_mention_agent_ops": {
@@ -367,7 +421,7 @@
         "description": "Post handoff to #agent-ops (C0AMHF5J9Q9) with @mention of target agent. Use for any handoff involving financial/sensitive data, or targeting Chief or Ledger.",
         "how": "Post to #agent-ops with @TARGET_USER_ID mention and HMAC-signed payload.",
         "channel_id": "C0AMHF5J9Q9",
-        "valid_targets": ["scout", "trak", "kit", "scribe", "probe", "chief", "ledger", "harvest", "prospector", "outreach", "cadence"],
+        "valid_targets": ["scout", "trak", "kit", "scribe", "probe", "chief", "ledger", "harvest", "prospector", "outreach", "cadence", "beacon"],
         "note": "All agents are members. David and Michael also monitor this channel."
       },
       "channel_mention_sales_ops": {
@@ -394,8 +448,8 @@
     "routing_rules": [
       {"from": "any", "to": ["chief", "ledger"], "channel": "agent_ops", "reason": "Financial agents only operate in #agent-ops"},
       {"from": ["chief", "ledger"], "to": "any", "channel": "agent_ops", "reason": "Financial agents only post in #agent-ops"},
-      {"from": ["scout", "trak", "kit", "scribe", "probe"], "to": ["scout", "trak", "kit", "scribe", "probe"], "channel": "dev", "reason": "Non-sensitive ops handoffs go to #dev"},
-      {"from": ["scout", "trak", "kit", "scribe", "probe"], "to": ["scout", "trak", "kit", "scribe", "probe"], "channel": "agent_ops", "reason": "Use #agent-ops instead of #dev when handoff involves sensitive/financial context"},
+      {"from": ["scout", "trak", "kit", "scribe", "probe", "beacon"], "to": ["scout", "trak", "kit", "scribe", "probe", "beacon"], "channel": "dev", "reason": "Non-sensitive ops handoffs go to #dev"},
+      {"from": ["scout", "trak", "kit", "scribe", "probe", "beacon"], "to": ["scout", "trak", "kit", "scribe", "probe", "beacon"], "channel": "agent_ops", "reason": "Use #agent-ops instead of #dev when handoff involves sensitive/financial context"},
       {"from": ["harvest", "prospector", "outreach", "cadence"], "to": ["harvest", "prospector", "outreach", "cadence"], "channel": "sales_ops", "reason": "Sales pipeline handoffs go to #sales-ops"},
       {"from": ["harvest", "prospector", "outreach", "cadence"], "to": ["trak", "kit", "scribe"], "channel": "agent_ops", "reason": "Cross-domain sales→ops handoffs go to #agent-ops"},
       {"from": ["cadence"], "to": ["chief"], "channel": "agent_ops", "reason": "Pipeline metrics to Chief go to #agent-ops"}
@@ -445,6 +499,10 @@
     "cadence": {
       "user_id": "U0AM7795294",
       "session_target": "agent:cadence:main"
+    },
+    "beacon": {
+      "user_id": "U0AMPKFH5D4",
+      "session_target": "agent:beacon:main"
     }
   }
 }

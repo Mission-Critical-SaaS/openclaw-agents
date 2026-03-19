@@ -224,6 +224,25 @@
         "max_reports_per_day": 2,
         "max_handoffs_per_day": 5
       }
+    },
+    "beacon": {
+      "daily": {
+        "zendesk_api_calls": 200,
+        "slack_messages": 50,
+        "jira_updates": 20,
+        "notion_updates": 10
+      },
+      "monthly": {
+        "zendesk_api_calls": 4000,
+        "slack_messages": 1000,
+        "jira_updates": 400,
+        "notion_updates": 200
+      },
+      "per_action": {
+        "max_tickets_per_summary": 50,
+        "max_auto_responses_per_day": 0,
+        "max_handoffs_per_day": 10
+      }
     }
   },
   "enforcement": "advisory",

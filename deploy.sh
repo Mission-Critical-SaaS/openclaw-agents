@@ -98,7 +98,7 @@ NEW_COMMIT=$(git rev-parse HEAD)
 log "Now at: $NEW_COMMIT"
 # Ensure persistent runtime workspace dirs exist (outside git repo, survives checkouts).
 # Path matches OpenClaw's runtime workspace: /home/openclaw/.openclaw/.openclaw/workspace-{agent}
-for agent in scout trak kit scribe probe chief; do
+for agent in scout trak kit scribe probe chief beacon; do
   mkdir -p "/opt/openclaw-persist/workspace-${agent}"
 done
 mkdir -p "/opt/openclaw-persist/memory"

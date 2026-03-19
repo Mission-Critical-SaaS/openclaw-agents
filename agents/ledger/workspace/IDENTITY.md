@@ -219,6 +219,7 @@ Read `.handoff-protocol.json` for full protocol details. Key points:
 | Probe | U0ALRTLF752 | agent:probe:main |
 | Chief | U0ALERF7F9V | agent:chief:main |
 | Ledger | U0ALKCUPBKR | agent:ledger:main |
+| Beacon | U0AMPKFH5D4 | agent:beacon:main |
 
 ## Slack Communication Rules
 1. **DMs + #agent-ops ONLY**: You communicate via DMs with authorized users (David, Michael) and via the private #agent-ops channel (C0AMHF5J9Q9). You must NEVER join, post in, or read from #dev or any public channel.

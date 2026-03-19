@@ -1,10 +1,10 @@
 # OpenClaw Agents — LMNTL Multi-Agent Platform
 
-Production deployment of five AI agents (Scout, Trak, Kit, Scribe, Probe) on AWS, connected to Slack via the OpenClaw gateway with native MCP tool integrations (Jira, Zendesk, Notion, Zoho, GitHub).
+Production deployment of six AI agents (Scout, Trak, Kit, Scribe, Probe, Beacon) on AWS, connected to Slack via the OpenClaw gateway with native MCP tool integrations (Jira, Zendesk, Notion, Zoho, GitHub).
 
 ## Architecture
 
-EC2 t3.xlarge instance in AWS account 122015479852 (us-east-1) running a Docker container with the OpenClaw gateway. Five agents connect via Slack Socket Mode. All deployments go through GitHub Actions CI/CD.
+EC2 t3.xlarge instance in AWS account 122015479852 (us-east-1) running a Docker container with the OpenClaw gateway. Six agents connect via Slack Socket Mode. All deployments go through GitHub Actions CI/CD.
 
 ```
 ┌───────────────────────────────────────────────────────────────────┐
@@ -12,10 +12,10 @@ EC2 t3.xlarge instance in AWS account 122015479852 (us-east-1) running a Docker 
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────────┐    │
 │  │  Docker: openclaw-agents                                      │    │
-│  │  ┌─────────┐ ┌─────────┐ ┌────────┐ ┌─────────┐ ┌─────────┐  │    │
-│  │  │  Scout  │ │  Trak   │ │  Kit  │ │ Scribe  │ │  Probe  │  │    │
-│  │  │ (sales) │ │ (PM)    │ │ (ops) │ │ (docs)  │ │ (QA)    │  │    │
-│  │  └────┬────┘ └────┬────┘ └───┬────┘ └────┬────┘ └────┬────┘  │    │
+│  │  ┌─────────┐ ┌─────────┐ ┌────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐  │    │
+│  │  │  Scout  │ │  Trak   │ │  Kit  │ │ Scribe  │ │  Probe  │ │ Beacon  │  │    │
+│  │  │ (sales) │ │ (PM)    │ │ (ops) │ │ (docs)  │ │ (QA)    │ │(hourly) │  │    │
+│  │  └────┬────┘ └────┬────┘ └───┬────┘ └────┬────┘ └────┬────┘ └────┬────┘  │    │
 │  │       └─────┬─────┴────┬─────┴─────┬─────┴────┘              │    │
 │  │              OpenClaw Gateway (Socket Mode)                    │    │
 │  │         MCP: Jira · Zendesk · Notion · Zoho · GitHub          │    │
@@ -65,6 +65,7 @@ MCP tools are loaded by the OpenClaw gateway on demand. Agents access them nativ
 | Kit | Engineering operations and internal tooling | A0AKF8212BA | U0AKF614URE |
 | Scribe | Knowledge management and documentation | A0ALRDJ9Y2K | U0AM170694Z |
 | Probe | Quality assurance and testing | A0ALLS1ER8F | U0ALRTLF752 |
+| Beacon | HourTimesheet internal support | PENDING | U0AMPKFH5D4 |
 
 See [docs/agent-capability-matrix.md](docs/agent-capability-matrix.md) for detailed tool access per agent.
 
@@ -177,8 +178,8 @@ All secrets stored in AWS Secrets Manager under key `openclaw/agents` in us-east
 | Secret | Purpose |
 |--------|---------|
 | ANTHROPIC_API_KEY | Claude API access |
-| SLACK_BOT_TOKEN_{SCOUT,TRAK,KIT,SCRIBE,PROBE} | Slack bot tokens per agent |
-| SLACK_APP_TOKEN_{SCOUT,TRAK,KIT,SCRIBE,PROBE} | Slack app tokens per agent |
+| SLACK_BOT_TOKEN_{SCOUT,TRAK,KIT,SCRIBE,PROBE,BEACON} | Slack bot tokens per agent |
+| SLACK_APP_TOKEN_{SCOUT,TRAK,KIT,SCRIBE,PROBE,BEACON} | Slack app tokens per agent |
 | ATLASSIAN_SITE_NAME / USER_EMAIL / API_TOKEN | Jira authentication |
 | ZENDESK_SUBDOMAIN / EMAIL / API_TOKEN | Zendesk authentication |
 | NOTION_API_TOKEN | Notion integration token |
@@ -202,7 +203,8 @@ openclaw-agents/
 │   ├── trak/workspace/            # Trak IDENTITY.md + KNOWLEDGE.md
 │   ├── kit/workspace/             # Kit IDENTITY.md + KNOWLEDGE.md
 │   ├── scribe/workspace/          # Scribe IDENTITY.md + KNOWLEDGE.md
-│   └── probe/workspace/           # Probe IDENTITY.md + KNOWLEDGE.md
+│   ├── probe/workspace/           # Probe IDENTITY.md + KNOWLEDGE.md
+│   └── beacon/workspace/          # Beacon IDENTITY.md + KNOWLEDGE.md
 ├── config/openclaw.json.tpl       # Gateway config template (envsubst at runtime)
 ├── bin/openclaw-agents.ts         # CDK app entry point
 ├── lib/openclaw-agents-stack.ts   # CDK infrastructure stack

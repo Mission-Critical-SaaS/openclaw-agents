@@ -17,6 +17,8 @@ The secret is a JSON object with these keys:
 | `SLACK_APP_TOKEN_TRAK` | Trak app-level token (xapp-...) | Slack App: A0AJLU847U2 |
 | `SLACK_BOT_TOKEN_KIT` | Kit bot OAuth token (xoxb-...) | Slack App: A0AKF8212BA |
 | `SLACK_APP_TOKEN_KIT` | Kit app-level token (xapp-...) | Slack App: A0AKF8212BA |
+| `SLACK_BOT_TOKEN_BEACON` | Beacon bot OAuth token (xoxb-...) | Slack App: PENDING |
+| `SLACK_APP_TOKEN_BEACON` | Beacon app-level token (xapp-...) | Slack App: PENDING |
 | `SLACK_ALLOW_FROM` | JSON array of allowed Slack user IDs | Slack workspace |
 | `ATLASSIAN_SITE_NAME` | Jira/Confluence site (e.g., `lmntl`) | Atlassian admin |
 | `ATLASSIAN_USER_EMAIL` | Atlassian service account email | Atlassian admin |

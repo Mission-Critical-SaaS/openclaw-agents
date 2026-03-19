@@ -67,6 +67,10 @@ export SLACK_APP_TOKEN_OUTREACH=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_OUTRE
 export SLACK_BOT_TOKEN_CADENCE=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_CADENCE // empty')
 export SLACK_APP_TOKEN_CADENCE=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_CADENCE // empty')
 
+# HourTimesheet support agent
+export SLACK_BOT_TOKEN_BEACON=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_BEACON // empty')
+export SLACK_APP_TOKEN_BEACON=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_BEACON // empty')
+
 # ── Validate critical Slack tokens ────────────────────────────
 echo "Validating Slack tokens..."
 for agent in SCOUT TRAK KIT; do
@@ -76,7 +80,7 @@ for agent in SCOUT TRAK KIT; do
   validate_token "$app_var" "${!app_var}" "xapp" || exit 1
 done
 # Scribe, Probe, Chief, and sales agents are newer — warn but don't block startup
-for agent in SCRIBE PROBE CHIEF HARVEST PROSPECTOR OUTREACH CADENCE; do
+for agent in SCRIBE PROBE CHIEF HARVEST PROSPECTOR OUTREACH CADENCE BEACON; do
   bot_var="SLACK_BOT_TOKEN_${agent}"
   app_var="SLACK_APP_TOKEN_${agent}"
   if [ -n "${!bot_var}" ] && [ "${!bot_var}" != "null" ]; then
@@ -182,6 +186,7 @@ for name, bk, ak in [
     ('prospector', 'SLACK_BOT_TOKEN_PROSPECTOR', 'SLACK_APP_TOKEN_PROSPECTOR'),
     ('outreach', 'SLACK_BOT_TOKEN_OUTREACH', 'SLACK_APP_TOKEN_OUTREACH'),
     ('cadence', 'SLACK_BOT_TOKEN_CADENCE', 'SLACK_APP_TOKEN_CADENCE'),
+    ('beacon', 'SLACK_BOT_TOKEN_BEACON', 'SLACK_APP_TOKEN_BEACON'),
 ]:
     bot = os.environ.get(bk, '')
     app = os.environ.get(ak, '')
@@ -369,7 +374,7 @@ WRAPPER_EOF
   # Note: symlinks don't work â OpenClaw virtual FS doesn't resolve them.
   # ============================================================
   echo "Injecting workspace files into agent workspaces..."
-  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence; do
+  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence beacon; do
     SRC="/tmp/agents/${agent}/workspace"
     CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
@@ -406,7 +411,7 @@ WRAPPER_EOF
   # Dot-prefixed to avoid cluttering the agent's visible workspace.
   # ============================================================
   echo "Injecting security configs into agent workspaces..."
-  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence; do
+  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence beacon; do
     CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     for target_dir in "$CFG" "$PERSIST"; do
@@ -424,7 +429,7 @@ WRAPPER_EOF
   # agent workspace for proactive capability governance.
   # ============================================================
   echo "Injecting proactive capability configs into agent workspaces..."
-  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence; do
+  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence beacon; do
     CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     for target_dir in "$CFG" "$PERSIST"; do
@@ -448,7 +453,7 @@ WRAPPER_EOF
   echo "Populating main workspace for memory indexing..."
   MAIN_WS="/home/openclaw/.openclaw/.openclaw/workspace"
   mkdir -p "$MAIN_WS/memory"
-  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence; do
+  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence beacon; do
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     if [ -f "$PERSIST/KNOWLEDGE.md" ]; then
       cp "$PERSIST/KNOWLEDGE.md" "$MAIN_WS/memory/KNOWLEDGE-${agent}.md"
