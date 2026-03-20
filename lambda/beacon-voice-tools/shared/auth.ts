@@ -47,16 +47,22 @@ export function validateApiKey(event: APIGatewayProxyEvent): void {
  * Extract the caller's phone number from the request headers.
  *
  * The caller_id is passed by ElevenLabs in the x-caller-id header.
+ * Must be in E.164 format (e.g., "+12025551234" or "12025551234").
  *
  * @param event The Lambda proxy event
  * @returns The caller's phone number (e.g., "+12025551234")
- * @throws AuthError if caller_id is not present
+ * @throws AuthError if caller_id is not present or invalid format
  */
 export function getCallerId(event: APIGatewayProxyEvent): string {
   const callerId = event.headers?.['x-caller-id'] || event.headers?.['X-Caller-Id'];
 
   if (!callerId) {
     throw new AuthError('Missing caller ID (x-caller-id header)');
+  }
+
+  // Validate E.164 phone format: optional +, then 1-9, then 1-14 more digits
+  if (!/^\+?[1-9]\d{1,14}$/.test(callerId)) {
+    throw new AuthError('Invalid caller ID format (must be valid phone number in E.164 format)');
   }
 
   return callerId;

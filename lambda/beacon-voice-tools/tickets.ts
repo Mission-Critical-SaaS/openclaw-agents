@@ -86,12 +86,14 @@ function validateTicketRequest(body: unknown): { valid: boolean; error?: string 
  * - Tags with "draft" and "pending-review" for easy dashboard views
  * - Status remains "new" — requires human agent action before
  *   anything customer-facing happens
+ * - Includes 10-second timeout for Zendesk API calls
  */
 async function createZendeskTicket(
   subdomain: string,
   apiToken: string,
   email: string,
-  ticket: CreateTicketRequest
+  ticket: CreateTicketRequest,
+  requestId?: string
 ): Promise<number> {
   const zendeskUrl = `https://${subdomain}.zendesk.com/api/v2/tickets.json`;
 
@@ -139,35 +141,46 @@ async function createZendeskTicket(
 
   const authHeader = Buffer.from(`${email}/token:${apiToken}`).toString('base64');
 
-  const response = await fetch(zendeskUrl, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Basic ${authHeader}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(ticketPayload),
-  });
+  // Set up AbortController for 10-second timeout
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Zendesk API error (${response.status}): ${errorText}`
-    );
+  try {
+    const response = await fetch(zendeskUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${authHeader}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(ticketPayload),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `Zendesk API error (${response.status}): ${errorText}`
+      );
+    }
+
+    const result = (await response.json()) as { ticket?: { id?: number } };
+
+    if (!result.ticket?.id) {
+      throw new Error('No ticket ID in Zendesk response');
+    }
+
+    return result.ticket.id;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  const result = (await response.json()) as { ticket?: { id?: number } };
-
-  if (!result.ticket?.id) {
-    throw new Error('No ticket ID in Zendesk response');
-  }
-
-  return result.ticket.id;
 }
 
 /**
  * Lambda handler for POST /tickets
  */
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  const requestId = event.requestContext?.requestId;
+
   try {
     // ──────────────────────────────────────────────
     // Authentication
@@ -184,7 +197,7 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
     } catch {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Invalid JSON in request body' }),
+        body: JSON.stringify({ error: 'Invalid JSON in request body', request_id: requestId }),
       };
     }
 
@@ -193,10 +206,10 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // ──────────────────────────────────────────────
     const validation = validateTicketRequest(body);
     if (!validation.valid) {
-      logError(callerId, 'create_ticket', validation.error || 'Unknown validation error');
+      logError(callerId, 'create_ticket', `[${requestId}] ${validation.error || 'Unknown validation error'}`);
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: validation.error }),
+        body: JSON.stringify({ error: validation.error, request_id: requestId }),
       };
     }
 
@@ -217,11 +230,11 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       apiEmail = await getCredential('beacon/zendesk', 'api_email');
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error('Failed to retrieve Zendesk credentials:', errorMsg);
-      logError(callerId, 'create_ticket', 'Failed to retrieve credentials');
+      console.error(`[${requestId}] Failed to retrieve Zendesk credentials:`, errorMsg);
+      logError(callerId, 'create_ticket', `[${requestId}] Failed to retrieve credentials`);
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'Internal server error' }),
+        body: JSON.stringify({ error: 'Internal server error', request_id: requestId }),
       };
     }
 
@@ -232,10 +245,11 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       subdomain,
       apiToken,
       apiEmail,
-      ticketReq
+      ticketReq,
+      requestId
     );
 
-    logSuccess(callerId, 'create_ticket', `Draft ticket created: #${ticketId}`);
+    logSuccess(callerId, 'create_ticket', `[${requestId}] Draft ticket created: #${ticketId}`);
 
     return {
       statusCode: 200,
@@ -244,32 +258,49 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
         message: `Support ticket #${ticketId} has been created. Our team will review it and follow up with you shortly.`,
         ticket_id: ticketId,
         draft: true,
+        request_id: requestId,
       }),
     };
   } catch (error) {
+    // Handle AbortError for timeouts
+    if (error instanceof Error && error.name === 'AbortError') {
+      const requestId = event.requestContext?.requestId;
+      console.error(`[${requestId}] Zendesk API timeout`);
+      try {
+        const callerId = getCallerId(event);
+        logError(callerId, 'create_ticket', `[${requestId}] External service timed out`);
+      } catch {
+        console.error(`[${requestId}] Could not log error to audit trail`);
+      }
+      return {
+        statusCode: 504,
+        body: JSON.stringify({ error: 'External service timed out. Please try again.', request_id: requestId }),
+      };
+    }
+
     // Handle authentication errors separately to return 400
     if (error instanceof AuthError) {
-      console.error('Authentication error:', error.message);
+      console.error(`[${requestId}] Authentication error:`, error.message);
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: error.message }),
+        body: JSON.stringify({ error: error.message, request_id: requestId }),
       };
     }
 
     const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error('Ticket handler error:', errorMsg);
+    console.error(`[${requestId}] Ticket handler error:`, errorMsg);
 
     try {
       const callerId = getCallerId(event);
-      logError(callerId, 'create_ticket', errorMsg);
+      logError(callerId, 'create_ticket', `[${requestId}] ${errorMsg}`);
     } catch {
       // If we can't get caller ID, just log the error
-      console.error('Could not log error to audit trail');
+      console.error(`[${requestId}] Could not log error to audit trail`);
     }
 
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Internal server error' }),
+      body: JSON.stringify({ error: 'Internal server error', request_id: requestId }),
     };
   }
 }
