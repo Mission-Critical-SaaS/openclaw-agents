@@ -119,8 +119,10 @@ async function createZendeskTicket(
       },
       // Set requester by phone so the ticket is associated
       // with the right customer, but no email is sent since
-      // the comment is internal.
+      // the comment is internal. Provide a fallback name for
+      // cases where the phone doesn't match an existing user.
       requester: {
+        name: `Voice Caller ${ticket.requester_phone || 'Unknown'}`,
         phone: ticket.requester_phone,
       },
       priority: ticket.priority || 'normal',
