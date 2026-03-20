@@ -1,0 +1,280 @@
+# Beacon Voice Agent — Tools & Capabilities Architecture
+
+**Status**: PLANNING
+**Date**: March 19, 2026
+**Related Issues**: #91 (Voice AI), #96 (Phone/SIP), #98 (API Integration)
+
+---
+
+## 1. Overview
+
+After initial live testing of Beacon's voice line (+1 888-887-8179), several enhancement areas were identified:
+
+1. **Voice speed**: ~10% too slow; needs tuning
+2. **SMS capability**: Agent should text links (password reset, help articles) to callers
+3. **Caller identification**: Agent should know who's calling via phone number lookup
+4. **Account actions**: Non-destructive API operations (lookup, status check, reset triggers)
+5. **Security model**: Prevent information leakage while enabling helpful actions
+
+## 2. Architecture: ElevenLabs Server Tools
+
+All capabilities are implemented as **ElevenLabs Server Tools** — HTTP endpoints the voice agent calls mid-conversation. The agent dynamically generates parameters from conversation context.
+
+```
+┌─────────────────────────────────────────────────┐
+│  INBOUND CALL                                    │
+│  Caller → Twilio → ElevenLabs Voice Agent        │
+│                                                   │
+│  Dynamic Variable: system__caller_id              │
+│  (Caller's phone number, automatic)               │
+├─────────────────────────────────────────────────┤
+│  SERVER TOOLS (called mid-conversation)           │
+│                                                   │
+│  ┌──────────────────┐  ┌──────────────────────┐  │
+│  │ send_sms         │  │ lookup_account       │  │
+│  │ → Twilio SMS API │  │ → HTS API (internal) │  │
+│  └──────────────────┘  └──────────────────────┘  │
+│                                                   │
+│  ┌──────────────────┐  ┌──────────────────────┐  │
+│  │ trigger_reset    │  │ create_ticket        │  │
+│  │ → HTS API        │  │ → Zendesk API        │  │
+│  └──────────────────┘  └──────────────────────┘  │
+│                                                   │
+│  ┌──────────────────┐                             │
+│  │ check_status     │                             │
+│  │ → HTS API        │                             │
+│  └──────────────────┘                             │
+└─────────────────────────────────────────────────┘
+```
+
+## 3. Security Model: "Act, Don't Reveal"
+
+**Core principle**: The agent can take actions on behalf of callers but will NOT share account information the caller doesn't already know. This prevents information leakage even if a phone number is spoofed.
+
+### What this means in practice
+
+| Action | Allowed? | Rationale |
+|--------|----------|-----------|
+| Trigger password reset (sends email to account owner) | ✅ Yes | Email goes to the real owner, not the caller |
+| SMS a help article link to caller's phone | ✅ Yes | Goes to the number they already control |
+| SMS a password reset link to caller's phone | ✅ Yes | Same link that would be in the email |
+| Tell caller their subscription renewal date | ❌ No | Reveals account info they may not know |
+| Tell caller their email on file | ❌ No | Reveals PII |
+| Confirm/deny an email address is in the system | ❌ No | Account enumeration risk |
+| Read back charge codes or timesheet config | ❌ No | Internal business data |
+| Create a Zendesk ticket for their issue | ✅ Yes | Agent creates with caller's phone; no data revealed |
+| Check integration sync status (internal use) | ✅ Internal | Agent may use to troubleshoot but won't read raw data to caller |
+
+### Caller phone number usage
+
+The `system__caller_id` variable provides the caller's phone number automatically. The agent uses this to:
+
+1. **Send SMS**: Target the caller's own phone (no verification needed — they already have it)
+2. **Internal lookup**: Identify likely account for routing/context (agent does NOT confirm or deny the match to the caller)
+3. **Ticket creation**: Attach phone number to Zendesk ticket for callback
+
+### Why no additional verification is needed for "Act, Don't Reveal"
+
+Traditional verification (email + company name) protects against **information disclosure**. Since our agent never discloses information, we only need to ensure actions are safe:
+
+- **Password reset** → Safe: email goes to real owner's inbox
+- **SMS to caller** → Safe: goes to the phone they're calling from
+- **Ticket creation** → Safe: creates a support request, doesn't expose data
+- **Troubleshooting guidance** → Safe: based on public product knowledge, not account data
+
+If the agent ever needs to reveal account-specific information in the future, the verification tier should be upgraded to phone + verbal verification (email or company name).
+
+## 4. Server Tool Specifications
+
+### 4.1 `send_sms` — Text message to caller
+
+**Purpose**: Send links, confirmation codes, or short messages to the caller's phone number during the call.
+
+**Endpoint**: Twilio REST API
+**Method**: `POST https://api.twilio.com/2010-04-01/Accounts/{SID}/Messages.json`
+**Auth**: Basic auth (Account SID + Auth Token)
+
+**Parameters** (generated by agent from conversation):
+| Parameter | Source | Description |
+|-----------|--------|-------------|
+| `To` | `system__caller_id` | Caller's phone number |
+| `From` | Hardcoded | +18888878179 (Beacon's number) |
+| `Body` | Agent-generated | Message text (max 1600 chars) |
+
+**Allowed message types**:
+- Password reset links (e.g., "Reset your password: https://hourtimesheet.com/reset?token=...")
+- Help article URLs
+- Ticket confirmation numbers
+- Short instructions or next-step summaries
+
+**Guardrails**:
+- Max 3 SMS per call (prevent abuse)
+- No PII in message body (no account numbers, emails, etc.)
+- Message must relate to the current support conversation
+- Agent prompt instructs: "Never include sensitive account information in SMS messages"
+
+### 4.2 `lookup_account` — Internal account identification
+
+**Purpose**: Look up an HTS account by phone number or email for internal agent context. Results are NEVER shared with the caller.
+
+**Endpoint**: HTS API
+**Method**: `GET /api/v1/accounts/lookup?phone={phone}`
+**Auth**: API key (read-only scope)
+
+**Parameters**:
+| Parameter | Source | Description |
+|-----------|--------|-------------|
+| `phone` | `system__caller_id` | Caller's phone number |
+
+**Response** (used internally by agent):
+```json
+{
+  "found": true,
+  "account_id": "acc_12345",
+  "account_name": "Acme Corp",
+  "subscription_status": "active",
+  "has_recent_tickets": true
+}
+```
+
+**Agent prompt instruction**: "When you look up an account, use the information to guide your troubleshooting, but NEVER tell the caller what you found. Do not confirm or deny whether their phone number is associated with an account. Do not reveal account names, email addresses, subscription details, or any other account information."
+
+### 4.3 `trigger_password_reset` — Initiate email-based reset
+
+**Purpose**: Trigger a password reset email to the address on file for an account.
+
+**Endpoint**: HTS API
+**Method**: `POST /api/v1/accounts/{id}/password-reset-request`
+**Auth**: API key (reset scope)
+
+**Parameters**:
+| Parameter | Source | Description |
+|-----------|--------|-------------|
+| `account_id` | From `lookup_account` result | Internal account ID |
+| `caller_phone` | `system__caller_id` | For audit trail |
+
+**Behavior**:
+- Sends standard password reset email to the account's email address
+- Agent tells caller: "I've sent a password reset link to the email address associated with your account. Please check your inbox."
+- Agent does NOT reveal what email address the reset was sent to
+- Rate limited: 1 reset per account per hour
+
+### 4.4 `create_support_ticket` — Zendesk ticket creation
+
+**Purpose**: Create a support ticket when the issue can't be resolved on the call.
+
+**Endpoint**: Zendesk API
+**Method**: `POST /api/v2/tickets.json`
+**Auth**: API token
+
+**Parameters** (agent-generated):
+| Parameter | Source | Description |
+|-----------|--------|-------------|
+| `subject` | Agent summary | Brief issue description |
+| `description` | Agent summary | Detailed call notes |
+| `requester.phone` | `system__caller_id` | Caller's phone |
+| `tags` | Agent classification | `["ai-created", "voice-call", ...]` |
+| `priority` | Agent assessment | normal/high/urgent |
+
+**Response**: Returns ticket ID, which agent shares with caller for follow-up.
+
+### 4.5 `check_integration_status` — Troubleshooting aid
+
+**Purpose**: Check if a customer's integrations (QuickBooks, ADP, Paychex) are syncing properly. Used by the agent to guide troubleshooting.
+
+**Endpoint**: HTS API
+**Method**: `GET /api/v1/accounts/{id}/integrations`
+**Auth**: API key (read-only scope)
+
+**Agent prompt instruction**: "Use integration status to guide troubleshooting. For example, if QuickBooks sync is failing, suggest the standard resolution steps. Do not read back raw status data, error counts, or timestamps to the caller."
+
+## 5. Voice Speed Adjustment
+
+**Current**: Default (1.0x)
+**Target**: 1.1x (10% faster)
+**Method**: ElevenLabs agent settings → Voice → Speed slider
+
+Range is 0.7x–1.2x. The 1.1x setting is within the recommended 0.9–1.1x range for natural-sounding conversation.
+
+## 6. Implementation Steps
+
+### Phase 1: Quick Wins (Today)
+1. ✅ Increase voice speed to 1.1x in ElevenLabs agent settings
+2. Add `send_sms` server tool (Twilio SMS API — credentials already configured)
+3. Update agent prompt with "Act, Don't Reveal" security instructions
+
+### Phase 2: Account Tools (Requires HTS API)
+4. Deploy `lookup_account` endpoint on HTS API
+5. Deploy `trigger_password_reset` endpoint on HTS API
+6. Deploy `check_integration_status` endpoint on HTS API
+7. Configure as ElevenLabs Server Tools with API key auth
+
+### Phase 3: Zendesk Integration
+8. Add `create_support_ticket` server tool (Zendesk API)
+9. Configure ticket routing rules (priority → team mapping)
+10. Test escalation flow end-to-end
+
+### Phase 4: Hardening
+11. Add rate limiting per caller (5 calls/day, 3 SMS/call, 1 reset/hour)
+12. Add audit logging for all tool invocations
+13. PII redaction in transcripts and logs
+14. Load test with concurrent calls
+
+## 7. Agent Prompt Additions
+
+The following instructions should be added to the ElevenLabs agent's system prompt:
+
+```
+## Security: Act, Don't Reveal
+
+You have access to tools that look up customer accounts and take actions.
+Follow these rules strictly:
+
+1. NEVER tell the caller any information from account lookups. This includes:
+   - Account names, email addresses, phone numbers on file
+   - Subscription status, renewal dates, plan details
+   - Integration configurations or sync status details
+   - Charge codes, timesheet periods, or approval workflows
+   - Whether or not their phone number matches an account
+
+2. You MAY use lookup results internally to:
+   - Guide your troubleshooting (e.g., if their QuickBooks sync is failing,
+     walk them through the standard fix)
+   - Route their issue to the correct team
+   - Provide more relevant help without revealing why you know
+
+3. You MAY take these actions:
+   - Send SMS with help article links or instructions
+   - Trigger a password reset (say "I've sent a reset link to the email
+     on your account" — do NOT reveal the email address)
+   - Create a support ticket (share the ticket number with the caller)
+
+4. SMS rules:
+   - Only send to the caller's own number (system__caller_id)
+   - Never include account details, emails, or PII in SMS messages
+   - Max 3 texts per conversation
+   - Always confirm before sending: "Would you like me to text you that link?"
+
+5. If the caller asks for information you cannot share:
+   - Say: "For security, I'm not able to share account details over the phone.
+     I can help you with [specific actions you can take] or connect you
+     with our support team."
+```
+
+## 8. Cost Estimate
+
+| Component | Monthly Cost | Notes |
+|-----------|-------------|-------|
+| Twilio phone number | $2.15 | Already active |
+| Twilio SMS (outbound) | ~$0.0079/msg | Estimated 200 msgs/mo = ~$1.58 |
+| ElevenLabs usage | Included in plan | Conversational AI minutes |
+| HTS API hosting | Existing infra | No additional cost |
+| Zendesk API | Existing plan | No additional cost |
+| **Total incremental** | **~$3.73/mo** | Minimal cost increase |
+
+## 9. Open Questions
+
+1. **HTS API availability**: Are the lookup/reset endpoints already deployed, or do they need to be built? The spec exists (Issue #98) but implementation status is unclear.
+2. **SMS opt-in compliance**: Twilio requires opt-in for SMS. Since the caller is actively requesting it during a call, verbal consent likely suffices, but should be confirmed with legal.
+3. **Toll-free SMS registration**: Twilio may require A2P 10DLC or toll-free verification for SMS from the 888 number. Need to check registration status.
+4. **ElevenLabs plan limits**: Verify the current plan supports Server Tools and the expected call volume.
