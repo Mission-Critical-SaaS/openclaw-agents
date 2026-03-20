@@ -196,15 +196,17 @@ Beacon monitors support patterns and automatically triggers handoffs when thresh
 ### 3.2 Phone/SIP Integration
 
 **Issue**: #96
-**Status**: SPEC COMPLETE, NOT IMPLEMENTED
-**Timeline**: Architecture defined, awaiting engineering
+**Status**: TWILIO NUMBER ACQUIRED, SIP PENDING
+**Timeline**: Phone number provisioned; SIP trunking configuration in progress
 
 **What it will do**:
 - Integrate Beacon with PSTN for inbound support calls
 - Route calls to ElevenLabs voice AI first, then to humans if needed
 - Maintain call logs and transcripts for compliance
 
-**Current blocker**: No SIP gateway deployed; phone infrastructure not configured
+**Twilio number**: +1 (888) 887-8179 (toll-free, voice+SMS+MMS)
+**Twilio SID**: PNe5397e839258386e94e51969332ac897
+**Next step**: Connect to ElevenLabs Conversational AI via SIP trunk
 
 ### 3.3 Web Chat Widget
 

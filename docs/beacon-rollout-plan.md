@@ -192,7 +192,7 @@ We set up a test phone number (e.g., a forwarding line) that connects callers to
 ### How It Works
 
 1. **Setup:**
-   - Provision a test phone number (separate from customer-facing support line)
+   - ✅ Twilio toll-free number provisioned: **+1 (888) 887-8179**
    - Configure ElevenLabs voice gateway
    - Set up call recording and logging
    - Define call routing (Beacon → Debbie if escalation needed)
