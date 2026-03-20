@@ -39,7 +39,7 @@ Six agents run in the OpenClaw gateway, each with distinct roles:
 
 ### Beacon — HourTimesheet Internal Support Agent
 - **Slack Bot User ID**: U0AMPKFH5D4
-- **DM Channel**: TBD
+- **DM Channel**: D0AMPKFH5D4 (auto-created on first DM)
 - **Primary tools**: Jira (MCP, HK project), Zendesk (MCP)
 - **Secondary tools**: Notion (MCP, read-only), GitHub (gh CLI, limited to issues only)
 - **Personality**: Supportive, detail-oriented, focused on internal processes

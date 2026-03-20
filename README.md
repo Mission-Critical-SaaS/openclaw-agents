@@ -65,7 +65,7 @@ MCP tools are loaded by the OpenClaw gateway on demand. Agents access them nativ
 | Kit | Engineering operations and internal tooling | A0AKF8212BA | U0AKF614URE |
 | Scribe | Knowledge management and documentation | A0ALRDJ9Y2K | U0AM170694Z |
 | Probe | Quality assurance and testing | A0ALLS1ER8F | U0ALRTLF752 |
-| Beacon | HourTimesheet internal support | PENDING | U0AMPKFH5D4 |
+| Beacon | HourTimesheet internal support | A0AMPHEPRPG | U0AMPKFH5D4 |
 
 See [docs/agent-capability-matrix.md](docs/agent-capability-matrix.md) for detailed tool access per agent.
 
