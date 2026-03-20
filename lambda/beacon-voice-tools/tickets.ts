@@ -1,9 +1,20 @@
 /**
  * Beacon Voice Tools — Zendesk Tickets Handler
  *
- * Creates support tickets in Zendesk.
+ * Creates DRAFT support tickets in Zendesk as internal notes.
+ * These tickets are NOT visible to customers — they appear only
+ * in the agent dashboard for ops team review before any customer
+ * response is sent.
+ *
+ * Draft behavior:
+ * - Initial comment is an INTERNAL NOTE (public: false)
+ * - No email notification is sent to the customer
+ * - Ticket tagged with "draft", "ai-created", "pending-review"
+ * - Subject prefixed with [DRAFT] for ops team visibility
+ * - Status set to "new" (requires agent action)
+ *
  * Caller: ElevenLabs voice agent
- * Parameters: subject, description, requester_phone, priority (optional), tags (optional)
+ * Parameters: subject, description, caller_phone, priority (optional)
  *
  * Security:
  * - Validates input parameters
@@ -21,6 +32,7 @@ interface CreateTicketRequest {
   subject: string;
   description: string;
   requester_phone?: string;
+  caller_phone?: string;  // Alias — ElevenLabs tool uses this name
   priority?: string;
   tags?: string[];
 }
@@ -65,7 +77,15 @@ function validateTicketRequest(body: unknown): { valid: boolean; error?: string 
 }
 
 /**
- * Create a ticket in Zendesk via REST API.
+ * Create a DRAFT ticket in Zendesk via REST API.
+ *
+ * Key design choices for draft mode:
+ * - Uses `comment` with `public: false` instead of `description`
+ *   so the initial note is INTERNAL ONLY (no customer email triggered)
+ * - Prefixes subject with [DRAFT] for ops team filtering
+ * - Tags with "draft" and "pending-review" for easy dashboard views
+ * - Status remains "new" — requires human agent action before
+ *   anything customer-facing happens
  */
 async function createZendeskTicket(
   subdomain: string,
@@ -75,26 +95,47 @@ async function createZendeskTicket(
 ): Promise<number> {
   const zendeskUrl = `https://${subdomain}.zendesk.com/api/v2/tickets.json`;
 
+  // Build the internal note body with call context
+  const internalNote = [
+    ticket.description,
+    '',
+    '---',
+    `Source: Beacon AI Voice Agent`,
+    `Caller phone: ${ticket.requester_phone || 'unknown'}`,
+    `Created: ${new Date().toISOString()}`,
+    '',
+    '⚠️ This is an AI-generated draft. Please review before responding to the customer.',
+  ].join('\n');
+
   const ticketPayload = {
     ticket: {
-      subject: ticket.subject,
-      description: ticket.description,
+      subject: `[DRAFT] ${ticket.subject}`,
+      // Use `comment` with public:false instead of `description`
+      // This creates the ticket with an INTERNAL NOTE only —
+      // no email notification is sent to the customer.
+      comment: {
+        body: internalNote,
+        public: false,  // <-- This is the critical flag
+      },
+      // Set requester by phone so the ticket is associated
+      // with the right customer, but no email is sent since
+      // the comment is internal.
       requester: {
-        email,
         phone: ticket.requester_phone,
       },
       priority: ticket.priority || 'normal',
-      tags: ticket.tags || ['ai-created', 'voice-call'],
-      custom_fields: [
-        {
-          id: 0, // Replace with actual custom field ID if tracking channel
-          value: 'voice_api',
-        },
+      status: 'new',  // Requires agent action
+      tags: [
+        'draft',
+        'ai-created',
+        'voice-call',
+        'pending-review',
+        ...(ticket.tags || []),
       ],
     },
   };
 
-  const authHeader = Buffer.from(`${email}:${apiToken}`).toString('base64');
+  const authHeader = Buffer.from(`${email}/token:${apiToken}`).toString('base64');
 
   const response = await fetch(zendeskUrl, {
     method: 'POST',
@@ -159,8 +200,8 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     const ticketReq = body as CreateTicketRequest;
 
-    // Ensure requester_phone is set to caller's phone
-    ticketReq.requester_phone = ticketReq.requester_phone || callerId;
+    // Normalize phone field — accept caller_phone or requester_phone, fall back to x-caller-id
+    ticketReq.requester_phone = ticketReq.requester_phone || ticketReq.caller_phone || callerId;
 
     // ──────────────────────────────────────────────
     // Get Zendesk credentials from Secrets Manager
@@ -192,14 +233,15 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       ticketReq
     );
 
-    logSuccess(callerId, 'create_ticket', `Ticket created: #${ticketId}`);
+    logSuccess(callerId, 'create_ticket', `Draft ticket created: #${ticketId}`);
 
     return {
       statusCode: 200,
       body: JSON.stringify({
         success: true,
-        message: `Ticket created successfully`,
+        message: `Support ticket #${ticketId} has been created. Our team will review it and follow up with you shortly.`,
         ticket_id: ticketId,
+        draft: true,
       }),
     };
   } catch (error) {
