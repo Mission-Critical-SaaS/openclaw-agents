@@ -191,22 +191,35 @@ Beacon monitors support patterns and automatically triggers handoffs when thresh
 - Transfer calls to human agents when needed (DTMF: press 0)
 - Record call metadata with consent
 
-**Current blocker**: ElevenLabs API credentials and SIP gateway configuration not deployed
+**Current blocker**: Server Tools (send_sms, create_ticket) pending Lambda deployment
 
 ### 3.2 Phone/SIP Integration
 
 **Issue**: #96
-**Status**: TWILIO NUMBER ACQUIRED, SIP PENDING
-**Timeline**: Phone number provisioned; SIP trunking configuration in progress
+**Status**: LIVE — Voice calls active, SMS verification pending
+**Timeline**: Voice calls operational since 2026-03-19; SMS pending toll-free verification (3-5 business days)
 
-**What it will do**:
-- Integrate Beacon with PSTN for inbound support calls
-- Route calls to ElevenLabs voice AI first, then to humans if needed
-- Maintain call logs and transcripts for compliance
+**What it does**:
+- Inbound PSTN support calls via ElevenLabs Conversational AI
+- AI voice agent (Casey) handles first-tier support with DCAA expertise
+- End conversation system tool enabled for graceful call termination
+- Caller ID detection via `system__caller_id` dynamic variable
 
-**Twilio number**: +1 (888) 887-8179 (toll-free, voice+SMS+MMS)
-**Twilio SID**: PNe5397e839258386e94e51969332ac897
-**Next step**: Connect to ElevenLabs Conversational AI via SIP trunk
+**Infrastructure**:
+- **Twilio number**: +1 (888) 887-8179 (toll-free, voice+SMS+MMS)
+- **Twilio SID**: PNe5397e839258386e94e51969332ac897
+- **ElevenLabs Agent ID**: agent_0301km38sbgffdsrpvr9m2w8x2qr
+- **Voice model**: Brad - Welcoming & Casual (V3 Conversational Alpha)
+- **LLM**: Claude Sonnet 4.6
+- **TTS**: V3 Conversational with Expressive mode
+
+**Security model — Act, Don't Reveal**:
+- Agent CAN trigger actions (password resets, SMS links, ticket creation)
+- Agent NEVER discloses account information to callers
+- Phone spoofing rendered harmless by this model
+
+**SMS status**: Toll-free verification submitted 2026-03-19; awaiting approval (3-5 business days)
+**Next step**: Deploy Lambda proxy for Server Tools, configure ElevenLabs webhook tools
 
 ### 3.3 Web Chat Widget
 

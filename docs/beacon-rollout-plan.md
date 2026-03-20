@@ -193,8 +193,12 @@ We set up a test phone number (e.g., a forwarding line) that connects callers to
 
 1. **Setup:**
    - ✅ Twilio toll-free number provisioned: **+1 (888) 887-8179**
-   - Configure ElevenLabs voice gateway
-   - Set up call recording and logging
+   - ✅ ElevenLabs voice agent (Casey) connected and live
+   - ✅ Voice model: Brad - Welcoming & Casual (V3 Conversational)
+   - ✅ LLM: Claude Sonnet 4.6 with DCAA-expert system prompt
+   - ✅ Toll-free SMS verification submitted (pending 3-5 business days)
+   - ⬜ Deploy Lambda proxy for Server Tools (send_sms, create_ticket)
+   - ⬜ Configure ElevenLabs webhook tools with Lambda endpoints
    - Define call routing (Beacon → Debbie if escalation needed)
 
 2. **Internal Test Calls:**
