@@ -14,7 +14,7 @@
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { Buffer } from 'buffer';
-import { validateApiKey, getCallerId } from './shared/auth';
+import { validateApiKey, getCallerId, AuthError } from './shared/auth';
 import { getCredential } from './shared/secrets';
 import { logSuccess, logError } from './shared/audit';
 
@@ -198,7 +198,34 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       }),
     };
   } catch (error) {
+    // Handle authentication errors separately to return 400
+    if (error instanceof AuthError) {
+      console.error('Authentication error:', error.message);
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: error.message }),
+      };
+    }
+
+    // Handle Twilio API errors to return 502 with descriptive message
     const errorMsg = error instanceof Error ? error.message : String(error);
+    if (errorMsg.includes('Twilio API error')) {
+      console.error('Twilio API error:', errorMsg);
+
+      try {
+        const callerId = getCallerId(event);
+        logError(callerId, 'send_sms', errorMsg);
+      } catch {
+        // If we can't get caller ID, just log the error
+        console.error('Could not log error to audit trail');
+      }
+
+      return {
+        statusCode: 502,
+        body: JSON.stringify({ error: 'SMS delivery failed. The phone number may be invalid or unverified.' }),
+      };
+    }
+
     console.error('SMS handler error:', errorMsg);
 
     try {

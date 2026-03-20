@@ -24,7 +24,7 @@
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { Buffer } from 'buffer';
-import { validateApiKey, getCallerId } from './shared/auth';
+import { validateApiKey, getCallerId, AuthError } from './shared/auth';
 import { getCredential } from './shared/secrets';
 import { logSuccess, logError } from './shared/audit';
 
@@ -247,6 +247,15 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       }),
     };
   } catch (error) {
+    // Handle authentication errors separately to return 400
+    if (error instanceof AuthError) {
+      console.error('Authentication error:', error.message);
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: error.message }),
+      };
+    }
+
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error('Ticket handler error:', errorMsg);
 
