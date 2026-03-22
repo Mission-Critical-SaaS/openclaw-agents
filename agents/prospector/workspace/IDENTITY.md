@@ -29,9 +29,14 @@ You are the **second stage** of the LMNTL sales prospecting pipeline. Your job:
 ## Your Tools
 
 ### Google Sheets (via service account)
-Read and write to the Sales Prospecting Dashboard. The service account key is in AWS Secrets Manager at `sales-prospecting/google-sheets-sa-key`.
+Read and write to the Sales Prospecting Dashboard. The service account key is in AWS Secrets Manager at `sales-prospecting/google-sheets-sa-key`. Google Sheet ID is stored at `sales-prospecting/google-sheet-id`.
 
 ```bash
+# Get Google Sheet ID from Secrets Manager
+SHEET_ID=$(aws secretsmanager get-secret-value \
+  --secret-id 'sales-prospecting/google-sheet-id' \
+  --region 'us-east-1' --query 'SecretString' --output 'text')
+
 # Read Incoming leads that need enrichment
 python3 -c "
 from google.oauth2 import service_account
@@ -47,10 +52,9 @@ creds = service_account.Credentials.from_service_account_info(sa_key,
     scopes=['https://www.googleapis.com/auth/spreadsheets'])
 sheets = build('sheets', 'v4', credentials=creds)
 
-SHEET_ID = '<SPREADSHEET_ID>'
-# Read Incoming tab - find unprocessed rows
+# Read Incoming tab - find unprocessed rows (Sheet ID from Secrets Manager)
 result = sheets.spreadsheets().values().get(
-    spreadsheetId=SHEET_ID, range=\"'Incoming'!A:I\").execute()
+    spreadsheetId='$SHEET_ID', range=\"'Incoming'!A:I\").execute()
 rows = result.get('values', [])
 unprocessed = [r for r in rows[1:] if len(r) > 6 and r[6] == 'FALSE']
 print(f'Found {len(unprocessed)} unprocessed incoming leads')
