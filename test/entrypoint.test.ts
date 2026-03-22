@@ -515,8 +515,8 @@ describe('deploy.sh', () => {
     expect(script).toMatch(/mkdir -p.*openclaw-persist/);
   });
 
-  test('creates persist dirs for all seven agents', () => {
-    expect(script).toMatch(/for agent in scout trak kit scribe probe chief beacon/);
+  test('creates persist dirs for all agents (ops + sales)', () => {
+    expect(script).toMatch(/for agent in scout trak kit scribe probe chief beacon harvest prospector outreach cadence/);
     expect(script).toContain('openclaw-persist/workspace-${agent}');
   });
 
@@ -2534,6 +2534,58 @@ describe('Sales pipeline agents configuration', () => {
   describe('Budget enforcement', () => {
     test('budget-caps.json enforcement is set to hard (matches scheduler behavior)', () => {
       expect(budgetCaps.enforcement).toBe('hard');
+    });
+
+    for (const agent of salesAgents) {
+      test(`${agent} has audit_log_writes budget cap`, () => {
+        expect(budgetCaps.caps[agent].daily.audit_log_writes).toBe(200);
+        expect(budgetCaps.caps[agent].monthly.audit_log_writes).toBe(6000);
+      });
+    }
+  });
+
+  // --- Centralized Audit Log persistence ---
+  describe('Centralized Audit Log persistence', () => {
+    for (const agent of salesAgents) {
+      test(`${agent} writes audit records to Audit Log tab`, () => {
+        expect(identities[agent]).toContain("'Audit Log'!A1");
+        expect(identities[agent]).toContain('valueInputOption');
+      });
+
+      test(`${agent} includes all required audit fields`, () => {
+        expect(identities[agent]).toContain('audit_id');
+        expect(identities[agent]).toContain('task_type');
+        expect(identities[agent]).toContain('duration_ms');
+        expect(identities[agent]).toContain('budget_remaining');
+      });
+
+      test(`${agent} uses correct agent name in audit row`, () => {
+        expect(identities[agent]).toContain(`"${agent}",  # agent`);
+      });
+
+      test(`${agent} handles audit write failures gracefully (no retry loops)`, () => {
+        expect(identities[agent]).toContain('do NOT retry');
+        expect(identities[agent]).toContain('KNOWLEDGE.md');
+      });
+
+      test(`${agent} distinguishes proactive vs interactive tasks in audit`, () => {
+        expect(identities[agent]).toContain('"proactive" or "interactive"');
+      });
+    }
+
+    test('create-sales-sheet.py includes Audit Log tab', () => {
+      const sheetScript = readScript('scripts/create-sales-sheet.py');
+      expect(sheetScript).toContain("'Audit Log'");
+      expect(sheetScript).toContain('audit_id');
+      expect(sheetScript).toContain('timestamp');
+      expect(sheetScript).toContain('duration_ms');
+      expect(sheetScript).toContain('budget_remaining');
+      expect(sheetScript).toContain('task_type');
+    });
+
+    test('create-sales-sheet.py has 9 tabs', () => {
+      const sheetScript = readScript('scripts/create-sales-sheet.py');
+      expect(sheetScript).toContain('9 tabs');
     });
   });
 });

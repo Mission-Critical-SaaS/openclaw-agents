@@ -147,6 +147,7 @@
       "daily": {
         "rss_feed_polls": 24,
         "google_sheets_writes": 100,
+        "audit_log_writes": 200,
         "web_scrape_requests": 50,
         "slack_messages": 15,
         "jira_updates": 5
@@ -154,6 +155,7 @@
       "monthly": {
         "rss_feed_polls": 720,
         "google_sheets_writes": 3000,
+        "audit_log_writes": 6000,
         "web_scrape_requests": 1500,
         "slack_messages": 300,
         "jira_updates": 50
@@ -169,6 +171,7 @@
         "web_research_queries": 100,
         "usaspending_api_calls": 50,
         "google_sheets_writes": 50,
+        "audit_log_writes": 200,
         "slack_messages": 15,
         "jira_updates": 5
       },
@@ -176,6 +179,7 @@
         "web_research_queries": 3000,
         "usaspending_api_calls": 1500,
         "google_sheets_writes": 1500,
+        "audit_log_writes": 6000,
         "slack_messages": 300,
         "jira_updates": 50
       },
@@ -190,6 +194,7 @@
         "clay_api_calls": 50,
         "gmail_drafts_created": 20,
         "google_sheets_writes": 30,
+        "audit_log_writes": 200,
         "slack_messages": 15,
         "web_research_queries": 30
       },
@@ -197,6 +202,7 @@
         "clay_api_calls": 1000,
         "gmail_drafts_created": 400,
         "google_sheets_writes": 600,
+        "audit_log_writes": 6000,
         "slack_messages": 300,
         "web_research_queries": 600
       },
@@ -210,12 +216,14 @@
       "daily": {
         "gmail_drafts_created": 15,
         "google_sheets_writes": 30,
+        "audit_log_writes": 200,
         "slack_messages": 10,
         "sequence_checks": 50
       },
       "monthly": {
         "gmail_drafts_created": 300,
         "google_sheets_writes": 600,
+        "audit_log_writes": 6000,
         "slack_messages": 200,
         "sequence_checks": 1500
       },
