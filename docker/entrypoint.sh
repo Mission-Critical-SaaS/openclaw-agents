@@ -309,7 +309,7 @@ else
 fi
 
 # All agents that need auth profiles and CLI registration
-ALL_AGENTS="scout trak kit scribe probe chief beacon harvest prospector outreach cadence"
+ALL_AGENTS="scout trak kit scribe probe chief ledger beacon harvest prospector outreach cadence"
 
 # Set up agent auth profiles (all agents need Anthropic API auth)
 for agent in $ALL_AGENTS; do
@@ -342,8 +342,8 @@ for agent in $ALL_AGENTS; do
       --workspace "$WS" \
       --agent-dir "$AD" \
       --bind "slack:${agent}" \
-      --non-interactive 2>/dev/null && echo "  registered: $agent" \
-      || echo "  $agent: already registered or error (non-fatal)"
+      --non-interactive 2>&1 && echo "  registered: $agent" \
+      || echo "  $agent: already registered or skipped (non-fatal)"
   fi
 done
 echo "Agent registration complete."

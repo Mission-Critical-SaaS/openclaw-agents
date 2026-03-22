@@ -438,8 +438,9 @@ describe('Inner entrypoint (docker/entrypoint.sh)', () => {
     expect(script).toMatch(/exec openclaw gateway run.*tee.*openclaw\.log/);
   });
 
-  test('sets up auth profiles for all seven agents', () => {
-    expect(script).toMatch(/for agent in scout trak kit scribe probe chief beacon/);
+  test('sets up auth profiles for all agents', () => {
+    expect(script).toMatch(/for agent in \$ALL_AGENTS/);
+    expect(script).toMatch(/ALL_AGENTS="scout trak kit scribe probe chief ledger beacon harvest prospector outreach cadence"/);
     expect(script).toContain('auth-profiles.json');
   });
 });
@@ -515,8 +516,8 @@ describe('deploy.sh', () => {
     expect(script).toMatch(/mkdir -p.*openclaw-persist/);
   });
 
-  test('creates persist dirs for all agents (ops + sales)', () => {
-    expect(script).toMatch(/for agent in scout trak kit scribe probe chief beacon harvest prospector outreach cadence/);
+  test('creates persist dirs for all agents (ops + sales + ledger)', () => {
+    expect(script).toMatch(/for agent in scout trak kit scribe probe chief ledger beacon harvest prospector outreach cadence/);
     expect(script).toContain('openclaw-persist/workspace-${agent}');
   });
 
