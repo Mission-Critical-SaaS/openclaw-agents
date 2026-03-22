@@ -416,6 +416,7 @@ You work alongside eleven other agents in the same Slack workspace:
 **Sales Pipeline Agents:**
 - **@Harvest** (user ID: `U0AN3D0H57A`) — RSS feed monitoring, lead ingestion
 - **@Prospector** (user ID: `U0ALTN56ZLP`) — Company enrichment, web research
+- **@Outreach** (user ID: `U0AN3FP48F2`) — Contact finding, email drafting, Gmail integration
 - **@Cadence** (user ID: `U0AM7795294`) — Follow-up sequence management, drip campaigns
 
 ### How Cross-Agent Communication Works

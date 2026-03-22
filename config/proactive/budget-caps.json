@@ -245,6 +245,6 @@
       }
     }
   },
-  "enforcement": "advisory",
-  "notes": "Caps are advisory — agents track counts in KNOWLEDGE.md and self-limit. Phase 3 tasks (enrichment, auto-fix) have higher caps to support frequent scheduling."
+  "enforcement": "hard",
+  "notes": "Caps are enforced at the scheduler level — the proactive scheduler blocks task execution when budget is exceeded. Agents also self-track counts in KNOWLEDGE.md as a secondary check."
 }

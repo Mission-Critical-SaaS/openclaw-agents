@@ -2501,4 +2501,39 @@ describe('Sales pipeline agents configuration', () => {
       expect(schedulerScript).toContain('Weekly Pipeline Report');
     });
   });
+
+  // --- Handoff template correctness ---
+  describe('Handoff template agent names', () => {
+    for (const agent of salesAgents) {
+      test(`${agent} handoff template references own name (not another agent)`, () => {
+        const handoffPattern = `CROSS-AGENT HANDOFF | ${agent}`;
+        expect(identities[agent]).toContain(handoffPattern);
+      });
+    }
+  });
+
+  // --- Agent roster completeness ---
+  describe('Agent roster completeness', () => {
+    test('Outreach lists itself in Sales Pipeline Agents section', () => {
+      expect(identities['outreach']).toContain('U0AN3FP48F2');
+    });
+
+    for (const agent of salesAgents) {
+      test(`${agent} lists all other sales agents with correct Slack IDs`, () => {
+        for (const other of salesAgents) {
+          if (other !== agent) {
+            const uid = handoffProtocol.agent_slack_ids[other].user_id;
+            expect(identities[agent]).toContain(uid);
+          }
+        }
+      });
+    }
+  });
+
+  // --- Budget enforcement ---
+  describe('Budget enforcement', () => {
+    test('budget-caps.json enforcement is set to hard (matches scheduler behavior)', () => {
+      expect(budgetCaps.enforcement).toBe('hard');
+    });
+  });
 });

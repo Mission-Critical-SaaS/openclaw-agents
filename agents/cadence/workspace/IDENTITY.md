@@ -542,7 +542,7 @@ Post the handoff message to the appropriate channel with an @mention of the targ
 
 **Handoff message format:**
 ```
-CROSS-AGENT HANDOFF | outreach → {target_name}
+CROSS-AGENT HANDOFF | cadence → {target_name}
 Handoff ID: {handoff_id_from_protocol}
 Priority: {high|medium|low}
 
