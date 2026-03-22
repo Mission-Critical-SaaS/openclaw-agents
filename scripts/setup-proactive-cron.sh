@@ -101,13 +101,15 @@ ${EXISTING}
 # Pipeline: Harvest (RSS) → Prospector (enrich) → Outreach (contacts) → Cadence (follow-up)
 # ============================================================
 
-# Harvest: Poll RSS feeds every 2 hours during business hours (weekdays 8am-6pm ET)
+# Harvest: Poll RSS feeds every 2 hours during business hours (8am-6pm ET, 7 days/week)
 # Budget: 24 polls/day cap, ~5 polls/day at this frequency leaves room for manual triggers
-0 8-18/2 * * 1-5 flock -n /tmp/openclaw-harvest-rss-poll.lock $SCHEDULER harvest-rss-poll >> $LOG_DIR/proactive.log 2>&1 # proactive: harvest-rss-poll (every 2h, business hours ET)
+# Runs daily (not just weekdays) — government contract postings can appear any day
+0 8-18/2 * * * flock -n /tmp/openclaw-harvest-rss-poll.lock $SCHEDULER harvest-rss-poll >> $LOG_DIR/proactive.log 2>&1 # proactive: harvest-rss-poll (every 2h, business hours ET, daily)
 
-# Prospector: Enrich new leads every 3 hours during business hours (weekdays 9am-6pm ET)
+# Prospector: Enrich new leads every 3 hours during business hours (9am-6pm ET, 7 days/week)
 # Staggered 30min after Harvest to allow new leads to land first
-30 9-18/3 * * 1-5 flock -n /tmp/openclaw-prospector-enrichment.lock $SCHEDULER prospector-enrichment >> $LOG_DIR/proactive.log 2>&1 # proactive: prospector-enrichment (every 3h, business hours ET)
+# Runs daily to keep enrichment queue clear — no point letting leads sit over weekends
+30 9-18/3 * * * flock -n /tmp/openclaw-prospector-enrichment.lock $SCHEDULER prospector-enrichment >> $LOG_DIR/proactive.log 2>&1 # proactive: prospector-enrichment (every 3h, business hours ET, daily)
 
 # Outreach: Find contacts and draft emails once daily (weekdays 10am ET)
 # Runs after Prospector has had time to enrich morning leads

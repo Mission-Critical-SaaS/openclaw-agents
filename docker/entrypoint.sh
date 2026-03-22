@@ -308,8 +308,11 @@ else
   echo "WARNING: zd-mcp-server not found in npx cache, skipping patch"
 fi
 
-# Set up agent auth profiles (all 6 agents need Anthropic API auth)
-for agent in scout trak kit scribe probe chief beacon; do
+# All agents that need auth profiles and CLI registration
+ALL_AGENTS="scout trak kit scribe probe chief beacon harvest prospector outreach cadence"
+
+# Set up agent auth profiles (all agents need Anthropic API auth)
+for agent in $ALL_AGENTS; do
   AGENT_DIR="${OPENCLAW_HOME}/agents/${agent}/agent"
   mkdir -p "${AGENT_DIR}"
   cat > "${AGENT_DIR}/auth-profiles.json" << AUTHEOF
@@ -325,6 +328,25 @@ for agent in scout trak kit scribe probe chief beacon; do
 }
 AUTHEOF
 done
+
+# Register agents with the CLI so proactive tasks can dispatch via
+# `openclaw agent --agent <name>`. Without this, `openclaw agents list`
+# only shows the default "main" agent and all cron-triggered proactive
+# tasks fail with "Unknown agent id".
+echo "Registering agents with CLI..."
+for agent in $ALL_AGENTS; do
+  WS="${OPENCLAW_HOME}/agents/${agent}/workspace"
+  AD="${OPENCLAW_HOME}/agents/${agent}/agent"
+  if [ -d "$WS" ]; then
+    openclaw agents add "$agent" \
+      --workspace "$WS" \
+      --agent-dir "$AD" \
+      --bind "slack:${agent}" \
+      --non-interactive 2>/dev/null && echo "  registered: $agent" \
+      || echo "  $agent: already registered or error (non-fatal)"
+  fi
+done
+echo "Agent registration complete."
 
 # NOTE: Agent workspace file injection (IDENTITY.md, KNOWLEDGE.md) is handled
 # by the outer entrypoint (/app/entrypoint.sh) AFTER the gateway creates the
