@@ -24,8 +24,8 @@ jobs:
 
       - run: npm ci
 
-      - name: Run tests
-        run: npx jest test/entrypoint.test.ts test/openclaw-agents.test.ts --verbose
+      - name: Run unit tests
+        run: npm test -- --verbose
 
   deploy:
     name: Deploy to EC2

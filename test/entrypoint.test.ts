@@ -515,8 +515,8 @@ describe('deploy.sh', () => {
     expect(script).toMatch(/mkdir -p.*openclaw-persist/);
   });
 
-  test('creates persist dirs for all seven agents', () => {
-    expect(script).toMatch(/for agent in scout trak kit scribe probe chief beacon/);
+  test('creates persist dirs for all agents (ops + sales)', () => {
+    expect(script).toMatch(/for agent in scout trak kit scribe probe chief beacon harvest prospector outreach cadence/);
     expect(script).toContain('openclaw-persist/workspace-${agent}');
   });
 
@@ -2196,5 +2196,396 @@ describe('Chief agent configuration', () => {
   test('Chief IDENTITY.md has Inter-Agent Delegation section', () => {
     expect(identity).toContain('Inter-Agent Delegation');
     expect(identity).toContain('agent:chief:main');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Sales pipeline agents — Harvest, Prospector, Outreach, Cadence
+// ---------------------------------------------------------------------------
+describe('Sales pipeline agents configuration', () => {
+  const salesAgents = ['harvest', 'prospector', 'outreach', 'cadence'] as const;
+  const identities: Record<string, string> = {};
+  let budgetCaps: any;
+  let handoffProtocol: any;
+  let schedulerScript: string;
+  let cronScript: string;
+
+  beforeAll(() => {
+    for (const agent of salesAgents) {
+      identities[agent] = readScript(`agents/${agent}/workspace/IDENTITY.md`);
+    }
+    budgetCaps = JSON.parse(readScript('config/proactive/budget-caps.json'));
+    handoffProtocol = JSON.parse(readScript('config/proactive/handoff-protocol.json'));
+    schedulerScript = readScript('scripts/proactive-scheduler.sh');
+    cronScript = readScript('scripts/setup-proactive-cron.sh');
+  });
+
+  // --- IDENTITY.md structural validation ---
+  describe('IDENTITY.md files', () => {
+    for (const agent of salesAgents) {
+      describe(`${agent} IDENTITY.md`, () => {
+        test('exists and is non-trivial (>500 chars)', () => {
+          expect(identities[agent].length).toBeGreaterThan(500);
+        });
+
+        test('contains CI/CD mandate section', () => {
+          expect(identities[agent]).toContain('Mandatory CI/CD & SDLC Policy');
+        });
+
+        test('prohibits direct EC2 editing', () => {
+          expect(identities[agent]).toContain('Editing files directly on the EC2 instance');
+        });
+
+        test('has Response Discipline section', () => {
+          expect(identities[agent]).toContain('Response Discipline');
+          expect(identities[agent]).toContain('NEVER send "thinking out loud" messages');
+        });
+
+        test('has security & access control section', () => {
+          expect(identities[agent]).toContain('Security & Access Control');
+        });
+
+        test('has handoff protocol section', () => {
+          expect(identities[agent]).toContain('Handoff Protocol');
+          expect(identities[agent]).toContain('.handoff-protocol.json');
+        });
+
+        test('has budget awareness section', () => {
+          expect(identities[agent]).toContain('Budget Awareness');
+          expect(identities[agent]).toContain('.budget-caps.json');
+        });
+
+        test('has self-seeding KNOWLEDGE.md bootstrap with 2-path support', () => {
+          expect(identities[agent]).toContain(`/home/openclaw/.openclaw/.openclaw/workspace-${agent}/KNOWLEDGE.md`);
+          expect(identities[agent]).toContain(`$HOME/.openclaw/agents/${agent}/workspace/KNOWLEDGE.md`);
+          expect(identities[agent]).toContain('if [ ! -f "$KF" ]');
+          expect(identities[agent]).toContain('cat > "$KF"');
+          expect(identities[agent]).toContain('cat "$KF"');
+        });
+
+        test('has Inter-Agent Delegation section with all agent Slack IDs', () => {
+          expect(identities[agent]).toContain('Inter-Agent Delegation');
+          // Should reference other sales agents
+          for (const other of salesAgents) {
+            if (other !== agent) {
+              expect(identities[agent]).toContain(handoffProtocol.agent_slack_ids[other].user_id);
+            }
+          }
+        });
+
+        test('references #sales-ops channel for pipeline handoffs', () => {
+          expect(identities[agent]).toContain('#sales-ops');
+          expect(identities[agent]).toContain('C0AMC03JJSY');
+        });
+
+        test('has Slack threading & acknowledgment rules', () => {
+          expect(identities[agent]).toContain('Slack Threading & Acknowledgment');
+        });
+
+        test('has shell command anti-hallucination rule', () => {
+          expect(identities[agent]).toContain('Anti-Hallucination Rule');
+        });
+      });
+    }
+  });
+
+  // --- Google Sheets credential handling ---
+  describe('Google Sheets credential handling', () => {
+    for (const agent of salesAgents) {
+      test(`${agent} reads Sheet ID from Secrets Manager (not hardcoded)`, () => {
+        expect(identities[agent]).toContain('sales-prospecting/google-sheet-id');
+        expect(identities[agent]).not.toContain("'<SPREADSHEET_ID>'");
+      });
+
+      test(`${agent} reads SA key from Secrets Manager`, () => {
+        expect(identities[agent]).toContain('sales-prospecting/google-sheets-sa-key');
+      });
+    }
+  });
+
+  // --- Pipeline-specific capabilities ---
+  describe('Pipeline role validation', () => {
+    test('Harvest has RSS feed polling capability', () => {
+      expect(identities['harvest']).toContain('RSS Feed Polling');
+      expect(identities['harvest']).toContain('sales-prospecting/google-alerts-rss-feeds');
+      expect(identities['harvest']).toContain('feedparser');
+    });
+
+    test('Harvest has deduplication logic', () => {
+      expect(identities['harvest']).toContain('Deduplication Logic');
+      expect(identities['harvest']).toContain('fuzzy-match');
+    });
+
+    test('Prospector has web research capability', () => {
+      expect(identities['prospector']).toContain('Web Research');
+    });
+
+    test('Prospector has USASpending.gov API integration', () => {
+      expect(identities['prospector']).toContain('USASpending');
+      expect(identities['prospector']).toContain('api.usaspending.gov');
+    });
+
+    test('Outreach uses Clay API for contact discovery', () => {
+      expect(identities['outreach']).toContain('Clay API');
+      expect(identities['outreach']).toContain('sales-prospecting/clay-api-key');
+    });
+
+    test('Outreach creates Gmail drafts (NOT auto-send)', () => {
+      expect(identities['outreach']).toContain('Gmail');
+      expect(identities['outreach']).toContain('NOT send');
+    });
+
+    test('Cadence manages follow-up sequences', () => {
+      expect(identities['cadence']).toContain('follow-up');
+      expect(identities['cadence']).toContain('sequence');
+      expect(identities['cadence']).toContain('step_number');
+    });
+
+    test('Cadence has email quality gates', () => {
+      expect(identities['cadence']).toContain('Email Quality Gates');
+      expect(identities['cadence']).toContain('under 60 characters');
+      expect(identities['cadence']).toContain('under 1000 characters');
+    });
+  });
+
+  // --- Budget caps ---
+  describe('Budget caps', () => {
+    for (const agent of salesAgents) {
+      test(`${agent} has budget caps defined`, () => {
+        expect(budgetCaps.caps[agent]).toBeDefined();
+        expect(budgetCaps.caps[agent].daily).toBeDefined();
+        expect(budgetCaps.caps[agent].monthly).toBeDefined();
+        expect(budgetCaps.caps[agent].per_action).toBeDefined();
+      });
+    }
+
+    test('Harvest has RSS poll and sheet write caps', () => {
+      expect(budgetCaps.caps.harvest.daily.rss_feed_polls).toBe(24);
+      expect(budgetCaps.caps.harvest.daily.google_sheets_writes).toBe(100);
+    });
+
+    test('Prospector has web research and USASpending caps', () => {
+      expect(budgetCaps.caps.prospector.daily.web_research_queries).toBe(100);
+      expect(budgetCaps.caps.prospector.daily.usaspending_api_calls).toBe(50);
+    });
+
+    test('Outreach has Clay API and Gmail draft caps', () => {
+      expect(budgetCaps.caps.outreach.daily.clay_api_calls).toBe(50);
+      expect(budgetCaps.caps.outreach.daily.gmail_drafts_created).toBe(20);
+    });
+
+    test('Cadence has follow-up and Gmail draft caps', () => {
+      expect(budgetCaps.caps.cadence.daily.gmail_drafts_created).toBe(15);
+      expect(budgetCaps.caps.cadence.daily.sequence_checks).toBe(50);
+    });
+  });
+
+  // --- Handoff protocol ---
+  describe('Handoff protocol', () => {
+    test('has harvest-to-prospector handoff defined', () => {
+      const handoff = handoffProtocol.handoffs.find(
+        (h: any) => h.id === 'harvest-to-prospector-new-leads'
+      );
+      expect(handoff).toBeDefined();
+      expect(handoff.from).toBe('harvest');
+      expect(handoff.to).toBe('prospector');
+    });
+
+    test('has prospector-to-outreach handoff defined', () => {
+      const handoff = handoffProtocol.handoffs.find(
+        (h: any) => h.id === 'prospector-to-outreach-qualified'
+      );
+      expect(handoff).toBeDefined();
+      expect(handoff.from).toBe('prospector');
+      expect(handoff.to).toBe('outreach');
+    });
+
+    test('has outreach-to-cadence handoff defined', () => {
+      const handoff = handoffProtocol.handoffs.find(
+        (h: any) => h.id === 'outreach-to-cadence-initial-sent'
+      );
+      expect(handoff).toBeDefined();
+      expect(handoff.from).toBe('outreach');
+      expect(handoff.to).toBe('cadence');
+    });
+
+    test('has cadence-to-chief pipeline metrics handoff', () => {
+      const handoff = handoffProtocol.handoffs.find(
+        (h: any) => h.id === 'cadence-to-chief-pipeline-metrics'
+      );
+      expect(handoff).toBeDefined();
+      expect(handoff.from).toBe('cadence');
+      expect(handoff.to).toBe('chief');
+    });
+
+    test('sales agents route through #sales-ops channel', () => {
+      const salesRoute = handoffProtocol.protocol.routing_rules.find(
+        (r: any) => r.channel === 'sales_ops'
+      );
+      expect(salesRoute).toBeDefined();
+    });
+
+    test('all 4 sales agents have Slack user IDs in protocol', () => {
+      for (const agent of salesAgents) {
+        expect(handoffProtocol.agent_slack_ids[agent]).toBeDefined();
+        expect(handoffProtocol.agent_slack_ids[agent].user_id).toMatch(/^U0/);
+        expect(handoffProtocol.agent_slack_ids[agent].session_target).toMatch(/^agent:[a-z]+:main$/);
+      }
+    });
+  });
+
+  // --- Cron schedules ---
+  describe('Cron schedules', () => {
+    test('Harvest has RSS poll cron entry', () => {
+      expect(cronScript).toContain('harvest-rss-poll');
+      expect(cronScript).toMatch(/8-18\/2.*harvest-rss-poll/);
+    });
+
+    test('Prospector has enrichment cron entry', () => {
+      expect(cronScript).toContain('prospector-enrichment');
+      expect(cronScript).toMatch(/9-18\/3.*prospector-enrichment/);
+    });
+
+    test('Outreach has contact-finding cron entry', () => {
+      expect(cronScript).toContain('outreach-contact-finding');
+      expect(cronScript).toMatch(/0 10.*outreach-contact-finding/);
+    });
+
+    test('Cadence has follow-up cron entry', () => {
+      expect(cronScript).toContain('cadence-follow-up');
+      expect(cronScript).toMatch(/0 8,14.*cadence-follow-up/);
+    });
+
+    test('Cadence has weekly pipeline report cron entry', () => {
+      expect(cronScript).toContain('cadence-pipeline-report');
+      expect(cronScript).toMatch(/0 16.*1.*cadence-pipeline-report/);
+    });
+
+    test('all sales cron entries use flock for concurrency safety', () => {
+      const salesEntries = cronScript.split('\n').filter(
+        (l: string) => l.includes('harvest-') || l.includes('prospector-') ||
+                       l.includes('outreach-') || l.includes('cadence-')
+      );
+      for (const entry of salesEntries) {
+        if (entry.trim() && !entry.trim().startsWith('#')) {
+          expect(entry).toContain('flock -n');
+        }
+      }
+    });
+  });
+
+  // --- Scheduler task definitions ---
+  describe('Scheduler task definitions', () => {
+    test('harvest-rss-poll task is defined in scheduler', () => {
+      expect(schedulerScript).toContain('harvest-rss-poll)');
+      expect(schedulerScript).toContain('RSS Feed Polling');
+    });
+
+    test('prospector-enrichment task is defined in scheduler', () => {
+      expect(schedulerScript).toContain('prospector-enrichment)');
+      expect(schedulerScript).toContain('Lead Enrichment');
+    });
+
+    test('outreach-contact-finding task is defined in scheduler', () => {
+      expect(schedulerScript).toContain('outreach-contact-finding)');
+      expect(schedulerScript).toContain('Contact Finding');
+    });
+
+    test('cadence-follow-up task is defined in scheduler', () => {
+      expect(schedulerScript).toContain('cadence-follow-up)');
+      expect(schedulerScript).toContain('Follow-Up Sequence');
+    });
+
+    test('cadence-pipeline-report task is defined in scheduler', () => {
+      expect(schedulerScript).toContain('cadence-pipeline-report)');
+      expect(schedulerScript).toContain('Weekly Pipeline Report');
+    });
+  });
+
+  // --- Handoff template correctness ---
+  describe('Handoff template agent names', () => {
+    for (const agent of salesAgents) {
+      test(`${agent} handoff template references own name (not another agent)`, () => {
+        const handoffPattern = `CROSS-AGENT HANDOFF | ${agent}`;
+        expect(identities[agent]).toContain(handoffPattern);
+      });
+    }
+  });
+
+  // --- Agent roster completeness ---
+  describe('Agent roster completeness', () => {
+    test('Outreach lists itself in Sales Pipeline Agents section', () => {
+      expect(identities['outreach']).toContain('U0AN3FP48F2');
+    });
+
+    for (const agent of salesAgents) {
+      test(`${agent} lists all other sales agents with correct Slack IDs`, () => {
+        for (const other of salesAgents) {
+          if (other !== agent) {
+            const uid = handoffProtocol.agent_slack_ids[other].user_id;
+            expect(identities[agent]).toContain(uid);
+          }
+        }
+      });
+    }
+  });
+
+  // --- Budget enforcement ---
+  describe('Budget enforcement', () => {
+    test('budget-caps.json enforcement is set to hard (matches scheduler behavior)', () => {
+      expect(budgetCaps.enforcement).toBe('hard');
+    });
+
+    for (const agent of salesAgents) {
+      test(`${agent} has audit_log_writes budget cap`, () => {
+        expect(budgetCaps.caps[agent].daily.audit_log_writes).toBe(200);
+        expect(budgetCaps.caps[agent].monthly.audit_log_writes).toBe(6000);
+      });
+    }
+  });
+
+  // --- Centralized Audit Log persistence ---
+  describe('Centralized Audit Log persistence', () => {
+    for (const agent of salesAgents) {
+      test(`${agent} writes audit records to Audit Log tab`, () => {
+        expect(identities[agent]).toContain("'Audit Log'!A1");
+        expect(identities[agent]).toContain('valueInputOption');
+      });
+
+      test(`${agent} includes all required audit fields`, () => {
+        expect(identities[agent]).toContain('audit_id');
+        expect(identities[agent]).toContain('task_type');
+        expect(identities[agent]).toContain('duration_ms');
+        expect(identities[agent]).toContain('budget_remaining');
+      });
+
+      test(`${agent} uses correct agent name in audit row`, () => {
+        expect(identities[agent]).toContain(`"${agent}",  # agent`);
+      });
+
+      test(`${agent} handles audit write failures gracefully (no retry loops)`, () => {
+        expect(identities[agent]).toContain('do NOT retry');
+        expect(identities[agent]).toContain('KNOWLEDGE.md');
+      });
+
+      test(`${agent} distinguishes proactive vs interactive tasks in audit`, () => {
+        expect(identities[agent]).toContain('"proactive" or "interactive"');
+      });
+    }
+
+    test('create-sales-sheet.py includes Audit Log tab', () => {
+      const sheetScript = readScript('scripts/create-sales-sheet.py');
+      expect(sheetScript).toContain("'Audit Log'");
+      expect(sheetScript).toContain('audit_id');
+      expect(sheetScript).toContain('timestamp');
+      expect(sheetScript).toContain('duration_ms');
+      expect(sheetScript).toContain('budget_remaining');
+      expect(sheetScript).toContain('task_type');
+    });
+
+    test('create-sales-sheet.py has 9 tabs', () => {
+      const sheetScript = readScript('scripts/create-sales-sheet.py');
+      expect(sheetScript).toContain('9 tabs');
+    });
   });
 });

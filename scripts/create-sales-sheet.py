@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Google Sheets Creation Script with Service Account
-Creates the Sales Prospecting Dashboard with 8 tabs.
+Creates the Sales Prospecting Dashboard with 9 tabs.
 """
 import json
 import boto3
@@ -54,6 +54,10 @@ class GoogleSheetCreator:
         'Outreach': {
             'headers': ['outreach_id', 'contact_id', 'company_id', 'template_id', 'cadence_step', 'status', 'sent_date', 'opened_date', 'replied_date', 'gmail_draft_id', 'stream_id', 'created_date'],
             'sample_data': [['OUT-001', 'CONT-001', 'COMP-001', 'TPL-001', '1', 'sent', '2026-03-17', '', '', 'draft_123', 'HTS-FED', '2026-03-17']]
+        },
+        'Audit Log': {
+            'headers': ['audit_id', 'timestamp', 'agent', 'task_type', 'user_id', 'tier', 'action', 'target', 'result', 'details', 'duration_ms', 'budget_remaining'],
+            'sample_data': [['AUD-001', '2026-03-17T09:30:00Z', 'harvest', 'proactive', 'system', 'system', 'rss_poll', 'google-alerts-fed-contracts', 'success', 'Polled 4 feeds, found 3 new articles', '2450', '23/24']]
         }
     }
 

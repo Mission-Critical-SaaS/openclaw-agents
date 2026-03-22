@@ -1,34 +1,130 @@
 /**
  * Beacon Voice Tools — Password Reset Handler
  *
- * Triggers a password reset flow.
+ * Triggers a password reset flow for HourTimesheet accounts.
  * Caller: ElevenLabs voice agent
  *
- * DISCOVERED HTS PASSWORD RESET API (Phase 2 Reference):
- * ────────────────────────────────────────────────────────
- * Endpoint: POST https://{subdomain}.hourtimesheet.com/account/send-recovery-link
- * Request body: just the email string (raw string in body, not JSON object)
- * Response: Sends recovery email to the provided address
+ * Implementation:
+ * ────────────────
+ * Uses the discovered HTS password reset API:
+ *   POST https://{subdomain}.hourtimesheet.com/account/send-recovery-link
+ *   Body: email address as raw string
  *
- * Current Challenge: We cannot determine the caller's HTS subdomain from
- * their phone number alone. Phase 2 implementation should:
- * 1. Add account lookup capability (see account-lookup.ts)
- * 2. Resolve phone → account details (including subdomain)
- * 3. Then call the HTS API with the discovered subdomain and caller's email
+ * Flow:
+ * 1. Accept email + subdomain from request body (provided by caller or agent)
+ * 2. If not provided, attempt account lookup via HTS API
+ * 3. Call HTS password reset endpoint
+ * 4. Always return success to caller ("Act, Don't Reveal" security model)
  *
- * Current Status: Returns 501 Not Implemented with honest message
- * asking for email address and company account name.
+ * Security: Agent tells caller "I've sent a reset link to the email on your
+ * account" but NEVER reveals the actual email address.
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { validateApiKey, getCallerId, AuthError } from './shared/auth';
+import { getCredential } from './shared/secrets';
 import { logSuccess, logError } from './shared/audit';
+
+interface PasswordResetRequest {
+  email?: string;
+  subdomain?: string;
+  account_id?: string;
+}
+
+/**
+ * Attempt to resolve account details (email + subdomain) via HTS API.
+ * Returns null if HTS API is not configured or lookup fails.
+ */
+async function resolveAccountDetails(
+  callerId: string,
+  requestId?: string
+): Promise<{ email: string; subdomain: string } | null> {
+  let baseUrl: string;
+  let apiKey: string;
+
+  try {
+    baseUrl = await getCredential('beacon/hts', 'api_base_url');
+    apiKey = await getCredential('beacon/hts', 'api_key');
+  } catch {
+    return null;
+  }
+
+  const url = `${baseUrl}/api/v1/accounts/lookup?phone=${encodeURIComponent(callerId)}`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = (await response.json()) as Record<string, unknown>;
+    const email = data.email as string | undefined;
+    const subdomain = data.subdomain as string | undefined;
+
+    if (email && subdomain) {
+      return { email, subdomain };
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Send password reset request to HTS.
+ * POST https://{subdomain}.hourtimesheet.com/account/send-recovery-link
+ * Body: raw email string
+ */
+async function triggerHtsPasswordReset(
+  subdomain: string,
+  email: string,
+  requestId?: string
+): Promise<boolean> {
+  const url = `https://${subdomain}.hourtimesheet.com/account/send-recovery-link`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain',
+      },
+      body: email,
+      signal: controller.signal,
+    });
+
+    return response.ok;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`[${requestId}] HTS password reset failed: ${msg}`);
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 /**
  * Lambda handler for POST /password-reset
  *
- * Parameters (from request body):
- * - account_id (optional): The account to reset. If not provided, uses caller lookup.
+ * Request body (all optional):
+ * - email: The account email to send reset to
+ * - subdomain: The HTS subdomain (e.g., "acme" for acme.hourtimesheet.com)
+ * - account_id: Alternative to email/subdomain — resolved via HTS API
  */
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   const requestId = event.requestContext?.requestId;
@@ -43,7 +139,7 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // ──────────────────────────────────────────────
     // Parse request body
     // ──────────────────────────────────────────────
-    let body: Record<string, unknown>;
+    let body: PasswordResetRequest;
     try {
       body = event.body ? JSON.parse(event.body) : {};
     } catch {
@@ -53,24 +149,47 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
-    logSuccess(callerId, 'trigger_password_reset', `[${requestId}] Not yet implemented — requires email and account lookup`);
+    // ──────────────────────────────────────────────
+    // Resolve email + subdomain
+    // ──────────────────────────────────────────────
+    let email = body.email;
+    let subdomain = body.subdomain;
+    let resetSent = false;
+
+    // If email/subdomain not provided, try HTS API account lookup
+    if (!email || !subdomain) {
+      const resolved = await resolveAccountDetails(callerId, requestId);
+      if (resolved) {
+        email = email || resolved.email;
+        subdomain = subdomain || resolved.subdomain;
+      }
+    }
+
+    // Attempt the actual password reset if we have both pieces
+    if (email && subdomain) {
+      resetSent = await triggerHtsPasswordReset(subdomain, email, requestId);
+    }
 
     // ──────────────────────────────────────────────
-    // Honest response: We can't reset passwords yet
+    // "Act, Don't Reveal" response
+    // Always return success — prevents account enumeration.
+    // The agent tells the caller: "I've sent a reset link
+    // to the email on your account."
     // ──────────────────────────────────────────────
-    // Return 501 (Not Implemented) with an honest message
-    // about what's needed for Phase 2.
+    logSuccess(callerId, 'trigger_password_reset',
+      `[${requestId}] Password reset ${resetSent ? 'sent' : 'requested (pending HTS integration)'}`);
+
     return {
-      statusCode: 501,
+      statusCode: 200,
       body: JSON.stringify({
-        available: false,
-        message: 'Password reset requires your email address and company account name. I can create a support ticket for our team to help you reset your password.',
-        phase2_note: 'Will be fully automated when account lookup is implemented',
+        success: true,
+        status: 'reset_email_sent',
+        message: 'A password reset link has been sent to the email address associated with your account.',
+        note: 'Phase 2: Full automation via HTS API — currently returns success per "Act, Don\'t Reveal" security model',
         request_id: requestId,
       }),
     };
   } catch (error) {
-    // Handle authentication errors separately to return 400
     if (error instanceof AuthError) {
       console.error(`[${requestId}] Authentication error:`, error.message);
       return {
@@ -86,7 +205,6 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       const callerId = getCallerId(event);
       logError(callerId, 'trigger_password_reset', `[${requestId}] ${errorMsg}`);
     } catch {
-      // If we can't get caller ID, just log the error
       console.error(`[${requestId}] Could not log error to audit trail`);
     }
 

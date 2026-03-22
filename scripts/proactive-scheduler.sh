@@ -289,6 +289,13 @@ Phase 3 — Advanced Capabilities:
   scribe-knowledge-gap    Monthly knowledge gap analysis (Scribe)
   probe-smoke-test        Post-deploy smoke tests (Probe)
   probe-perf-canary       Weekly performance benchmarks (Probe)
+
+Sales Pipeline:
+  harvest-rss-poll        Scheduled RSS feed polling (Harvest)
+  prospector-enrichment   Lead enrichment cycle (Prospector)
+  outreach-contact-finding Contact finding & email drafting (Outreach)
+  cadence-follow-up       Follow-up sequence check (Cadence)
+  cadence-pipeline-report Weekly sales pipeline report (Cadence)
 EOF
   exit 0
 fi
@@ -555,6 +562,117 @@ Run your weekly performance benchmark:
 5. Update your KNOWLEDGE.md with this week's measurements
 Budget: Check .budget-caps.json before making API calls." \
       240
+    ;;
+
+  # ── Sales Pipeline: Harvest ────────────────────────────
+  harvest-rss-poll)
+    send_to_agent "harvest" "$TASK" \
+      "[PROACTIVE TASK: RSS Feed Polling]
+You are running your scheduled RSS feed polling cycle. Do the following:
+1. Read all active streams from the Streams tab in the Sales Prospecting Dashboard
+2. Fetch all configured Google Alerts RSS feeds from AWS Secrets Manager
+3. For each feed, parse new entries since your last poll (check KNOWLEDGE.md for last poll timestamp)
+4. For each new entry: extract structured company data (company name, contract value, agency, URL, published date)
+5. Deduplicate against existing Incoming tab rows (check URL match and title fuzzy-match >90% within last 7 days)
+6. Skip articles older than 30 days
+7. Write new leads to the Incoming tab with processed=FALSE
+8. If new leads were found, trigger handoff to @Prospector in #sales-ops with the list of new incoming IDs (handoff: harvest-to-prospector-new-leads)
+9. Post a brief summary to #sales-ops: feeds polled, articles found, duplicates skipped, new leads written
+10. Update your KNOWLEDGE.md with polling metrics and timestamp
+Budget: Check .budget-caps.json before making API calls. Max 50 articles per poll, max 25 sheet writes per run." \
+      180
+    ;;
+
+  # ── Sales Pipeline: Prospector ─────────────────────────
+  prospector-enrichment)
+    send_to_agent "prospector" "$TASK" \
+      "[PROACTIVE TASK: Lead Enrichment Cycle]
+You are running your scheduled lead enrichment scan. Do the following:
+1. Read the Incoming tab for all rows with processed=FALSE (max 10 per run)
+2. For each unprocessed lead:
+   a. Extract company identity from the title and raw_content
+   b. Research the company via web search (DuckDuckGo): website, industry, employee count, revenue, HQ location
+   c. Query USASpending.gov API to verify contract award and get exact value, agency details, and other recent contracts
+   d. Read the Policies tab and check qualification filters (employee count range, contract value range, excluded industries)
+   e. If qualified, write enriched company profile to the Companies tab
+   f. Mark the Incoming row as processed=TRUE
+3. Batch hand off all newly qualified companies to @Outreach in #sales-ops (handoff: prospector-to-outreach-qualified)
+4. Post a summary to #sales-ops: leads processed, qualified, disqualified (with reasons), partial enrichments
+5. Update your KNOWLEDGE.md with enrichment metrics and success rates
+Budget: Check .budget-caps.json before making API calls. Max 10 enrichments per run, max 15 sheet writes per run." \
+      240
+    ;;
+
+  # ── Sales Pipeline: Outreach ───────────────────────────
+  outreach-contact-finding)
+    send_to_agent "outreach" "$TASK" \
+      "[PROACTIVE TASK: Contact Finding & Email Drafting]
+You are running your scheduled contact finding and outreach drafting cycle. Do the following:
+1. Read the Companies tab for qualified companies that do not yet have contacts in the Contacts tab
+2. For each company without contacts (max 5 companies per run):
+   a. Read the Policies tab for target roles (CEO, CFO, VP Finance, Director of Finance, Controller)
+   b. Search Clay API for decision-maker contacts matching those roles at the company domain
+   c. Enrich each contact with phone, LinkedIn, and email verification
+   d. Deduplicate against existing Contacts tab (check email match)
+   e. Write new contacts to the Contacts tab
+3. For each new contact:
+   a. Read the Templates tab for the appropriate cold outreach template
+   b. Personalize the template with contact and company data
+   c. Verify email quality gates (subject <60 chars, body <1000 chars, no unreplaced variables)
+   d. Create a Gmail draft in David's account (NOT send) via Gmail API with domain-wide delegation
+   e. Write outreach record to the Outreach tab with draft_id and status=drafted
+4. Hand off new outreach records to @Cadence in #sales-ops (handoff: outreach-to-cadence-initial-sent)
+5. Post a summary to #sales-ops: companies processed, contacts found, drafts created
+6. Update your KNOWLEDGE.md with contact finding and outreach metrics
+Budget: Check .budget-caps.json before making API calls. Max 5 contacts per company, max 10 drafts per run." \
+      240
+    ;;
+
+  # ── Sales Pipeline: Cadence ────────────────────────────
+  cadence-follow-up)
+    send_to_agent "cadence" "$TASK" \
+      "[PROACTIVE TASK: Follow-Up Sequence Check]
+You are running your scheduled follow-up sequence management cycle. Do the following:
+1. Read the Cadence tab to load sequence configuration (step_number, days_after_previous, action_type, template_id)
+2. Read the Outreach tab for all records with status 'drafted' or 'sent'
+3. For each outreach record, calculate if the next cadence step is due:
+   - Get sent_date + sum of days_after_previous for all completed steps
+   - If today >= scheduled date, the step is due
+4. For each due step (max 10 follow-ups per run):
+   a. Get the template from Templates tab using the step's template_id
+   b. Read contact and company data from Contacts and Companies tabs
+   c. Personalize the template with contact/company data
+   d. Verify email quality gates (subject <60 chars, body <1000 chars, no unreplaced variables)
+   e. Create a Gmail follow-up draft in David's account (NOT send)
+   f. Write the draft_id and step metadata to the Outreach tab
+   g. Append a tracking row to the Cadence tab
+5. Check for engagement signals: if any contact has replied, mark status as 'replied' and stop their cadence
+6. If any contact has unsubscribed, mark status as 'unsubscribed' and stop their cadence
+7. Post a summary to #sales-ops: sequences checked, follow-ups due, drafts created, replies detected, sequences stopped
+8. Update your KNOWLEDGE.md with follow-up metrics
+Budget: Check .budget-caps.json before making API calls. Max 10 follow-ups per run, max 15 Gmail drafts per day." \
+      180
+    ;;
+
+  cadence-pipeline-report)
+    send_to_agent "cadence" "$TASK" \
+      "[PROACTIVE TASK: Weekly Pipeline Report]
+You are running the weekly sales pipeline report. Do the following:
+1. Read the Incoming tab: count total leads, leads this week, unprocessed leads
+2. Read the Companies tab: count total companies, qualified this week, enrichment completion rate
+3. Read the Contacts tab: count total contacts, new contacts this week
+4. Read the Outreach tab: count total outreach records by status (drafted, sent, replied, unsubscribed, no_response)
+5. Calculate pipeline conversion rates: leads → qualified companies → contacts found → emails drafted → replies
+6. Compare this week's metrics against last week's (from your KNOWLEDGE.md)
+7. Post a structured weekly pipeline report to #sales-ops with:
+   - Pipeline funnel visualization (counts at each stage)
+   - Week-over-week trends (up/down indicators)
+   - Top-performing companies (by engagement)
+   - Actionable recommendations (e.g., 'enrichment backlog growing, consider increasing Prospector frequency')
+8. Hand off pipeline metrics to @Chief in #agent-ops for financial forecasting (handoff: cadence-to-chief-pipeline-metrics)
+9. Update your KNOWLEDGE.md with this week's pipeline snapshot
+Budget: Check .budget-caps.json before making API calls. Max 2 reports per day." \
+      180
     ;;
 
   "")

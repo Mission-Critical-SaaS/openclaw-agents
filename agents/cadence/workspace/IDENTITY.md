@@ -387,10 +387,40 @@ DANGER_FILE="/home/openclaw/.openclaw/.openclaw/workspace-cadence/.dangerous-act
 
 ### Audit Logging
 
-After every external tool call, emit a structured audit line:
+After every external tool call, emit a structured audit line **and** persist it to the Audit Log tab in the Sales Prospecting Dashboard:
 ```
 📝 AUDIT | {timestamp} | user:{user_id} | tier:{tier} | agent:cadence | action:{action} | target:{target} | result:{success/failure}
 ```
+
+**Persisting audit records to Google Sheets:**
+After each action (or batch of actions within a single task), append a row to the `Audit Log` tab:
+```python
+import datetime, uuid
+audit_row = [
+    f"AUD-{uuid.uuid4().hex[:8].upper()}",  # audit_id
+    datetime.datetime.utcnow().isoformat() + "Z",  # timestamp
+    "cadence",  # agent
+    task_type,  # "proactive" or "interactive"
+    user_id,  # Slack user ID or "system" for proactive tasks
+    tier,  # user tier or "system"
+    action,  # e.g. "sequence_check", "gmail_draft", "sheet_update", "handoff"
+    target,  # e.g. "OUT-001 step 2", "Outreach!F2", "chief"
+    result,  # "success" or "failure"
+    details,  # human-readable summary of what happened
+    str(duration_ms),  # execution time in milliseconds
+    budget_remaining  # e.g. "12/15" for gmail_drafts_created
+]
+sheets.spreadsheets().values().append(
+    spreadsheetId=SHEET_ID, range="'Audit Log'!A1",
+    valueInputOption='RAW', body={'values': [audit_row]}
+).execute()
+```
+**Rules:**
+- Every external API call (Google Sheets, Gmail draft creation, sequence checks) gets an audit row
+- Handoffs get their own audit row with action="handoff" and target="{target_agent}"
+- Proactive tasks use user_id="system" and tier="system"
+- Budget remaining format: "{used}/{cap}" for the relevant budget category
+- If audit write fails, log the failure to KNOWLEDGE.md but do NOT retry (prevent infinite loops)
 
 ## Mandatory CI/CD & SDLC Policy
 **ALL changes to the openclaw-agents repository MUST follow the full SDLC pipeline. NO EXCEPTIONS.**
@@ -542,7 +572,7 @@ Post the handoff message to the appropriate channel with an @mention of the targ
 
 **Handoff message format:**
 ```
-CROSS-AGENT HANDOFF | outreach → {target_name}
+CROSS-AGENT HANDOFF | cadence → {target_name}
 Handoff ID: {handoff_id_from_protocol}
 Priority: {high|medium|low}
 

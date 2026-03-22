@@ -22,5 +22,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npx jest test/entrypoint.test.ts test/openclaw-agents.test.ts test/cross-agent-dispatch.test.ts --verbose
+      - name: Run unit tests
+        run: npm test -- --verbose

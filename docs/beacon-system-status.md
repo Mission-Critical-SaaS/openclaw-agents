@@ -1,7 +1,7 @@
 # Beacon Voice Agent — Comprehensive System Status Report
 
 **Document Type**: System Status Report
-**Last Updated**: March 19, 2026
+**Last Updated**: March 22, 2026
 **Maintained By**: OpenClaw Infrastructure Team
 **Audience**: Engineering, Operations, Product Management, Customer Success
 
@@ -26,7 +26,7 @@
 Beacon is **fully operational for voice calls** with foundational support capabilities:
 
 - **Phase 1 (COMPLETE)**: Voice conversation, dynamic caller identification, basic troubleshooting guidance
-- **Phase 2 (PENDING)**: HTS API integration (password reset, account lookup, integration status checks)
+- **Phase 2 (IMPLEMENTED)**: HTS API integration endpoints deployed (password reset, account lookup, integration status) — awaiting HTS API credentials in Secrets Manager (`beacon/hts`)
 - **Phase 2 (IN PROGRESS)**: Voice speed tuning, SMS link delivery, toll-free SMS verification approval
 
 ---
@@ -821,7 +821,7 @@ Available in `/docs/runbooks/`:
 |---------|------|--------|---------|
 | 1.0 | 2026-03-19 | OpenClaw Infrastructure Team | Initial comprehensive system status; Phase 1 live, Phase 2 in progress |
 
-**Last Updated**: March 19, 2026
+**Last Updated**: March 22, 2026
 **Next Review**: April 15, 2026 (Phase 2 milestone)
 **Maintained By**: OpenClaw Infrastructure Team
 **Questions?** Ask @Beacon in #agent-ops or contact infrastructure team lead

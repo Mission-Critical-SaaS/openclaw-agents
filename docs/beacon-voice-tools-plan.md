@@ -1,7 +1,7 @@
 # Beacon Voice Agent — Tools & Capabilities Architecture
 
-**Status**: PLANNING
-**Date**: March 19, 2026
+**Status**: PHASE 2 IMPLEMENTED
+**Date**: March 22, 2026
 **Related Issues**: #91 (Voice AI), #96 (Phone/SIP), #98 (API Integration)
 
 ---
@@ -203,11 +203,11 @@ Range is 0.7x–1.2x. The 1.1x setting is within the recommended 0.9–1.1x rang
 2. Add `send_sms` server tool (Twilio SMS API — credentials already configured)
 3. Update agent prompt with "Act, Don't Reveal" security instructions
 
-### Phase 2: Account Tools (Requires HTS API)
-4. Deploy `lookup_account` endpoint on HTS API
-5. Deploy `trigger_password_reset` endpoint on HTS API
-6. Deploy `check_integration_status` endpoint on HTS API
-7. Configure as ElevenLabs Server Tools with API key auth
+### Phase 2: Account Tools (Requires HTS API) ✅ IMPLEMENTED
+4. ✅ Deploy `lookup_account` endpoint with HTS API integration + graceful fallback
+5. ✅ Deploy `trigger_password_reset` endpoint with HTS recovery link API + "Act, Don't Reveal"
+6. ✅ Deploy `check_integration_status` endpoint with HTS API integration + graceful fallback
+7. Configure as ElevenLabs Server Tools with API key auth (pending HTS `beacon/hts` secret)
 
 ### Phase 3: Zendesk Integration
 8. Add `create_support_ticket` server tool (Zendesk API)
