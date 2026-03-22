@@ -4,9 +4,9 @@
  * Checks integration sync status for a customer account.
  * Caller: ElevenLabs voice agent (internal use only)
  *
- * Phase 2 Implementation Plan:
- * ────────────────────────────
- * This will connect to HTS API to check:
+ * Implementation:
+ * ────────────────
+ * Connects to HTS API to check:
  * - Payroll integration status (synced, pending, failed)
  * - Last sync time
  * - Any pending errors or warnings
@@ -17,14 +17,92 @@
  * - Guide troubleshooting steps
  * - Determine if escalation is needed
  *
- * Current Status: Returns 501 Not Implemented.
- * The agent uses this placeholder to guide troubleshooting but
- * NEVER shares raw integration data with the caller.
+ * Security: Agent uses integration status to guide troubleshooting but
+ * NEVER shares raw integration data with the caller ("Act, Don't Reveal").
+ * When HTS API is not configured, returns found:false gracefully.
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { validateApiKey, getCallerId, AuthError } from './shared/auth';
+import { getCredential } from './shared/secrets';
 import { logSuccess, logError } from './shared/audit';
+
+interface IntegrationInfo {
+  name: string;
+  status: string;
+  last_sync?: string;
+  error_count?: number;
+  warnings?: string[];
+}
+
+interface IntegrationStatusResult {
+  found: boolean;
+  account_id?: string;
+  integrations?: IntegrationInfo[];
+  note?: string;
+}
+
+/**
+ * Check integration status via HTS API.
+ * Returns null if HTS API is not configured or request fails.
+ */
+async function checkIntegrationsViaHtsApi(
+  accountId: string,
+  requestId?: string
+): Promise<IntegrationStatusResult | null> {
+  let baseUrl: string;
+  let apiKey: string;
+
+  try {
+    baseUrl = await getCredential('beacon/hts', 'api_base_url');
+    apiKey = await getCredential('beacon/hts', 'api_key');
+  } catch {
+    // HTS API credentials not configured — graceful degradation
+    return null;
+  }
+
+  const url = `${baseUrl}/api/v1/accounts/${encodeURIComponent(accountId)}/integrations`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return { found: false, account_id: accountId };
+      }
+      const errorText = await response.text();
+      throw new Error(`HTS API error (${response.status}): ${errorText}`);
+    }
+
+    const data = (await response.json()) as Record<string, unknown>;
+
+    return {
+      found: true,
+      account_id: accountId,
+      integrations: (data.integrations as IntegrationInfo[] | undefined) || [],
+    };
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error(`[${requestId}] HTS API timeout during integration status check`);
+      return null;
+    }
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`[${requestId}] HTS API integration status failed: ${msg}`);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 /**
  * Lambda handler for GET /accounts/{id}/integrations
@@ -45,24 +123,54 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // ──────────────────────────────────────────────
     // Get account ID from path parameter
     // ──────────────────────────────────────────────
-    const accountId = event.pathParameters?.id || 'unknown';
+    const accountId = event.pathParameters?.id;
 
-    logSuccess(callerId, 'integration_status', `[${requestId}] Status check for account: ${accountId} — not yet implemented`);
+    if (!accountId || accountId === 'unknown') {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          error: 'Account ID is required in the path (/accounts/{id}/integrations)',
+          request_id: requestId,
+        }),
+      };
+    }
 
     // ──────────────────────────────────────────────
-    // Honest response: Integration status not yet implemented
+    // Attempt HTS API integration status check
     // ──────────────────────────────────────────────
+    const htsResult = await checkIntegrationsViaHtsApi(accountId, requestId);
+
+    if (htsResult && htsResult.found) {
+      logSuccess(callerId, 'integration_status',
+        `[${requestId}] Integration status retrieved for account: ${accountId}`);
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          found: true,
+          account_id: htsResult.account_id,
+          integrations: htsResult.integrations,
+          request_id: requestId,
+        }),
+      };
+    }
+
+    // ──────────────────────────────────────────────
+    // No integrations found or HTS API not available
+    // ──────────────────────────────────────────────
+    logSuccess(callerId, 'integration_status',
+      `[${requestId}] No integration data for account: ${accountId}`);
+
     return {
-      statusCode: 501,
+      statusCode: 200,
       body: JSON.stringify({
-        available: false,
-        message: 'Integration status check is not yet available. Our team is preparing this feature.',
-        phase2_note: 'Phase 2 will implement HTS API integration for status checks',
+        found: false,
+        account_id: accountId,
+        note: 'Phase 2: HTS API integration pending — integration status checks will be available when connected',
         request_id: requestId,
       }),
     };
   } catch (error) {
-    // Handle authentication errors separately to return 400
     if (error instanceof AuthError) {
       console.error(`[${requestId}] Authentication error:`, error.message);
       return {
@@ -78,7 +186,6 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       const callerId = getCallerId(event);
       logError(callerId, 'integration_status', `[${requestId}] ${errorMsg}`);
     } catch {
-      // If we can't get caller ID, just log the error
       console.error(`[${requestId}] Could not log error to audit trail`);
     }
 
