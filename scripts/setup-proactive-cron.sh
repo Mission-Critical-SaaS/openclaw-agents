@@ -95,6 +95,31 @@ ${EXISTING}
 
 # Phase 3: Weekly performance
 0 6 * * 0 flock -n /tmp/openclaw-probe-perf-canary.lock $SCHEDULER probe-perf-canary >> $LOG_DIR/proactive.log 2>&1 # proactive: probe-perf-canary (Sundays 6am ET)
+
+# ============================================================
+# Sales Pipeline Agent Tasks
+# Pipeline: Harvest (RSS) → Prospector (enrich) → Outreach (contacts) → Cadence (follow-up)
+# ============================================================
+
+# Harvest: Poll RSS feeds every 2 hours during business hours (weekdays 8am-6pm ET)
+# Budget: 24 polls/day cap, ~5 polls/day at this frequency leaves room for manual triggers
+0 8-18/2 * * 1-5 flock -n /tmp/openclaw-harvest-rss-poll.lock $SCHEDULER harvest-rss-poll >> $LOG_DIR/proactive.log 2>&1 # proactive: harvest-rss-poll (every 2h, business hours ET)
+
+# Prospector: Enrich new leads every 3 hours during business hours (weekdays 9am-6pm ET)
+# Staggered 30min after Harvest to allow new leads to land first
+30 9-18/3 * * 1-5 flock -n /tmp/openclaw-prospector-enrichment.lock $SCHEDULER prospector-enrichment >> $LOG_DIR/proactive.log 2>&1 # proactive: prospector-enrichment (every 3h, business hours ET)
+
+# Outreach: Find contacts and draft emails once daily (weekdays 10am ET)
+# Runs after Prospector has had time to enrich morning leads
+0 10 * * 1-5 flock -n /tmp/openclaw-outreach-contact-finding.lock $SCHEDULER outreach-contact-finding >> $LOG_DIR/proactive.log 2>&1 # proactive: outreach-contact-finding (weekdays 10am ET)
+
+# Cadence: Check follow-up sequences every 6 hours (weekdays 8am, 2pm ET)
+# Two checks per day ensures timely follow-ups without excessive API usage
+0 8,14 * * 1-5 flock -n /tmp/openclaw-cadence-follow-up.lock $SCHEDULER cadence-follow-up >> $LOG_DIR/proactive.log 2>&1 # proactive: cadence-follow-up (weekdays 8am, 2pm ET)
+
+# Cadence: Weekly pipeline report (Mondays 4pm ET)
+# End of first business day gives a full week's data and time for team to review
+0 16 * * 1 flock -n /tmp/openclaw-cadence-pipeline-report.lock $SCHEDULER cadence-pipeline-report >> $LOG_DIR/proactive.log 2>&1 # proactive: cadence-pipeline-report (Mondays 4pm ET)
 CRON_EOF
 
 echo "Proactive cron entries installed."
