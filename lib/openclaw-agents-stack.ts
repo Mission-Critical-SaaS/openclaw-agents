@@ -80,10 +80,18 @@ export class OpenclawAgentsStack extends cdk.Stack {
     }));
 
     // ──────────────────────────────────────────────
-    // CloudWatch Logs
+    // CloudWatch Logs (Tier-Specific)
     // ──────────────────────────────────────────────
-    const logGroup = new logs.LogGroup(this, 'OpenClawLogs', {
-      logGroupName: '/openclaw/agents',
+    // Admin tier log group
+    const adminLogGroup = new logs.LogGroup(this, 'OpenClawAdminLogs', {
+      logGroupName: '/openclaw/agents/admin',
+      retention: logs.RetentionDays.TWO_WEEKS,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // Standard tier log group
+    const standardLogGroup = new logs.LogGroup(this, 'OpenClawStandardLogs', {
+      logGroupName: '/openclaw/agents/standard',
       retention: logs.RetentionDays.TWO_WEEKS,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
@@ -232,8 +240,12 @@ export class OpenclawAgentsStack extends cdk.Stack {
       value: sg.securityGroupId,
     });
 
-    new cdk.CfnOutput(this, 'LogGroup', {
-      value: logGroup.logGroupName,
+    new cdk.CfnOutput(this, 'AdminLogGroup', {
+      value: adminLogGroup.logGroupName,
+    });
+
+    new cdk.CfnOutput(this, 'StandardLogGroup', {
+      value: standardLogGroup.logGroupName,
     });
 
     new cdk.CfnOutput(this, 'DeployRoleArn', {

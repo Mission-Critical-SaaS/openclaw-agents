@@ -22,6 +22,23 @@ systemctl start docker
 echo "▶ Creating OpenClaw directories..."
 mkdir -p ${OPENCLAW_HOME} /data/logs
 
+echo "▶ Creating tier-specific persist directories..."
+# Memory databases (isolated per tier)
+mkdir -p /opt/openclaw-persist/memory-admin
+mkdir -p /opt/openclaw-persist/memory-standard
+
+# Log directories (tier-specific)
+mkdir -p /opt/openclaw/logs/admin/data
+mkdir -p /opt/openclaw/logs/standard/data
+
+# Agent workspaces
+for agent in scout trak kit scribe probe chief ledger beacon harvest prospector outreach cadence; do
+  mkdir -p "/opt/openclaw-persist/workspace-${agent}"
+done
+
+# Set permissions for openclaw user (UID 1000)
+chown -R 1000:1000 /opt/openclaw-persist 2>/dev/null || true
+
 echo "▶ Cloning repo..."
 cd ${OPENCLAW_HOME}
 git clone https://github.com/LMNTL-AI/openclaw-agents.git .
@@ -46,6 +63,7 @@ docker-compose up -d
 
 echo "▶ Installing CloudWatch agent..."
 if apt-get install -y -qq amazon-cloudwatch-agent 2>/dev/null; then
+  # CloudWatch agent config for tier-specific log groups
   cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CWEOF'
 {
   "logs": {
@@ -53,9 +71,27 @@ if apt-get install -y -qq amazon-cloudwatch-agent 2>/dev/null; then
       "files": {
         "collect_list": [
           {
-            "file_path": "/data/logs/*.log",
-            "log_group_name": "/openclaw/agents",
-            "log_stream_name": "{instance_id}/openclaw",
+            "file_path": "/opt/openclaw/logs/admin/*.log",
+            "log_group_name": "/openclaw/agents/admin",
+            "log_stream_name": "{instance_id}/admin",
+            "retention_in_days": 14
+          },
+          {
+            "file_path": "/opt/openclaw/logs/admin/data/*.log",
+            "log_group_name": "/openclaw/agents/admin",
+            "log_stream_name": "{instance_id}/admin-gateway",
+            "retention_in_days": 14
+          },
+          {
+            "file_path": "/opt/openclaw/logs/standard/*.log",
+            "log_group_name": "/openclaw/agents/standard",
+            "log_stream_name": "{instance_id}/standard",
+            "retention_in_days": 14
+          },
+          {
+            "file_path": "/opt/openclaw/logs/standard/data/*.log",
+            "log_group_name": "/openclaw/agents/standard",
+            "log_stream_name": "{instance_id}/standard-gateway",
             "retention_in_days": 14
           }
         ]

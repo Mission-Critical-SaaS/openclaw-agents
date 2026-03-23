@@ -26,15 +26,16 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
   });
 
   // --- AWS Secrets ---
-  test('fetches secrets from AWS Secrets Manager', () => {
-    expect(script).toMatch(/aws secretsmanager get-secret-value.*--secret-id openclaw\/agents/);
+  test('fetches secrets from AWS Secrets Manager (tier-specific)', () => {
+    expect(script).toMatch(/aws secretsmanager get-secret-value.*--secret-id \$SECRET_NAME/);
+    expect(script).toContain('OPENCLAW_SECRET_NAME');
   });
 
-  test('exports all required Slack bot tokens (all 7 agents)', () => {
-    for (const agent of ['SCOUT', 'TRAK', 'KIT', 'SCRIBE', 'PROBE', 'CHIEF', 'BEACON']) {
-      expect(script).toContain(`SLACK_BOT_TOKEN_${agent}`);
-      expect(script).toContain(`SLACK_APP_TOKEN_${agent}`);
-    }
+  test('dynamically extracts Slack tokens from AGENTS_LIST', () => {
+    expect(script).toContain('parse_agents_list');
+    expect(script).toContain('AGENTS_LIST');
+    expect(script).toContain('SLACK_BOT_TOKEN_${AGENT_UPPER}');
+    expect(script).toContain('SLACK_APP_TOKEN_${AGENT_UPPER}');
   });
 
   test('quotes $SECRET in all jq extractions to prevent word splitting', () => {
@@ -116,10 +117,9 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
   });
 
   // --- Slack injection ---
-  test('injects all six Slack accounts (scout, trak, kit, scribe, probe, chief)', () => {
-    for (const name of ['scout', 'trak', 'kit', 'scribe', 'probe', 'chief']) {
-      expect(script).toContain(`'${name}'`);
-    }
+  test('injects Slack accounts dynamically from AGENTS_LIST', () => {
+    expect(script).toContain('AGENTS_LIST');
+    expect(script).toContain("agents_list = os.environ.get('AGENTS_LIST'");
   });
 
   test('sets groupPolicy to open', () => {
@@ -254,8 +254,9 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
   // --- Agent bootstrap (warms MCP tools automatically) ---
   test('bootstraps agent to warm MCP tools after gateway starts', () => {
     expect(script).toContain('Bootstrapping agents');
-    expect(script).toContain('openclaw agent --agent main');
+    expect(script).toContain('openclaw agent --agent "$FIRST_AGENT"');
     expect(script).toContain('BOOTSTRAP_OK');
+    expect(script).toContain('FIRST_AGENT=$(echo "$AGENTS_LIST"');
   });
 
   test('bootstrap retries once if first attempt does not confirm', () => {
@@ -272,14 +273,14 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
 
   test('bootstrap runs AFTER gateway liveness check', () => {
     const livenessIdx = script.indexOf('kill -0 $GATEWAY_PID');
-    const bootstrapIdx = script.indexOf('openclaw agent --agent main');
+    const bootstrapIdx = script.indexOf('openclaw agent --agent "$FIRST_AGENT"');
     expect(bootstrapIdx).toBeGreaterThan(livenessIdx);
   });
 
   test('bootstrap is non-fatal (does not exit 1 on failure)', () => {
     // The bootstrap command block must have || true so a failed bootstrap
     // doesn't kill the container. The command spans multiple lines via \
-    const bootstrapIdx = script.indexOf('openclaw agent --agent main');
+    const bootstrapIdx = script.indexOf('openclaw agent --agent "$FIRST_AGENT"');
     expect(bootstrapIdx).toBeGreaterThan(-1);
     // Get a window around the bootstrap command (covers continuation lines)
     const bootstrapBlock = script.substring(bootstrapIdx, bootstrapIdx + 300);
@@ -335,7 +336,7 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     const doctorIdx = script.indexOf('openclaw doctor --fix');
     const injectionIdx = script.indexOf('Injecting workspace files');
     const restartIdx = script.indexOf('openclaw gateway run');
-    const bootstrapIdx = script.indexOf('openclaw agent --agent main');
+    const bootstrapIdx = script.indexOf('openclaw agent --agent "$FIRST_AGENT"');
     expect(injectionIdx).toBeGreaterThan(doctorIdx);
     expect(injectionIdx).toBeLessThan(restartIdx);
     expect(injectionIdx).toBeLessThan(bootstrapIdx);
@@ -350,7 +351,7 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     const wsInjectIdx = script.indexOf('Injecting workspace files');
     const restartIdx = script.indexOf('openclaw gateway run');
     const verifyIdx = script.indexOf('kill -0 $GATEWAY_PID');
-    const bootstrapIdx = script.indexOf('openclaw agent --agent main');
+    const bootstrapIdx = script.indexOf('openclaw agent --agent "$FIRST_AGENT"');
 
     expect(secretsIdx).toBeGreaterThan(-1);
     expect(configWaitIdx).toBeGreaterThan(secretsIdx);
@@ -363,9 +364,9 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     });
 
 
-  test('Scribe Slack tokens are extracted from secrets', () => {
-    expect(script).toContain('SLACK_BOT_TOKEN_SCRIBE');
-    expect(script).toContain('SLACK_APP_TOKEN_SCRIBE');
+  test('Slack tokens are dynamically extracted for all agents in AGENTS_LIST', () => {
+    expect(script).toContain('SLACK_BOT_TOKEN_${AGENT_UPPER}');
+    expect(script).toContain('SLACK_APP_TOKEN_${AGENT_UPPER}');
   });
 
   test('proactive configs are injected into agent workspaces', () => {
@@ -374,9 +375,10 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(script).toContain('proactive configs injected');
   });
 
-  test('Scribe is included in workspace injection loops', () => {
-    const scribeLoops = (script.match(/for agent in.*scribe/g) || []);
-    expect(scribeLoops.length).toBeGreaterThanOrEqual(3);
+  test('all workspace loops use parse_agents_list for dynamic agent iteration', () => {
+    const dynamicLoops = (script.match(/for agent in \$\(parse_agents_list/g) || []);
+    // workspace injection, security configs, proactive configs, memory indexing, agent registration
+    expect(dynamicLoops.length).toBeGreaterThanOrEqual(4);
   });
 });
 
@@ -439,9 +441,9 @@ describe('Inner entrypoint (docker/entrypoint.sh)', () => {
     expect(script).toMatch(/exec openclaw gateway run.*tee.*openclaw\.log/);
   });
 
-  test('sets up auth profiles for all agents', () => {
-    expect(script).toMatch(/for agent in \$ALL_AGENTS/);
-    expect(script).toMatch(/ALL_AGENTS="scout trak kit scribe probe chief ledger beacon harvest prospector outreach cadence"/);
+  test('sets up auth profiles for agents in AGENTS_LIST', () => {
+    expect(script).toMatch(/for agent in \$\(parse_agents_list/);
+    expect(script).toContain('parse_agents_list');
     expect(script).toContain('auth-profiles.json');
   });
 });
@@ -468,28 +470,29 @@ describe('docker-compose.yml', () => {
     expect(compose).toContain('/opt/openclaw/docker/entrypoint.sh:/entrypoint.sh');
   });
 
-  test('has git-managed workspace bind mounts for all seven agents', () => {
-    for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe', 'chief', 'beacon']) {
+  test('has git-managed workspace bind mounts for all agents across both tiers', () => {
+    for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe', 'beacon', 'chief', 'ledger']) {
       expect(compose).toContain(`/opt/openclaw/agents/${agent}/workspace:/tmp/agents/${agent}/workspace`);
     }
   });
 
-  test('has persistent runtime workspace bind mounts for all seven agents', () => {
+  test('has persistent runtime workspace bind mounts for all agents across both tiers', () => {
     // Must target OpenClaw's actual runtime workspace path:
     // /home/openclaw/.openclaw/.openclaw/workspace-{agent}
-    for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe', 'chief', 'beacon']) {
+    for (const agent of ['scout', 'trak', 'kit', 'scribe', 'probe', 'beacon', 'chief', 'ledger']) {
       expect(compose).toContain(
         `/opt/openclaw-persist/workspace-${agent}:/home/openclaw/.openclaw/.openclaw/workspace-${agent}`
       );
     }
   });
 
-  test('has memory database bind mount for virtual FS persistence', () => {
-    // Without this mount, agent file edits (KNOWLEDGE.md updates) are lost
-    // on container restart because the virtual FS stores modifications in
-    // SQLite, not on the real filesystem.
+  test('has tier-isolated memory database bind mounts', () => {
+    // Each tier has its own memory database to prevent financial data leakage
     expect(compose).toContain(
-      '/opt/openclaw-persist/memory:/home/openclaw/.openclaw/.openclaw/memory'
+      '/opt/openclaw-persist/memory-admin:/home/openclaw/.openclaw/.openclaw/memory'
+    );
+    expect(compose).toContain(
+      '/opt/openclaw-persist/memory-standard:/home/openclaw/.openclaw/.openclaw/memory'
     );
   });
 
@@ -522,8 +525,9 @@ describe('deploy.sh', () => {
     expect(script).toContain('openclaw-persist/workspace-${agent}');
   });
 
-  test('creates persistent memory directory', () => {
-    expect(script).toContain('openclaw-persist/memory');
+  test('creates tier-specific memory directories', () => {
+    expect(script).toContain('openclaw-persist/memory-admin');
+    expect(script).toContain('openclaw-persist/memory-standard');
   });
 
   test('discards .last_deploy changes before git checkout (prevents tracked-file conflict)', () => {
@@ -1739,8 +1743,9 @@ describe('Non-root Docker user (#44)', () => {
     expect(innerEntrypoint).not.toContain('/root/.mcporter');
   });
 
-  test('healthcheck uses /home/openclaw path for config grep', () => {
-    expect(healthcheck).toContain('/home/openclaw/.openclaw');
+  test('healthcheck uses tier-aware container names', () => {
+    expect(healthcheck).toContain('openclaw-agents-admin');
+    expect(healthcheck).toContain('openclaw-agents-standard');
     expect(healthcheck).not.toContain('/root/.openclaw');
   });
 
@@ -2132,8 +2137,10 @@ describe('Chief agent configuration', () => {
   });
 
   // --- Financial API integration ---
-  test('entrypoint exports all financial API tokens', () => {
+  test('entrypoint exports financial API tokens only for admin tier', () => {
     const script = readScript('entrypoint.sh');
+    expect(script).toContain('OPENCLAW_TIER');
+    expect(script).toContain('if [ "$OPENCLAW_TIER" = "admin" ]');
     expect(script).toContain('STRIPE_KEY_MINUTE7');
     expect(script).toContain('STRIPE_KEY_GOODHELP');
     expect(script).toContain('STRIPE_KEY_HTS');

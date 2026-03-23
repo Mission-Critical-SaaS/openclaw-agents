@@ -1378,10 +1378,10 @@ describe('Proactive Capabilities', () => {
       expect(entrypoint).toContain('proactive configs injected');
     });
 
-    test('Scribe is included in all entrypoint agent loops', () => {
+    test('entrypoint uses parse_agents_list for dynamic agent iteration', () => {
       const entrypoint = readFile('entrypoint.sh');
-      const scribeLoops = (entrypoint.match(/for agent in.*scribe/g) || []);
-      expect(scribeLoops.length).toBeGreaterThanOrEqual(3);
+      const dynamicLoops = (entrypoint.match(/for agent in \$\(parse_agents_list/g) || []);
+      expect(dynamicLoops.length).toBeGreaterThanOrEqual(3);
     });
   });
 });
@@ -1657,11 +1657,12 @@ describe('Ensemble Audit Workflows', () => {
       expect(content).toContain('"accountId": "probe"');
     });
 
-    test('Probe is configured in entrypoint.sh', () => {
+    test('Probe is configured in entrypoint.sh (dynamic AGENTS_LIST)', () => {
       const content = readFileSync(join(ROOT, 'entrypoint.sh'), 'utf-8');
-      expect(content).toContain('SLACK_BOT_TOKEN_PROBE');
-      expect(content).toContain('SLACK_APP_TOKEN_PROBE');
-      expect(content).toContain("'probe'");
+      // Tokens are now extracted dynamically via AGENTS_LIST
+      expect(content).toContain('SLACK_BOT_TOKEN_${AGENT_UPPER}');
+      expect(content).toContain('SLACK_APP_TOKEN_${AGENT_UPPER}');
+      expect(content).toContain('parse_agents_list');
     });
 
     test('Probe workspace volumes are in docker-compose.yml', () => {
@@ -1771,20 +1772,11 @@ describe('Ensemble Audit Workflows', () => {
       expect(handoffIds).toContain('trak-to-probe-bug-repro');
     });
 
-    test('all five agents are in entrypoint.sh workspace loops', () => {
+    test('entrypoint uses parse_agents_list for all workspace loops', () => {
       const content = readFileSync(join(ROOT, 'entrypoint.sh'), 'utf-8');
-      // Workspace injection loops use lowercase agent names;
-      // token validation loops use UPPERCASE — only check lowercase loops.
-      const loops = (content.match(/for agent in [^;]+;/g) || [])
-        .filter(l => l.includes('scout'));  // workspace loops use lowercase
-      expect(loops.length).toBeGreaterThanOrEqual(4); // inject, identity, security, proactive
-      for (const loop of loops) {
-        expect(loop).toContain('scout');
-        expect(loop).toContain('trak');
-        expect(loop).toContain('kit');
-        expect(loop).toContain('scribe');
-        expect(loop).toContain('probe');
-      }
+      // All loops now use parse_agents_list for dynamic agent iteration
+      const dynamicLoops = (content.match(/for agent in \$\(parse_agents_list/g) || []);
+      expect(dynamicLoops.length).toBeGreaterThanOrEqual(4); // workspace, security, proactive, memory
     });
   });
 
