@@ -110,31 +110,38 @@ jobs:
       - name: Verify entrypoint agent loops
         id: entrypoint_check
         run: |
-          # entrypoint.sh has two types of agent loops:
-          # 1. Validation loops (UPPERCASE): for agent in SCOUT TRAK KIT; for agent in SCRIBE PROBE CHIEF
-          # 2. Workspace injection loops (lowercase): for agent in scout trak kit scribe probe chief
-          # We only check workspace loops (lowercase) since validation loops intentionally split agents
-          EXPECTED_AGENTS="kit scout scribe trak probe chief"
+          # Tier isolation: entrypoint.sh uses dynamic parse_agents_list("$AGENTS_LIST")
+          # instead of hardcoded agent loops. Verify:
+          # 1. parse_agents_list function exists
+          # 2. All workspace loops use parse_agents_list (not hardcoded names)
+          # 3. AGENTS_LIST default includes all 12 agents
           ERRORS=0
-          LOOP_NUM=0
-          # Only check lowercase loops (workspace injection) — these must have all agents
-          while IFS= read -r line; do
-            # Skip UPPERCASE validation loops (they intentionally split required vs optional)
-            if echo "$line" | grep -q '[A-Z]\{3,\}'; then continue; fi
-            LOOP_NUM=$((LOOP_NUM + 1))
-            for agent in $EXPECTED_AGENTS; do
-              if ! echo "$line" | grep -qw "$agent"; then
-                echo "::error::Agent '$agent' missing from entrypoint.sh loop $LOOP_NUM: $line"
-                ERRORS=$((ERRORS + 1))
-              fi
-            done
-          done < <(grep 'for agent in' entrypoint.sh)
-          if [ $LOOP_NUM -eq 0 ]; then
-            echo "::error::No lowercase agent loops found in entrypoint.sh"
-            exit 1
+
+          # Check parse_agents_list function exists
+          if ! grep -q 'parse_agents_list()' entrypoint.sh; then
+            echo "::error::parse_agents_list() function not found in entrypoint.sh"
+            ERRORS=$((ERRORS + 1))
           fi
+
+          # Check that workspace loops use parse_agents_list
+          DYNAMIC_LOOPS=$(grep -c 'for agent in $(parse_agents_list' entrypoint.sh || echo 0)
+          if [ "$DYNAMIC_LOOPS" -lt 4 ]; then
+            echo "::error::Expected at least 4 parse_agents_list loops, found $DYNAMIC_LOOPS"
+            ERRORS=$((ERRORS + 1))
+          fi
+
+          # Check AGENTS_LIST default includes all 12 agents
+          EXPECTED_AGENTS="scout trak kit scribe probe chief ledger beacon harvest prospector outreach cadence"
+          DEFAULT=$(grep 'AGENTS_LIST=' entrypoint.sh | head -1)
+          for agent in $EXPECTED_AGENTS; do
+            if ! echo "$DEFAULT" | grep -qw "$agent"; then
+              echo "::error::Agent '$agent' missing from AGENTS_LIST default: $DEFAULT"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done
+
           if [ $ERRORS -gt 0 ]; then exit 1; fi
-          echo "All agents present in all $LOOP_NUM workspace injection loops"
+          echo "Entrypoint check passed: parse_agents_list used in $DYNAMIC_LOOPS loops, all 12 agents in default"
 
       - name: Build pre-check summary
         id: summary

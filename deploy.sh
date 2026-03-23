@@ -2,7 +2,6 @@
 set -euo pipefail
 DEPLOY_DIR="/opt/openclaw"
 # 2-container tier isolation
-CONTAINERS="openclaw-agents-admin openclaw-agents-standard"
 ADMIN_CONTAINER="openclaw-agents-admin"
 STANDARD_CONTAINER="openclaw-agents-standard"
 LOG_DIR="/opt/openclaw/logs"

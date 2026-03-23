@@ -27,7 +27,8 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
 
   // --- AWS Secrets ---
   test('fetches secrets from AWS Secrets Manager (tier-specific)', () => {
-    expect(script).toMatch(/aws secretsmanager get-secret-value.*--secret-id \$SECRET_NAME/);
+    expect(script).toContain('aws secretsmanager get-secret-value');
+    expect(script).toContain('SECRET_NAME');
     expect(script).toContain('OPENCLAW_SECRET_NAME');
   });
 
@@ -96,6 +97,31 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(script).toContain('validate_token');
     expect(script).toContain('"xoxb"');
     expect(script).toContain('"xapp"');
+  });
+
+  // --- Tier isolation security ---
+  test('clears raw secret JSON from memory after extraction', () => {
+    expect(script).toContain('unset SECRET');
+    // unset must happen BEFORE child process starts
+    const unsetIdx = script.indexOf('unset SECRET');
+    const childIdx = script.indexOf('"$@" &');
+    expect(unsetIdx).toBeGreaterThan(-1);
+    expect(unsetIdx).toBeLessThan(childIdx);
+  });
+
+  test('financial API tokens are gated behind OPENCLAW_TIER=admin', () => {
+    const tierCheckIdx = script.indexOf('if [ "$OPENCLAW_TIER" = "admin" ]');
+    expect(tierCheckIdx).toBeGreaterThan(-1);
+    // All financial tokens must appear AFTER the tier check
+    for (const token of ['MERCURY_API_TOKEN', 'STRIPE_KEY_LIVE', 'QBO_CLIENT_ID_CHIEF', 'QBO_CLIENT_ID_LEDGER']) {
+      const tokenIdx = script.indexOf(token);
+      expect(tokenIdx).toBeGreaterThan(tierCheckIdx);
+    }
+  });
+
+  test('SECRET_NAME is properly quoted in eval context to prevent injection', () => {
+    // In the eval'd string, SECRET_NAME must be escaped-quoted: \"$SECRET_NAME\"
+    expect(script).toContain('\\"$SECRET_NAME\\"');
   });
 
   test('uses aws_retry for SSM parameter retrieval', () => {

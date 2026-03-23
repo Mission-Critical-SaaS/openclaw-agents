@@ -58,7 +58,7 @@ chmod +x deploy.sh entrypoint.sh
 echo "▶ Building Docker image..."
 docker-compose build
 
-echo "▶ Starting container..."
+echo "▶ Starting containers..."
 docker-compose up -d
 
 echo "▶ Installing CloudWatch agent..."

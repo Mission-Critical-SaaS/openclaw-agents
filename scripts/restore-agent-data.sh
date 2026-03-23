@@ -19,7 +19,9 @@ set -euo pipefail
 PERSIST_DIR="/opt/openclaw-persist"
 BUCKET="openclaw-agent-backups"
 REGION="us-east-1"
-CONTAINER_NAME="openclaw-agents"
+# 2-container tier isolation: must stop/start both containers
+ADMIN_CONTAINER="openclaw-agents-admin"
+STANDARD_CONTAINER="openclaw-agents-standard"
 SNAPSHOT=""
 DRY_RUN=false
 LIST_ONLY=false
@@ -90,7 +92,7 @@ if [ "$DRY_RUN" = true ]; then
   else
     log "Would sync from: s3://$BUCKET/latest/"
   fi
-  log "Would stop container: $CONTAINER_NAME"
+  log "Would stop containers: $ADMIN_CONTAINER, $STANDARD_CONTAINER"
   log "Would restart container after restore"
   exit 0
 fi
@@ -108,8 +110,8 @@ fi
 # ============================================================
 # Stop container to prevent SQLite corruption
 # ============================================================
-log "Stopping container $CONTAINER_NAME..."
-docker stop "$CONTAINER_NAME" 2>/dev/null || true
+log "Stopping containers..."
+docker stop "$ADMIN_CONTAINER" "$STANDARD_CONTAINER" 2>/dev/null || true
 sleep 3
 
 # ============================================================
@@ -142,17 +144,17 @@ chmod -R 755 "$PERSIST_DIR"
 # ============================================================
 # Restart container
 # ============================================================
-log "Starting container $CONTAINER_NAME..."
-docker start "$CONTAINER_NAME" 2>/dev/null || {
-  error "Container failed to start. Check: docker logs $CONTAINER_NAME"
+log "Starting containers..."
+docker start "$ADMIN_CONTAINER" "$STANDARD_CONTAINER" 2>/dev/null || {
+  error "Containers failed to start. Check: docker logs $ADMIN_CONTAINER / $STANDARD_CONTAINER"
   exit 1
 }
 
 sleep 5
-if docker ps --format '{{.Names}}' | grep -q "$CONTAINER_NAME"; then
-  log "Container is running."
+if docker ps --format '{{.Names}}' | grep -q "$ADMIN_CONTAINER" && docker ps --format '{{.Names}}' | grep -q "$STANDARD_CONTAINER"; then
+  log "Both containers are running."
 else
-  error "Container is not running after restore."
+  error "One or both containers are not running after restore."
   exit 1
 fi
 

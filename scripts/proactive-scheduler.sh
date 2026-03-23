@@ -18,6 +18,20 @@
 
 set -euo pipefail
 
+# ── Tier-aware container routing ─────────────────────────────
+# Admin-tier agents run in openclaw-agents-admin, all others in openclaw-agents-standard
+ADMIN_AGENTS="chief ledger"
+get_container_for_agent() {
+  local agent="$1"
+  for admin_agent in $ADMIN_AGENTS; do
+    if [ "$agent" = "$admin_agent" ]; then
+      echo "openclaw-agents-admin"
+      return
+    fi
+  done
+  echo "openclaw-agents-standard"
+}
+
 LOG_DIR="/opt/openclaw/logs"
 LOG_FILE="$LOG_DIR/proactive.log"
 PAUSE_FILE="/opt/openclaw/.proactive-pause"
@@ -214,8 +228,10 @@ If the task requires any of these actions, document the need and request human a
     log "HMAC signature appended to handoff message for $agent"
   fi
 
+  local container
+  container=$(get_container_for_agent "$agent")
   local response
-  response=$(timeout "$timeout" docker exec openclaw-agents \
+  response=$(timeout "$timeout" docker exec "$container" \
     openclaw agent --agent "$agent" \
     --message "$wrapped_prompt" \
     --timeout "$timeout" 2>&1) || {

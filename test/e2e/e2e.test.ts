@@ -109,18 +109,18 @@ describe('AWS Infrastructure', () => {
 
 describe('Container Health', () => {
   test('Docker container is running', () => {
-    const output = ssmExec('docker ps --filter name=openclaw-agents --format {{.Names}}');
-    expect(output).toContain('openclaw-agents');
+    const output = ssmExec('docker ps --filter name=openclaw-agents-standard --format {{.Names}}');
+    expect(output).toContain('openclaw-agents-standard');
   });
 
   test('Bootstrap completed successfully', () => {
-    const output = ssmExec('docker logs openclaw-agents 2>&1 | grep BOOTSTRAP_OK | tail -1');
+    const output = ssmExec('docker logs openclaw-agents-standard 2>&1 | grep BOOTSTRAP_OK | tail -1');
     expect(output).toContain('BOOTSTRAP_OK');
   });
 
   test('All 5 Slack socket mode connections established (5 agents)', () => {
     const output = ssmExec(
-      'docker logs openclaw-agents 2>&1 | grep -c "socket mode connected" || echo 0'
+      'docker logs openclaw-agents-standard 2>&1 | grep -c "socket mode connected" || echo 0'
     );
     const count = parseInt(output.trim(), 10);
     expect(count).toBeGreaterThanOrEqual(5);
@@ -128,14 +128,14 @@ describe('Container Health', () => {
 
   test('No streaming normalization warnings', () => {
     const output = ssmExec(
-      'docker logs openclaw-agents 2>&1 | grep -c "Normalized.*streaming" || echo 0'
+      'docker logs openclaw-agents-standard 2>&1 | grep -c "Normalized.*streaming" || echo 0'
     );
     const count = parseInt(output.trim(), 10);
     expect(count).toBe(0);
   });
 
   test('Gateway process is alive', () => {
-    const output = ssmExec('docker exec openclaw-agents pgrep -f openclaw.gateway | head -1');
+    const output = ssmExec('docker exec openclaw-agents-standard pgrep -f openclaw.gateway | head -1');
     expect(output.trim()).toMatch(/^\d+$/);
   });
 });
@@ -158,7 +158,7 @@ describe('Slack Agent Connectivity', () => {
   for (const agent of ['scribe', 'probe']) {
     test(`${agent} is configured in gateway Slack accounts`, () => {
       const output = ssmExec(
-        `docker exec openclaw-agents grep -c ${agent} /home/openclaw/.openclaw/.openclaw/openclaw.json || echo 0`
+        `docker exec openclaw-agents-standard grep -c ${agent} /home/openclaw/.openclaw/.openclaw/openclaw.json || echo 0`
       );
       expect(parseInt(output.trim(), 10)).toBeGreaterThan(0);
     });
