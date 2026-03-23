@@ -274,9 +274,10 @@ INJECT_PYEOF
   # prevents bootstrap from trying to start a second gateway)
   openclaw config set gateway.mode local > /dev/null 2>&1 || true
 
-  # Disable memory search embedding (no embedding API key configured;
-  # prevents "Memory search enabled but no embedding provider" warning)
-  openclaw config set agents.defaults.memorySearch.enabled false > /dev/null 2>&1 || true
+  # Enable memory search in FTS-only mode. No embedding provider is needed —
+  # FTS indexes agent KNOWLEDGE.md files for keyword search across all agents.
+  # Vector search is unavailable without an embedding API key, but FTS is sufficient.
+  openclaw config set agents.defaults.memorySearch.enabled true > /dev/null 2>&1 || true
 
   # Normalize config (fixes any remaining schema drift from initial startup)
   echo "Normalizing gateway config..."
@@ -400,7 +401,10 @@ WRAPPER_EOF
     # (symlinks don't work â OpenClaw virtual FS doesn't resolve them)
     if [ -f "$PERSIST/KNOWLEDGE.md" ]; then
       cp "$PERSIST/KNOWLEDGE.md" "$CFG/KNOWLEDGE.md"
-      echo "  ${agent}: KNOWLEDGE.md copied from persist to cfg"
+      # Also populate the agent's memory/ dir so FTS memory search can index it
+      mkdir -p "$CFG/memory"
+      cp "$PERSIST/KNOWLEDGE.md" "$CFG/memory/KNOWLEDGE.md"
+      echo "  ${agent}: KNOWLEDGE.md copied from persist to cfg + memory"
     fi
   done
 
