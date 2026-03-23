@@ -71,6 +71,10 @@ export SLACK_APP_TOKEN_CADENCE=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_CADENC
 export SLACK_BOT_TOKEN_BEACON=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_BEACON // empty')
 export SLACK_APP_TOKEN_BEACON=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_BEACON // empty')
 
+# Automated bookkeeper agent
+export SLACK_BOT_TOKEN_LEDGER=$(echo "$SECRET" | jq -r '.SLACK_BOT_TOKEN_LEDGER // empty')
+export SLACK_APP_TOKEN_LEDGER=$(echo "$SECRET" | jq -r '.SLACK_APP_TOKEN_LEDGER // empty')
+
 # ── Validate critical Slack tokens ────────────────────────────
 echo "Validating Slack tokens..."
 for agent in SCOUT TRAK KIT; do
@@ -80,7 +84,7 @@ for agent in SCOUT TRAK KIT; do
   validate_token "$app_var" "${!app_var}" "xapp" || exit 1
 done
 # Scribe, Probe, Chief, and sales agents are newer — warn but don't block startup
-for agent in SCRIBE PROBE CHIEF HARVEST PROSPECTOR OUTREACH CADENCE BEACON; do
+for agent in SCRIBE PROBE CHIEF HARVEST PROSPECTOR OUTREACH CADENCE BEACON LEDGER; do
   bot_var="SLACK_BOT_TOKEN_${agent}"
   app_var="SLACK_APP_TOKEN_${agent}"
   if [ -n "${!bot_var}" ] && [ "${!bot_var}" != "null" ]; then
@@ -187,6 +191,7 @@ for name, bk, ak in [
     ('outreach', 'SLACK_BOT_TOKEN_OUTREACH', 'SLACK_APP_TOKEN_OUTREACH'),
     ('cadence', 'SLACK_BOT_TOKEN_CADENCE', 'SLACK_APP_TOKEN_CADENCE'),
     ('beacon', 'SLACK_BOT_TOKEN_BEACON', 'SLACK_APP_TOKEN_BEACON'),
+    ('ledger', 'SLACK_BOT_TOKEN_LEDGER', 'SLACK_APP_TOKEN_LEDGER'),
 ]:
     bot = os.environ.get(bk, '')
     app = os.environ.get(ak, '')

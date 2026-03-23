@@ -38,6 +38,7 @@ services:
       - /opt/openclaw/agents/outreach/workspace:/tmp/agents/outreach/workspace
       - /opt/openclaw/agents/cadence/workspace:/tmp/agents/cadence/workspace
       - /opt/openclaw/agents/beacon/workspace:/tmp/agents/beacon/workspace
+      - /opt/openclaw/agents/ledger/workspace:/tmp/agents/ledger/workspace
       # Persistent runtime workspace (survives deploys + restarts).
       # OpenClaw creates workspace files here on first boot; bind mount
       # ensures they persist. Path matches OpenClaw's actual runtime
@@ -53,6 +54,7 @@ services:
       - /opt/openclaw-persist/workspace-outreach:/home/openclaw/.openclaw/.openclaw/workspace-outreach
       - /opt/openclaw-persist/workspace-cadence:/home/openclaw/.openclaw/.openclaw/workspace-cadence
       - /opt/openclaw-persist/workspace-beacon:/home/openclaw/.openclaw/.openclaw/workspace-beacon
+      - /opt/openclaw-persist/workspace-ledger:/home/openclaw/.openclaw/.openclaw/workspace-ledger
       # Memory database (agent knowledge, virtual FS state).
       # Without this mount, agent file edits (e.g. KNOWLEDGE.md updates)
       # are lost on container restart because the virtual FS stores

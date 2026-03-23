@@ -56,6 +56,11 @@
         "id": "beacon",
         "workspace": "/root/.openclaw/agents/beacon/workspace",
         "agentDir": "/root/.openclaw/agents/beacon/agent"
+      },
+      {
+        "id": "ledger",
+        "workspace": "/root/.openclaw/agents/ledger/workspace",
+        "agentDir": "/root/.openclaw/agents/ledger/agent"
       }
     ]
   },
@@ -103,6 +108,13 @@
       "match": {
         "channel": "slack",
         "accountId": "beacon"
+      }
+    },
+    {
+      "agentId": "ledger",
+      "match": {
+        "channel": "slack",
+        "accountId": "ledger"
       }
     }
   ],
