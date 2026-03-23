@@ -329,24 +329,10 @@ for agent in $ALL_AGENTS; do
 AUTHEOF
 done
 
-# Register agents with the CLI so proactive tasks can dispatch via
-# `openclaw agent --agent <name>`. Without this, `openclaw agents list`
-# only shows the default "main" agent and all cron-triggered proactive
-# tasks fail with "Unknown agent id".
-echo "Registering agents with CLI..."
-for agent in $ALL_AGENTS; do
-  WS="${OPENCLAW_HOME}/agents/${agent}/workspace"
-  AD="${OPENCLAW_HOME}/agents/${agent}/agent"
-  if [ -d "$WS" ]; then
-    openclaw agents add "$agent" \
-      --workspace "$WS" \
-      --agent-dir "$AD" \
-      --bind "slack:${agent}" \
-      --non-interactive 2>&1 && echo "  registered: $agent" \
-      || echo "  $agent: already registered or skipped (non-fatal)"
-  fi
-done
-echo "Agent registration complete."
+# NOTE: Agent CLI registration (`openclaw agents add`) is handled by
+# the OUTER entrypoint (/app/entrypoint.sh) AFTER workspace injection.
+# The inner entrypoint runs before workspace dirs exist, so registering
+# here would skip most agents due to the missing workspace check.
 
 # NOTE: Agent workspace file injection (IDENTITY.md, KNOWLEDGE.md) is handled
 # by the outer entrypoint (/app/entrypoint.sh) AFTER the gateway creates the
