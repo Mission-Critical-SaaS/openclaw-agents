@@ -312,6 +312,9 @@ Sales Pipeline:
   outreach-contact-finding Contact finding & email drafting (Outreach)
   cadence-follow-up       Follow-up sequence check (Cadence)
   cadence-pipeline-report Weekly sales pipeline report (Cadence)
+
+Watchdog:
+  chief-watchdog-triage   Watchdog error triage (Chief, every 2h business hours)
 EOF
   exit 0
 fi
@@ -667,6 +670,26 @@ You are running your scheduled follow-up sequence management cycle. Do the follo
 7. Post a summary to #sales-ops: sequences checked, follow-ups due, drafts created, replies detected, sequences stopped
 8. Update your KNOWLEDGE.md with follow-up metrics
 Budget: Check .budget-caps.json before making API calls. Max 10 follow-ups per run, max 15 Gmail drafts per day." \
+      180
+    ;;
+
+  # ── Watchdog: Chief ──────────────────────────────────
+  chief-watchdog-triage)
+    send_to_agent "chief" "$TASK" \
+      "[PROACTIVE TASK: Watchdog Error Triage]
+You are running your scheduled watchdog triage. Do the following:
+1. Read the last 2 hours of messages in #openclaw-watchdog (C0AL58T8QMN)
+2. Parse any AGENT ERROR REPORT messages — extract category, severity, agent, tool/API, and impact
+3. For each error, attempt auto-remediation:
+   - CREDENTIAL_EXPIRED: Trigger credential rotation via AWS Secrets Manager
+   - HANDOFF_TIMEOUT: Retry the failed handoff once
+   - TOOL_FAILURE: Check if the tool/API is back online and notify the agent
+   - BUDGET_EXCEEDED: Review if caps need temporary increase
+4. For persistent issues (same error reported 3+ times in 24h), escalate to Kit in #dev for infrastructure investigation
+5. Post a triage summary to #openclaw-watchdog with: errors found, actions taken, escalations made
+6. If zero errors were found, remain silent (do not post an empty summary)
+7. Update your KNOWLEDGE.md with error frequency trends
+Budget: Check .budget-caps.json before making API calls." \
       180
     ;;
 

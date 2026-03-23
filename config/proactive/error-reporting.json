@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "description": "Structured error reporting schema for the Watchdog Protocol. Agents post error reports to #openclaw-watchdog; Chief triages on a 2-hour cycle.",
+  "channel": {
+    "channel_id": "C0AL58T8QMN",
+    "name": "#openclaw-watchdog",
+    "purpose": "System health alerts, agent error reports, auto-remediation logs"
+  },
+  "error_categories": [
+    "TOOL_FAILURE",
+    "API_DOWN",
+    "CREDENTIAL_EXPIRED",
+    "BUDGET_EXCEEDED",
+    "HANDOFF_TIMEOUT",
+    "DATA_INTEGRITY",
+    "CIRCUIT_OPEN"
+  ],
+  "severity_levels": {
+    "critical": {
+      "description": "System-wide impact, immediate attention required",
+      "notification": ["sns", "slack"],
+      "response_time": "immediate",
+      "example": "All Stripe API calls failing, Mercury credentials expired"
+    },
+    "high": {
+      "description": "Single agent or integration degraded, Chief triages within 1 hour",
+      "notification": ["slack"],
+      "response_time": "1h",
+      "example": "Clay API returning 401, Gmail draft creation failing"
+    },
+    "medium": {
+      "description": "Non-blocking issue, addressed on next Chief triage cron cycle",
+      "notification": ["slack"],
+      "response_time": "next_cron",
+      "example": "Enrichment data incomplete, single handoff timeout"
+    },
+    "low": {
+      "description": "Informational, log only for trend tracking",
+      "notification": ["log"],
+      "response_time": "none",
+      "example": "Transient timeout recovered on retry, minor data format mismatch"
+    }
+  },
+  "message_format": {
+    "template": "AGENT ERROR REPORT | {agent_name}\nCategory: {category}\nSeverity: {severity}\nTool/API: {tool_or_api}\nError: {error_message}\nContext: {what_agent_was_doing}\nImpact: {what_is_blocked}",
+    "fields": {
+      "agent_name": "Name of the reporting agent (e.g., outreach, kit, scout)",
+      "category": "One of the error_categories listed above",
+      "severity": "One of: critical, high, medium, low",
+      "tool_or_api": "The specific tool or API that failed (e.g., Clay API, Stripe API, Gmail API)",
+      "error_message": "The actual error message or HTTP status code",
+      "what_agent_was_doing": "Brief description of the task or operation in progress",
+      "what_is_blocked": "What downstream work is blocked or degraded by this error"
+    }
+  },
+  "rules": {
+    "one_report_per_error": "Post one report per distinct error, not per retry attempt",
+    "continue_if_possible": "After reporting, continue with degraded operation if possible",
+    "log_to_knowledge": "Also log the error in the agent's KNOWLEDGE.md for trend tracking",
+    "chief_triage": "Chief reviews #openclaw-watchdog every 2 hours during business hours and posts triage summaries"
+  }
+}

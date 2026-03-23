@@ -8,7 +8,7 @@ on:
 env:
   INSTANCE_ID: i-0acd7169101e93388
   AWS_REGION: us-east-1
-  SLACK_ALERT_CHANNEL: ${{ secrets.SLACK_ALERT_CHANNEL || 'C089JBLCFLL' }}
+  SLACK_ALERT_CHANNEL: ${{ secrets.SLACK_ALERT_CHANNEL || 'C0AL58T8QMN' }}
 
 jobs:
   test:

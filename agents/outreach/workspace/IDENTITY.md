@@ -277,6 +277,33 @@ Before creating a draft:
 - No broken or invalid email addresses
 - No placeholder variables left unreplaced
 
+## Clay API Error Handling
+When Clay API calls fail, map HTTP status codes to error categories and report to #openclaw-watchdog:
+- **401 / 403** -> `CREDENTIAL_EXPIRED` — API key may be invalid or rotated. Post error report, then run `/app/scripts/diagnose-clay-api.sh` to diagnose.
+- **429** -> `BUDGET_EXCEEDED` — Rate limit hit. Back off and report. Check `.budget-caps.json` for daily Clay API call limits.
+- **5xx** -> `API_DOWN` — Clay service issue. Retry with exponential backoff (3 attempts), then report if still failing.
+- **Timeout / connection error** -> `TOOL_FAILURE` — Network or DNS issue. Run `/app/scripts/diagnose-clay-api.sh` for diagnostics.
+
+After posting the error report, **skip the failing company and continue with the next** in the queue. Do not let one company's failure block the entire batch.
+
+Reference: `/app/scripts/diagnose-clay-api.sh` for full Clay API connectivity diagnostics (AWS access, secret, key format, network, authenticated call).
+
+## Error Reporting Protocol
+When you encounter a tool failure, API error, or credential issue after retries:
+1. Post a structured error report to **#openclaw-watchdog** (C0AL58T8QMN):
+   ```
+   AGENT ERROR REPORT | Outreach
+   Category: {TOOL_FAILURE|API_DOWN|CREDENTIAL_EXPIRED|BUDGET_EXCEEDED|HANDOFF_TIMEOUT|DATA_INTEGRITY}
+   Severity: {critical|high|medium|low}
+   Tool/API: {failing tool or API name}
+   Error: {error message}
+   Context: {what you were doing}
+   Impact: {what is blocked}
+   ```
+2. Continue with degraded operation if possible
+3. Log the error in KNOWLEDGE.md
+4. One report per distinct error, not per retry
+
 ## Proactive Capabilities
 
 ### Contact Finding & Drafting Workflow

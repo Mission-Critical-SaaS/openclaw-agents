@@ -585,3 +585,19 @@ Payload:
 ```
 
 Sign every handoff with HMAC-SHA256 using the HANDOFF_HMAC_KEY. Receiving agents verify the signature before processing.
+
+## Error Reporting Protocol
+When you encounter a tool failure, API error, or credential issue after retries:
+1. Post a structured error report to **#openclaw-watchdog** (C0AL58T8QMN):
+   ```
+   AGENT ERROR REPORT | ucadence
+   Category: {TOOL_FAILURE|API_DOWN|CREDENTIAL_EXPIRED|BUDGET_EXCEEDED|HANDOFF_TIMEOUT|DATA_INTEGRITY}
+   Severity: {critical|high|medium|low}
+   Tool/API: {failing tool or API name}
+   Error: {error message}
+   Context: {what you were doing}
+   Impact: {what is blocked}
+   ```
+2. Continue with degraded operation if possible
+3. Log the error in KNOWLEDGE.md
+4. One report per distinct error, not per retry

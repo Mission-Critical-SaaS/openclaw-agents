@@ -1,7 +1,7 @@
 #!/bin/bash
 # ──────────────────────────────────────────────────────────
 # OpenClaw Health Check Script (Tier-Aware)
-# Runs via cron, posts alerts to Slack #leads and SNS email on failure
+# Runs via cron, posts alerts to Slack #openclaw-watchdog and SNS email on failure
 # Checks both admin and standard tier containers
 # ──────────────────────────────────────────────────────────
 set -uo pipefail
@@ -35,7 +35,7 @@ get_slack_token() {
 }
 
 # Slack #leads channel ID (use ID not name - survives channel renames)
-SLACK_ALERT_CHANNEL="${OPENCLAW_ALERT_CHANNEL:-C089JBLCFLL}"
+SLACK_ALERT_CHANNEL="${OPENCLAW_ALERT_CHANNEL:-C0AL58T8QMN}"
 
 send_slack_alert() {
     local msg="$1"
