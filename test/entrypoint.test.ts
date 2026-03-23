@@ -2360,9 +2360,9 @@ describe('Sales pipeline agents configuration', () => {
       expect(identities['prospector']).toContain('api.usaspending.gov');
     });
 
-    test('Outreach uses Clay API for contact discovery', () => {
-      expect(identities['outreach']).toContain('Clay API');
-      expect(identities['outreach']).toContain('sales-prospecting/clay-api-key');
+    test('Outreach uses Apollo API for contact discovery', () => {
+      expect(identities['outreach']).toContain('Apollo');
+      expect(identities['outreach']).toContain('sales-prospecting/apollo-api-key');
     });
 
     test('Outreach creates Gmail drafts (NOT auto-send)', () => {
@@ -2404,8 +2404,8 @@ describe('Sales pipeline agents configuration', () => {
       expect(budgetCaps.caps.prospector.daily.usaspending_api_calls).toBe(50);
     });
 
-    test('Outreach has Clay API and Gmail draft caps', () => {
-      expect(budgetCaps.caps.outreach.daily.clay_api_calls).toBe(50);
+    test('Outreach has Apollo API and Gmail draft caps', () => {
+      expect(budgetCaps.caps.outreach.daily.apollo_api_calls).toBe(50);
       expect(budgetCaps.caps.outreach.daily.gmail_drafts_created).toBe(20);
     });
 

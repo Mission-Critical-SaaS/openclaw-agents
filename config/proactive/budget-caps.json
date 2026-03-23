@@ -193,7 +193,7 @@
     },
     "outreach": {
       "daily": {
-        "clay_api_calls": 50,
+        "apollo_api_calls": 50,
         "gmail_drafts_created": 20,
         "google_sheets_writes": 30,
         "audit_log_writes": 200,
@@ -201,7 +201,7 @@
         "web_research_queries": 30
       },
       "monthly": {
-        "clay_api_calls": 1000,
+        "apollo_api_calls": 1000,
         "gmail_drafts_created": 400,
         "google_sheets_writes": 600,
         "audit_log_writes": 6000,

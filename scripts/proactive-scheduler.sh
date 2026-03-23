@@ -630,7 +630,7 @@ You are running your scheduled contact finding and outreach drafting cycle. Do t
 1. Read the Companies tab for qualified companies that do not yet have contacts in the Contacts tab
 2. For each company without contacts (max 5 companies per run):
    a. Read the Policies tab for target roles (CEO, CFO, VP Finance, Director of Finance, Controller)
-   b. Search Clay API for decision-maker contacts matching those roles at the company domain
+   b. Search Apollo API for decision-maker contacts matching those roles at the company domain
    c. Enrich each contact with phone, LinkedIn, and email verification
    d. Deduplicate against existing Contacts tab (check email match)
    e. Write new contacts to the Contacts tab

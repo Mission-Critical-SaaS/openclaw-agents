@@ -1,14 +1,14 @@
 #!/bin/bash
 # ──────────────────────────────────────────────────────────
-# Clay API Diagnostic Script
-# Runs 5 checks to diagnose Clay API connectivity issues.
-# Usage: scripts/diagnose-clay-api.sh
+# Apollo API Diagnostic Script
+# Runs 5 checks to diagnose Apollo API connectivity issues.
+# Usage: scripts/diagnose-apollo-api.sh
 # ──────────────────────────────────────────────────────────
 set -uo pipefail
 
 PASS=0
 FAIL=0
-SECRET_ID="sales-prospecting/clay-api-key"
+SECRET_ID="sales-prospecting/apollo-api-key"
 REGION="us-east-1"
 
 check() {
@@ -48,22 +48,26 @@ test_key_format() {
     echo "  Key is empty"
     return 1
   fi
-  # Clay API keys are non-empty strings; basic sanity check
+  # Apollo API keys are typically longer alphanumeric strings
   local len=${#key}
-  if [ "$len" -lt 10 ]; then
-    echo "  Key is suspiciously short ($len chars)"
+  if [ "$len" -lt 20 ]; then
+    echo "  Key is suspiciously short ($len chars) — Apollo keys are typically longer alphanumeric strings"
     return 1
   fi
-  echo "  Key length: $len chars (looks reasonable)"
+  if ! echo "$key" | grep -qE '^[A-Za-z0-9_-]+$'; then
+    echo "  Key contains unexpected characters — Apollo keys are typically alphanumeric"
+    return 1
+  fi
+  echo "  Key length: $len chars (looks reasonable for Apollo)"
   return 0
 }
 
-# ── Test 4: Network connectivity to api.clay.com ────────
+# ── Test 4: Network connectivity to api.apollo.io ──────
 test_network() {
   curl -sf --max-time 10 -o /dev/null -w "HTTP %{http_code} in %{time_total}s" \
-    https://api.clay.com > /dev/null 2>&1
+    https://api.apollo.io > /dev/null 2>&1
   # Even a 401/403 means network works; only connection failures matter
-  curl -sf --max-time 10 -o /dev/null https://api.clay.com 2>/dev/null
+  curl -sf --max-time 10 -o /dev/null https://api.apollo.io 2>/dev/null
   local rc=$?
   # curl exit code 0=ok, 22=HTTP error (still network ok), 6=resolve fail, 7=connect fail, 28=timeout
   if [ "$rc" -eq 0 ] || [ "$rc" -eq 22 ]; then
@@ -88,9 +92,11 @@ test_authenticated_call() {
   fi
   local http_code
   http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
-    -H "Authorization: Bearer $key" \
+    -X POST \
+    -H "x-api-key: $key" \
     -H "Content-Type: application/json" \
-    https://api.clay.com/v3/sources)
+    -d '{"person_titles":["CEO"],"q_organization_domains":"apollo.io","per_page":1}' \
+    https://api.apollo.io/api/v1/mixed_people/search)
   echo "  HTTP status: $http_code"
   if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 400 ]; then
     return 0
@@ -100,14 +106,14 @@ test_authenticated_call() {
   fi
 }
 
-echo "Clay API Diagnostic — $(date -Iseconds)"
+echo "Apollo API Diagnostic — $(date -Iseconds)"
 echo "============================================"
 
 check "AWS access (sts get-caller-identity)" test_aws_access
 check "Secret exists ($SECRET_ID)" test_secret_exists
-check "Key format (non-empty, reasonable length)" test_key_format
-check "Network connectivity to api.clay.com" test_network
-check "Authenticated API call" test_authenticated_call
+check "Key format (non-empty, alphanumeric, reasonable length)" test_key_format
+check "Network connectivity to api.apollo.io" test_network
+check "Authenticated API call (mixed_people/search)" test_authenticated_call
 
 echo ""
 echo "============================================"
