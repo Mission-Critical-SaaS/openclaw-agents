@@ -169,13 +169,13 @@ function readLocalFile(relativePath: string): string {
 
 describe('Agent Connectivity (All 5 Agents)', () => {
   test('Docker container is running', () => {
-    const output = ssmExec('docker ps --filter name=openclaw-agents --format {{.Names}}');
-    expect(output).toContain('openclaw-agents');
+    const output = ssmExec('docker ps --filter name=openclaw-agents-standard --format {{.Names}}');
+    expect(output).toContain('openclaw-agents-standard');
   });
 
   test('10 socket mode connections established (5 agents × 2)', () => {
     const output = ssmExec(
-      'docker logs openclaw-agents 2>&1 | grep "socket mode connected" | tail -20'
+      'docker logs openclaw-agents-standard 2>&1 | grep "socket mode connected" | tail -20'
     );
     const lines = output.split('\n').filter((l) => l.includes('socket mode connected'));
     // After a fresh restart, we should see at least 5 connections (one per agent)
@@ -184,13 +184,13 @@ describe('Agent Connectivity (All 5 Agents)', () => {
   });
 
   test('Gateway process is alive', () => {
-    const output = ssmExec('docker exec openclaw-agents pgrep -f openclaw.gateway | head -1');
+    const output = ssmExec('docker exec openclaw-agents-standard pgrep -f openclaw.gateway | head -1');
     expect(output.trim()).toMatch(/^\d+$/);
   });
 
   test('All 5 agent workspace directories exist', () => {
     const checks = ALL_AGENTS.map(a =>
-      `docker exec openclaw-agents test -d /home/openclaw/.openclaw/.openclaw/workspace-${a} && echo ${a}:OK || echo ${a}:MISSING`
+      `docker exec openclaw-agents-standard test -d /home/openclaw/.openclaw/.openclaw/workspace-${a} && echo ${a}:OK || echo ${a}:MISSING`
     ).join('; ');
     const output = ssmExec(checks);
     for (const agent of ALL_AGENTS) {
@@ -200,7 +200,7 @@ describe('Agent Connectivity (All 5 Agents)', () => {
 
   test('All 5 agents have IDENTITY.md injected', () => {
     const checks = ALL_AGENTS.map(a =>
-      `docker exec openclaw-agents test -f /home/openclaw/.openclaw/.openclaw/workspace-${a}/IDENTITY.md && echo ${a}:OK || echo ${a}:MISSING`
+      `docker exec openclaw-agents-standard test -f /home/openclaw/.openclaw/.openclaw/workspace-${a}/IDENTITY.md && echo ${a}:OK || echo ${a}:MISSING`
     ).join('; ');
     const output = ssmExec(checks);
     for (const agent of ALL_AGENTS) {
@@ -210,7 +210,7 @@ describe('Agent Connectivity (All 5 Agents)', () => {
 
   test('All 5 agents have KNOWLEDGE.md injected', () => {
     const checks = ALL_AGENTS.map(a =>
-      `docker exec openclaw-agents test -f /home/openclaw/.openclaw/.openclaw/workspace-${a}/KNOWLEDGE.md && echo ${a}:OK || echo ${a}:MISSING`
+      `docker exec openclaw-agents-standard test -f /home/openclaw/.openclaw/.openclaw/workspace-${a}/KNOWLEDGE.md && echo ${a}:OK || echo ${a}:MISSING`
     ).join('; ');
     const output = ssmExec(checks);
     for (const agent of ALL_AGENTS) {
@@ -220,8 +220,8 @@ describe('Agent Connectivity (All 5 Agents)', () => {
 
   test('All 5 agents have security configs (.user-tiers.json, .dangerous-actions.json)', () => {
     const checks = ALL_AGENTS.map(a =>
-      `docker exec openclaw-agents test -f /home/openclaw/.openclaw/.openclaw/workspace-${a}/.user-tiers.json && ` +
-      `docker exec openclaw-agents test -f /home/openclaw/.openclaw/.openclaw/workspace-${a}/.dangerous-actions.json && ` +
+      `docker exec openclaw-agents-standard test -f /home/openclaw/.openclaw/.openclaw/workspace-${a}/.user-tiers.json && ` +
+      `docker exec openclaw-agents-standard test -f /home/openclaw/.openclaw/.openclaw/workspace-${a}/.dangerous-actions.json && ` +
       `echo ${a}:OK || echo ${a}:MISSING`
     ).join('; ');
     const output = ssmExec(checks);
@@ -232,8 +232,8 @@ describe('Agent Connectivity (All 5 Agents)', () => {
 
   test('All 5 agents have proactive configs (.budget-caps.json, .handoff-protocol.json)', () => {
     const checks = ALL_AGENTS.map(a =>
-      `docker exec openclaw-agents test -f /home/openclaw/.openclaw/.openclaw/workspace-${a}/.budget-caps.json && ` +
-      `docker exec openclaw-agents test -f /home/openclaw/.openclaw/.openclaw/workspace-${a}/.handoff-protocol.json && ` +
+      `docker exec openclaw-agents-standard test -f /home/openclaw/.openclaw/.openclaw/workspace-${a}/.budget-caps.json && ` +
+      `docker exec openclaw-agents-standard test -f /home/openclaw/.openclaw/.openclaw/workspace-${a}/.handoff-protocol.json && ` +
       `echo ${a}:OK || echo ${a}:MISSING`
     ).join('; ');
     const output = ssmExec(checks);
@@ -283,7 +283,7 @@ describe('Slack Agent Presence', () => {
   for (const agent of ALL_AGENTS) {
     test(`${agent} is configured in gateway openclaw.json`, () => {
       const output = ssmExec(
-        `docker exec openclaw-agents cat /home/openclaw/.openclaw/.openclaw/openclaw.json 2>/dev/null | ` +
+        `docker exec openclaw-agents-standard cat /home/openclaw/.openclaw/.openclaw/openclaw.json 2>/dev/null | ` +
         `jq -r ".channels.slack.accounts.${agent} | length" 2>/dev/null || echo 0`
       );
       expect(parseInt(output.trim(), 10)).toBeGreaterThan(0);
@@ -298,13 +298,13 @@ describe('Slack Agent Presence', () => {
 describe('Slack Channel Configuration', () => {
   test('all 5 agents have Slack accounts configured in gateway', () => {
     const output = ssmExec(
-      'docker exec openclaw-agents cat /home/openclaw/.openclaw/.openclaw/openclaw.json 2>/dev/null | ' +
+      'docker exec openclaw-agents-standard cat /home/openclaw/.openclaw/.openclaw/openclaw.json 2>/dev/null | ' +
       'jq -r ".channels.slack.accounts | keys[]" 2>/dev/null || echo "jq-failed"'
     );
     if (output === 'jq-failed') {
       // Fallback: grep for agent names in the config file
       const fallback = ssmExec(
-        'docker exec openclaw-agents grep -oE "(scout|trak|kit|scribe|probe)" ' +
+        'docker exec openclaw-agents-standard grep -oE "(scout|trak|kit|scribe|probe)" ' +
         '/home/openclaw/.openclaw/.openclaw/openclaw.json | sort -u'
       );
       for (const agent of ALL_AGENTS) {
@@ -319,7 +319,7 @@ describe('Slack Channel Configuration', () => {
 
   test('all agents have groupPolicy=open (accessible in any channel)', () => {
     const checks = ALL_AGENTS.map(a =>
-      `docker exec openclaw-agents cat /home/openclaw/.openclaw/.openclaw/openclaw.json 2>/dev/null | ` +
+      `docker exec openclaw-agents-standard cat /home/openclaw/.openclaw/.openclaw/openclaw.json 2>/dev/null | ` +
       `jq -r .channels.slack.accounts.${a}.groupPolicy 2>/dev/null | ` +
       `xargs -I{} echo ${a}:{}`
     ).join('; ');
@@ -331,7 +331,7 @@ describe('Slack Channel Configuration', () => {
 
   test('all agents have requireMention=true', () => {
     const checks = ALL_AGENTS.map(a =>
-      `docker exec openclaw-agents cat /home/openclaw/.openclaw/.openclaw/openclaw.json 2>/dev/null | ` +
+      `docker exec openclaw-agents-standard cat /home/openclaw/.openclaw/.openclaw/openclaw.json 2>/dev/null | ` +
       `jq -r .channels.slack.accounts.${a}.requireMention 2>/dev/null | ` +
       `xargs -I{} echo ${a}:{}`
     ).join('; ');

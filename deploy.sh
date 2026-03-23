@@ -1,7 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 DEPLOY_DIR="/opt/openclaw"
-CONTAINER_NAME="openclaw-agents"
+# 2-container tier isolation
+ADMIN_CONTAINER="openclaw-agents-admin"
+STANDARD_CONTAINER="openclaw-agents-standard"
 LOG_DIR="/opt/openclaw/logs"
 BACKUP_FILE="/opt/openclaw/.last_deploy"
 HEALTH_TIMEOUT=300
@@ -98,10 +100,17 @@ NEW_COMMIT=$(git rev-parse HEAD)
 log "Now at: $NEW_COMMIT"
 # Ensure persistent runtime workspace dirs exist (outside git repo, survives checkouts).
 # Path matches OpenClaw's runtime workspace: /home/openclaw/.openclaw/.openclaw/workspace-{agent}
+# NOTE: This is intentionally hardcoded because it runs on the HOST, not in containers
+# Both containers need their workspaces to exist on the host filesystem
 for agent in scout trak kit scribe probe chief ledger beacon harvest prospector outreach cadence; do
   mkdir -p "/opt/openclaw-persist/workspace-${agent}"
 done
-mkdir -p "/opt/openclaw-persist/memory"
+
+# Create tier-specific log directories
+mkdir -p /opt/openclaw/logs/admin/data /opt/openclaw/logs/standard/data
+
+# Create tier-specific memory directories (ISOLATED per tier)
+mkdir -p /opt/openclaw-persist/memory-admin /opt/openclaw-persist/memory-standard
 
 # Ensure scripts are executable
 chmod +x /opt/openclaw/scripts/*.sh 2>/dev/null || true
@@ -114,18 +123,44 @@ else
 fi
 # Clean up dangling images to prevent disk fill
 docker image prune -f 2>/dev/null || true
-log "Restarting container..."
+log "Restarting containers..."
 docker-compose down && docker-compose up -d
+
+# Health check function for a single container
+check_container_health() {
+    local container=$1
+    # Check container is running
+    local status=$(docker inspect -f '{{.State.Status}}' "$container" 2>/dev/null || echo "not_found")
+    if [ "$status" != "running" ]; then
+        return 1
+    fi
+    # Check gateway process
+    if ! docker exec "$container" pgrep -f "openclaw.gateway" > /dev/null 2>&1; then
+        return 1
+    fi
+    return 0
+}
+
 log "Waiting for health (${HEALTH_TIMEOUT}s)..."
 ELAPSED=0
 while [ $ELAPSED -lt $HEALTH_TIMEOUT ]; do
     sleep 5; ELAPSED=$((ELAPSED + 5))
-    CS=$(docker inspect -f '{{.State.Status}}' "$CONTAINER_NAME" 2>/dev/null || echo "not_found")
-    if [ "$CS" = "running" ]; then
-        MC=$(docker exec "$CONTAINER_NAME" openclaw status 2>/dev/null || echo "not_ready")
-        if echo "$MC" | grep -q "tools"; then log "Healthy after ${ELAPSED}s"; break; fi
+    ADMIN_HEALTHY=false
+    STANDARD_HEALTHY=false
+
+    if check_container_health "$ADMIN_CONTAINER"; then
+        ADMIN_HEALTHY=true
     fi
-    [ $((ELAPSED % 15)) -eq 0 ] && log "Waiting... (${ELAPSED}s, status=$CS)"
+    if check_container_health "$STANDARD_CONTAINER"; then
+        STANDARD_HEALTHY=true
+    fi
+
+    if [ "$ADMIN_HEALTHY" = true ] && [ "$STANDARD_HEALTHY" = true ]; then
+        log "All containers healthy after ${ELAPSED}s"
+        break
+    fi
+
+    [ $((ELAPSED % 15)) -eq 0 ] && log "Waiting... (${ELAPSED}s, admin=$ADMIN_HEALTHY, standard=$STANDARD_HEALTHY)"
 done
 if [ $ELAPSED -ge $HEALTH_TIMEOUT ]; then
     log "ERROR: Health check timed out"
@@ -133,11 +168,12 @@ if [ $ELAPSED -ge $HEALTH_TIMEOUT ]; then
     exit 1
 fi
 log "=== HEALTH REPORT ==="
-log "Container: $(docker inspect -f '{{.State.Status}}' $CONTAINER_NAME)"
-log "Status:"
-timeout 15 docker exec "$CONTAINER_NAME" openclaw status 2>/dev/null | head -20 | while IFS= read -r l; do log "  $l"; done || log "  (status check timed out)"
-log "Slack:"
-docker logs "$CONTAINER_NAME" 2>&1 | grep -i "socket mode" | tail -6 | while IFS= read -r l; do log "  $l"; done || log "  (no socket mode messages yet)"
+log "Admin container: $(docker inspect -f '{{.State.Status}}' $ADMIN_CONTAINER 2>/dev/null || echo 'not_found')"
+log "Standard container: $(docker inspect -f '{{.State.Status}}' $STANDARD_CONTAINER 2>/dev/null || echo 'not_found')"
+log "Admin Slack:"
+docker logs "$ADMIN_CONTAINER" 2>&1 | grep -i "socket mode" | tail -3 | while IFS= read -r l; do log "  $l"; done || log "  (no socket mode messages yet)"
+log "Standard Slack:"
+docker logs "$STANDARD_CONTAINER" 2>&1 | grep -i "socket mode" | tail -6 | while IFS= read -r l; do log "  $l"; done || log "  (no socket mode messages yet)"
 log "Previous: $CURRENT_COMMIT | Deployed: $NEW_COMMIT"
 log "Log: $DEPLOY_LOG"
 log "SUCCESS: Deployment complete!"
