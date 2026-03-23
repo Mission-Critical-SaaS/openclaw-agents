@@ -374,7 +374,7 @@ WRAPPER_EOF
   # Note: symlinks don't work â OpenClaw virtual FS doesn't resolve them.
   # ============================================================
   echo "Injecting workspace files into agent workspaces..."
-  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence beacon; do
+  for agent in scout trak kit scribe probe chief ledger beacon harvest prospector outreach cadence; do
     SRC="/tmp/agents/${agent}/workspace"
     CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
@@ -411,7 +411,7 @@ WRAPPER_EOF
   # Dot-prefixed to avoid cluttering the agent's visible workspace.
   # ============================================================
   echo "Injecting security configs into agent workspaces..."
-  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence beacon; do
+  for agent in scout trak kit scribe probe chief ledger beacon harvest prospector outreach cadence; do
     CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     for target_dir in "$CFG" "$PERSIST"; do
@@ -429,7 +429,7 @@ WRAPPER_EOF
   # agent workspace for proactive capability governance.
   # ============================================================
   echo "Injecting proactive capability configs into agent workspaces..."
-  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence beacon; do
+  for agent in scout trak kit scribe probe chief ledger beacon harvest prospector outreach cadence; do
     CFG="/home/openclaw/.openclaw/agents/${agent}/workspace"
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     for target_dir in "$CFG" "$PERSIST"; do
@@ -453,7 +453,7 @@ WRAPPER_EOF
   echo "Populating main workspace for memory indexing..."
   MAIN_WS="/home/openclaw/.openclaw/.openclaw/workspace"
   mkdir -p "$MAIN_WS/memory"
-  for agent in scout trak kit scribe probe chief harvest prospector outreach cadence beacon; do
+  for agent in scout trak kit scribe probe chief ledger beacon harvest prospector outreach cadence; do
     PERSIST="/home/openclaw/.openclaw/.openclaw/workspace-${agent}"
     if [ -f "$PERSIST/KNOWLEDGE.md" ]; then
       cp "$PERSIST/KNOWLEDGE.md" "$MAIN_WS/memory/KNOWLEDGE-${agent}.md"
@@ -461,10 +461,9 @@ WRAPPER_EOF
     fi
   done
 
-  # Rebuild memory index so FTS can search agent knowledge
-  echo "Rebuilding memory index..."
-  openclaw memory index --force > /dev/null 2>&1 || true
-  echo "Memory index updated."
+  # NOTE: Memory index rebuild moved to after gateway start (below).
+  # `openclaw memory index` needs the gateway running to access the
+  # memory store. Running it here (with gateway killed) silently fails.
 
   # ============================================================
   # GITHUB TOKEN: UNSET ENV VAR BEFORE GATEWAY START
@@ -523,6 +522,42 @@ WRAPPER_EOF
     echo "ERROR: Gateway process died. Check /data/logs/openclaw.log"
     exit 1
   fi
+
+  # ============================================================
+  # AGENT CLI REGISTRATION
+  # Register all agents with `openclaw agents add` so proactive
+  # cron tasks can dispatch via `openclaw agent --agent <name>`.
+  # Must run AFTER workspace injection (dirs must exist) and AFTER
+  # gateway start (CLI talks to the gateway).
+  # ============================================================
+  ALL_AGENTS="scout trak kit scribe probe chief ledger beacon harvest prospector outreach cadence"
+  echo "Registering agents with CLI..."
+  OCHOME="/home/openclaw/.openclaw"
+  for agent in $ALL_AGENTS; do
+    WS="${OCHOME}/agents/${agent}/workspace"
+    AD="${OCHOME}/agents/${agent}/agent"
+    if [ -d "$WS" ]; then
+      openclaw agents add "$agent" \
+        --workspace "$WS" \
+        --agent-dir "$AD" \
+        --bind "slack:${agent}" \
+        --non-interactive 2>&1 && echo "  registered: $agent" \
+        || echo "  $agent: already registered or skipped (non-fatal)"
+    else
+      echo "  $agent: workspace not found at $WS, skipping"
+    fi
+  done
+  echo "Agent registration complete ($(openclaw agents list 2>/dev/null | grep -c '^\-' || echo '?') agents)."
+
+  # ============================================================
+  # MEMORY INDEX REBUILD
+  # Now that the gateway is running and workspace files are in
+  # place, rebuild the FTS index so agents can search each other's
+  # knowledge via memory.
+  # ============================================================
+  echo "Rebuilding memory index..."
+  openclaw memory index --force 2>&1 || echo "WARNING: memory index failed (non-fatal)"
+  echo "Memory index updated."
 
   # ============================================================
   # AGENT BOOTSTRAP
