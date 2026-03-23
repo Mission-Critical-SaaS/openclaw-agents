@@ -33,6 +33,10 @@ RUN npm install -g @macnishio/zoho-mcp-server 2>/dev/null || true
 # Install mcporter at build time (requires root for npm install -g)
 RUN npm install -g mcporter 2>/dev/null || true
 
+# Install node-llama-cpp for local embeddings (memory search)
+# Uses embeddinggemma-300m (~329MB model, runs on CPU, negligible overhead)
+RUN npm install -g node-llama-cpp 2>/dev/null || true
+
 # Create directory structure
 RUN mkdir -p ${OPENCLAW_HOME}/agents/scout/workspace/skills ${OPENCLAW_HOME}/agents/trak/workspace/skills ${OPENCLAW_HOME}/agents/kit/workspace/skills ${OPENCLAW_HOME}/agents/scribe/workspace/skills ${OPENCLAW_HOME}/workspace /data/logs
 

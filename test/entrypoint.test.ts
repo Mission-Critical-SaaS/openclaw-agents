@@ -185,9 +185,10 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(modeIdx).toBeLessThan(bootstrapIdx);
   });
 
-  test('disables memory search embedding before doctor runs', () => {
-    expect(script).toContain('memorySearch.enabled false');
-    const searchIdx = script.indexOf('memorySearch.enabled false');
+  test('enables memory search with local embeddings before doctor runs', () => {
+    expect(script).toContain('memorySearch.enabled true');
+    expect(script).toContain('memorySearch.provider local');
+    const searchIdx = script.indexOf('memorySearch.enabled true');
     const doctorIdx = script.indexOf('openclaw doctor --fix');
     expect(searchIdx).toBeLessThan(doctorIdx);
   });
@@ -201,7 +202,7 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     // openclaw CLI commands print doctor box-drawing to stdout, not just stderr
     // so we must redirect both: > /dev/null 2>&1
     expect(script).toContain('openclaw config set gateway.mode local > /dev/null 2>&1');
-    expect(script).toContain('openclaw config set agents.defaults.memorySearch.enabled false > /dev/null 2>&1');
+    expect(script).toContain('openclaw config set agents.defaults.memorySearch.enabled true > /dev/null 2>&1');
   });
 
   test('gateway kill happens before logrotate setup', () => {

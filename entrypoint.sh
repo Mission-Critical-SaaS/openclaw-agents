@@ -279,9 +279,11 @@ INJECT_PYEOF
   # prevents bootstrap from trying to start a second gateway)
   openclaw config set gateway.mode local > /dev/null 2>&1 || true
 
-  # Disable memory search embedding (no embedding API key configured;
-  # prevents "Memory search enabled but no embedding provider" warning)
-  openclaw config set agents.defaults.memorySearch.enabled false > /dev/null 2>&1 || true
+  # Enable memory search with local embeddings (embeddinggemma-300m via node-llama-cpp).
+  # This gives agents semantic vector search + FTS across each other's KNOWLEDGE.md files
+  # with zero API costs. The model is ~329MB and runs on CPU with negligible overhead.
+  openclaw config set agents.defaults.memorySearch.enabled true > /dev/null 2>&1 || true
+  openclaw config set agents.defaults.memorySearch.provider local > /dev/null 2>&1 || true
 
   # Normalize config (fixes any remaining schema drift from initial startup)
   echo "Normalizing gateway config..."
@@ -405,7 +407,10 @@ WRAPPER_EOF
     # (symlinks don't work â OpenClaw virtual FS doesn't resolve them)
     if [ -f "$PERSIST/KNOWLEDGE.md" ]; then
       cp "$PERSIST/KNOWLEDGE.md" "$CFG/KNOWLEDGE.md"
-      echo "  ${agent}: KNOWLEDGE.md copied from persist to cfg"
+      # Also populate the agent's memory/ dir so FTS memory search can index it
+      mkdir -p "$CFG/memory"
+      cp "$PERSIST/KNOWLEDGE.md" "$CFG/memory/KNOWLEDGE.md"
+      echo "  ${agent}: KNOWLEDGE.md copied from persist to cfg + memory"
     fi
   done
 
