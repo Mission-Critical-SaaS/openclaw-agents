@@ -274,10 +274,11 @@ INJECT_PYEOF
   # prevents bootstrap from trying to start a second gateway)
   openclaw config set gateway.mode local > /dev/null 2>&1 || true
 
-  # Enable memory search in FTS-only mode. No embedding provider is needed —
-  # FTS indexes agent KNOWLEDGE.md files for keyword search across all agents.
-  # Vector search is unavailable without an embedding API key, but FTS is sufficient.
+  # Enable memory search with local embeddings (embeddinggemma-300m via node-llama-cpp).
+  # This gives agents semantic vector search + FTS across each other's KNOWLEDGE.md files
+  # with zero API costs. The model is ~329MB and runs on CPU with negligible overhead.
   openclaw config set agents.defaults.memorySearch.enabled true > /dev/null 2>&1 || true
+  openclaw config set agents.defaults.memorySearch.provider local > /dev/null 2>&1 || true
 
   # Normalize config (fixes any remaining schema drift from initial startup)
   echo "Normalizing gateway config..."
