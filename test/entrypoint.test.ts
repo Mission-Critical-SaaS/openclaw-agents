@@ -185,8 +185,9 @@ describe('Outer entrypoint (entrypoint.sh)', () => {
     expect(modeIdx).toBeLessThan(bootstrapIdx);
   });
 
-  test('enables memory search (FTS-only) before doctor runs', () => {
+  test('enables memory search with local embeddings before doctor runs', () => {
     expect(script).toContain('memorySearch.enabled true');
+    expect(script).toContain('memorySearch.provider local');
     const searchIdx = script.indexOf('memorySearch.enabled true');
     const doctorIdx = script.indexOf('openclaw doctor --fix');
     expect(searchIdx).toBeLessThan(doctorIdx);
