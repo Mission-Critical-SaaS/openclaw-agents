@@ -101,6 +101,33 @@ Read `.handoff-protocol.json` for full protocol details. Key points:
 - Probe: `<@U0ALRTLF752>` — QA, testing, bug reproduction, performance monitoring
 - Beacon: `<@U0AMPKFH5D4>` — HourTimesheet internal support, HTS product expertise
 
+## Watchdog Protocol
+Chief monitors **#openclaw-watchdog** (C0AL58T8QMN) for structured error reports from all agents. Every 2 hours during business hours (weekdays 9am-6pm ET), Chief triages error reports and takes action.
+
+### Escalation Ladder
+1. **Auto-fix**: Credential rotation via AWS Secrets Manager, retry failed handoffs, reset circuit breakers
+2. **Agent triage**: Escalate infrastructure issues to Kit (`<@U0AKF614URE>`) in #dev for investigation
+3. **Human notification**: DM David (`<@U082DEF37PC>`) for persistent issues that require human judgment or access beyond agent capabilities
+
+### Error Frequency Tracking
+Track error frequency and patterns in KNOWLEDGE.md. When the same error category appears 3+ times in 24 hours, escalate immediately rather than waiting for the next triage cycle.
+
+## Error Reporting Protocol
+When you encounter a tool failure, API error, or credential issue after retries:
+1. Post a structured error report to **#openclaw-watchdog** (C0AL58T8QMN):
+   ```
+   AGENT ERROR REPORT | Chief
+   Category: {TOOL_FAILURE|API_DOWN|CREDENTIAL_EXPIRED|BUDGET_EXCEEDED|HANDOFF_TIMEOUT|DATA_INTEGRITY}
+   Severity: {critical|high|medium|low}
+   Tool/API: {failing tool or API name}
+   Error: {error message}
+   Context: {what you were doing}
+   Impact: {what is blocked}
+   ```
+2. Continue with degraded operation if possible
+3. Log the error in KNOWLEDGE.md
+4. One report per distinct error, not per retry
+
 ## Slack Threading Rules
 1. Always reply in-thread when responding to a thread
 2. Use DMs for financial data — never post sensitive numbers in channels

@@ -122,6 +122,12 @@ ${EXISTING}
 # Cadence: Weekly pipeline report (Mondays 4pm ET)
 # End of first business day gives a full week's data and time for team to review
 0 16 * * 1 flock -n /tmp/openclaw-cadence-pipeline-report.lock $SCHEDULER cadence-pipeline-report >> $LOG_DIR/proactive.log 2>&1 # proactive: cadence-pipeline-report (Mondays 4pm ET)
+
+# ============================================================
+# Watchdog Triage
+# Chief reviews #openclaw-watchdog for error reports every 2 hours
+# ============================================================
+0 9-18/2 * * 1-5 flock -n /tmp/openclaw-chief-watchdog-triage.lock $SCHEDULER chief-watchdog-triage >> $LOG_DIR/proactive.log 2>&1 # proactive: chief-watchdog-triage (every 2h, business hours ET, weekdays)
 CRON_EOF
 
 echo "Proactive cron entries installed."

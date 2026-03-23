@@ -52,7 +52,7 @@ services:
       - OPENCLAW_SECRET_NAME=openclaw/agents-admin
       - AWS_DEFAULT_REGION=us-east-1
       - OPENCLAW_SNS_TOPIC=${OPENCLAW_SNS_TOPIC:-arn:aws:sns:us-east-1:122015479852:openclaw-alerts}
-      - OPENCLAW_ALERT_CHANNEL=${OPENCLAW_ALERT_CHANNEL:-C089JBLCFLL}
+      - OPENCLAW_ALERT_CHANNEL=${OPENCLAW_ALERT_CHANNEL:-C0AL58T8QMN}
       - HANDOFF_HMAC_KEY=${HANDOFF_HMAC_KEY:-}
 
   # ─────────────────────────────────────────────────────────────
@@ -125,5 +125,5 @@ services:
       - OPENCLAW_SECRET_NAME=openclaw/agents-standard
       - AWS_DEFAULT_REGION=us-east-1
       - OPENCLAW_SNS_TOPIC=${OPENCLAW_SNS_TOPIC:-arn:aws:sns:us-east-1:122015479852:openclaw-alerts}
-      - OPENCLAW_ALERT_CHANNEL=${OPENCLAW_ALERT_CHANNEL:-C089JBLCFLL}
+      - OPENCLAW_ALERT_CHANNEL=${OPENCLAW_ALERT_CHANNEL:-C0AL58T8QMN}
       - HANDOFF_HMAC_KEY=${HANDOFF_HMAC_KEY:-}

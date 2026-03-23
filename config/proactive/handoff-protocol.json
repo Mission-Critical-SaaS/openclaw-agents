@@ -391,6 +391,14 @@
         "members": ["scout", "trak", "kit", "scribe", "probe", "chief", "ledger", "harvest", "prospector", "outreach", "cadence", "beacon"],
         "use_for": "Any handoff involving financial data, confidential information, or targeting Chief/Ledger. Also used for multi-agent coordination that involves sensitive context."
       },
+      "watchdog": {
+        "channel_id": "C0AL58T8QMN",
+        "name": "#openclaw-watchdog",
+        "visibility": "private",
+        "purpose": "Agent error reports, system health alerts, auto-remediation logs",
+        "members": "all agents",
+        "use_for": "Structured error reporting, watchdog triage results, remediation instructions"
+      },
       "sales_ops": {
         "channel_id": "C0AMC03JJSY",
         "name": "#sales-ops",
@@ -452,7 +460,9 @@
       {"from": ["scout", "trak", "kit", "scribe", "probe", "beacon"], "to": ["scout", "trak", "kit", "scribe", "probe", "beacon"], "channel": "agent_ops", "reason": "Use #agent-ops instead of #dev when handoff involves sensitive/financial context"},
       {"from": ["harvest", "prospector", "outreach", "cadence"], "to": ["harvest", "prospector", "outreach", "cadence"], "channel": "sales_ops", "reason": "Sales pipeline handoffs go to #sales-ops"},
       {"from": ["harvest", "prospector", "outreach", "cadence"], "to": ["trak", "kit", "scribe"], "channel": "agent_ops", "reason": "Cross-domain sales→ops handoffs go to #agent-ops"},
-      {"from": ["cadence"], "to": ["chief"], "channel": "agent_ops", "reason": "Pipeline metrics to Chief go to #agent-ops"}
+      {"from": ["cadence"], "to": ["chief"], "channel": "agent_ops", "reason": "Pipeline metrics to Chief go to #agent-ops"},
+      {"from": "any_agent", "to": "watchdog_channel", "channel": "watchdog", "reason": "Error reports go to #openclaw-watchdog"},
+      {"from": "chief", "to": "any_agent", "channel": "watchdog", "reason": "Chief posts triage results to #openclaw-watchdog"}
     ]
   },
   "agent_slack_ids": {
