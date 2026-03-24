@@ -96,7 +96,7 @@ test_authenticated_call() {
     -H "x-api-key: $key" \
     -H "Content-Type: application/json" \
     -d '{"person_titles":["CEO"],"q_organization_domains":"apollo.io","per_page":1}' \
-    https://api.apollo.io/api/v1/mixed_people/search)
+    https://api.apollo.io/api/v1/mixed_people/api_search)
   echo "  HTTP status: $http_code"
   if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 400 ]; then
     return 0
@@ -113,7 +113,7 @@ check "AWS access (sts get-caller-identity)" test_aws_access
 check "Secret exists ($SECRET_ID)" test_secret_exists
 check "Key format (non-empty, alphanumeric, reasonable length)" test_key_format
 check "Network connectivity to api.apollo.io" test_network
-check "Authenticated API call (mixed_people/search)" test_authenticated_call
+check "Authenticated API call (mixed_people/api_search)" test_authenticated_call
 
 echo ""
 echo "============================================"

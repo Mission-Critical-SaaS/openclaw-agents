@@ -115,7 +115,7 @@ print(json.dumps(result, indent=2))
 
 Use Apollo.io API for contact discovery and enrichment. API key is stored at `sales-prospecting/apollo-api-key`.
 
-**Search endpoint**: `POST https://api.apollo.io/api/v1/mixed_people/search` — finds people by title and company domain. Returns people array with first_name, last_name, title, linkedin_url, and organization info. Does NOT return emails/phones — use the enrichment endpoint for that.
+**Search endpoint**: `POST https://api.apollo.io/api/v1/mixed_people/api_search` — finds people by title and company domain. Returns people array with first_name, last_name, title, linkedin_url, and organization info. Does NOT return emails/phones — use the enrichment endpoint for that.
 
 **Enrichment endpoint**: `POST https://api.apollo.io/api/v1/people/match` — enriches a specific person with email, phone, linkedin_url, title, and organization details. Costs credits per enrichment.
 
@@ -140,7 +140,7 @@ search_payload = {
 headers = {'Content-Type': 'application/json', 'x-api-key': api_key}
 
 resp = requests.post(
-    'https://api.apollo.io/api/v1/mixed_people/search',
+    'https://api.apollo.io/api/v1/mixed_people/api_search',
     json=search_payload,
     headers=headers,
     timeout=30
