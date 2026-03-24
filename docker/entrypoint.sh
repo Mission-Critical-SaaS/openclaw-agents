@@ -31,7 +31,11 @@ echo "Configuring from template..."
 envsubst < ${OPENCLAW_HOME}/openclaw.json.tpl > ${OPENCLAW_HOME}/openclaw.json
 
 # Set up mcporter config using Python (avoids sed escaping issues with JSON)
+# Write to BOTH ~/.mcporter/ (home config) AND config/ (project config)
+# because mcporter resolves differently depending on cwd
 mkdir -p /home/openclaw/.mcporter
+mkdir -p /home/openclaw/.openclaw/config
+mkdir -p /home/openclaw/config
 python3 -c "
 import json, os
 config = {
@@ -80,14 +84,19 @@ config = {
         }
     }
 }
-with open('/home/openclaw/.mcporter/mcporter.json', 'w') as f:
-    json.dump(config, f, indent=2)
+# Write to all possible mcporter config locations
+for path in ['/home/openclaw/.mcporter/mcporter.json',
+             '/home/openclaw/.openclaw/config/mcporter.json',
+             '/home/openclaw/config/mcporter.json']:
+    with open(path, 'w') as f:
+        json.dump(config, f, indent=2)
 # Diagnostic: verify Atlassian creds are present
 site = os.environ.get('ATLASSIAN_SITE_NAME', '')
 email = os.environ.get('ATLASSIAN_USER_EMAIL', '')
 token = os.environ.get('ATLASSIAN_API_TOKEN', '')
+n = len(config['mcpServers'])
 if site and email and token:
-    print(f'mcporter config written OK (jira: {site}.atlassian.net, {len(config[\"mcpServers\"])} servers)')
+    print(f'mcporter config written to 3 locations OK (jira: {site}.atlassian.net, {n} servers)')
 else:
     print(f'WARN: mcporter config written but Atlassian creds incomplete: site={bool(site)} email={bool(email)} token={bool(token)}')
 "
