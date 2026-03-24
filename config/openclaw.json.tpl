@@ -7,7 +7,7 @@
       "anthropic:default": {
         "provider": "anthropic",
         "mode": "token",
-        "baseUrl": "${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
+        "baseUrl": "${ANTHROPIC_BASE_URL}"
       }
     }
   },
@@ -18,7 +18,7 @@
       },
       "models": {
         "anthropic/claude-opus-4-6": {
-          "baseUrl": "${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
+          "baseUrl": "${ANTHROPIC_BASE_URL}"
         }
       },
       "compaction": {
