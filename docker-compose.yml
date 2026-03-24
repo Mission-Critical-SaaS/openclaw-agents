@@ -1,5 +1,38 @@
 services:
   # ─────────────────────────────────────────────────────────────
+  # TOKEN METERING PROXY
+  # Transparent HTTP proxy between agents and Anthropic API.
+  # Logs per-request token usage, injects prompt caching headers.
+  # See docs/cost-visibility.md for architecture details.
+  # ─────────────────────────────────────────────────────────────
+  token-proxy:
+    build:
+      context: docker/token-proxy
+      dockerfile: Dockerfile
+    container_name: openclaw-token-proxy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+        reservations:
+          memory: 128M
+          cpus: "0.1"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    volumes:
+      - /opt/openclaw/logs/token-usage:/data/logs
+    environment:
+      - PROXY_PORT=8090
+      - ANTHROPIC_UPSTREAM=https://api.anthropic.com
+      - LOG_FILE=/data/logs/token-usage.jsonl
+
+  # ─────────────────────────────────────────────────────────────
   # ADMIN TIER
   # Currently contains: Chief, Ledger
   # Purpose: Agents with access to sensitive financial data
@@ -46,11 +79,15 @@ services:
       - /opt/openclaw-persist/workspace-ledger:/home/openclaw/.openclaw/.openclaw/workspace-ledger
     entrypoint: ["/app/entrypoint.sh"]
     command: ["/entrypoint.sh"]
+    depends_on:
+      token-proxy:
+        condition: service_healthy
     environment:
       - AGENTS_LIST=chief,ledger
       - OPENCLAW_TIER=admin
       - OPENCLAW_SECRET_NAME=openclaw/agents-admin
       - AWS_DEFAULT_REGION=us-east-1
+      - ANTHROPIC_BASE_URL=http://token-proxy:8090
       - OPENCLAW_SNS_TOPIC=${OPENCLAW_SNS_TOPIC:-arn:aws:sns:us-east-1:122015479852:openclaw-alerts}
       - OPENCLAW_ALERT_CHANNEL=${OPENCLAW_ALERT_CHANNEL:-C0AL58T8QMN}
       - HANDOFF_HMAC_KEY=${HANDOFF_HMAC_KEY:-}
@@ -119,11 +156,15 @@ services:
       - /opt/openclaw-persist/workspace-cadence:/home/openclaw/.openclaw/.openclaw/workspace-cadence
     entrypoint: ["/app/entrypoint.sh"]
     command: ["/entrypoint.sh"]
+    depends_on:
+      token-proxy:
+        condition: service_healthy
     environment:
       - AGENTS_LIST=scout,trak,kit,scribe,probe,beacon,harvest,prospector,outreach,cadence
       - OPENCLAW_TIER=standard
       - OPENCLAW_SECRET_NAME=openclaw/agents-standard
       - AWS_DEFAULT_REGION=us-east-1
+      - ANTHROPIC_BASE_URL=http://token-proxy:8090
       - OPENCLAW_SNS_TOPIC=${OPENCLAW_SNS_TOPIC:-arn:aws:sns:us-east-1:122015479852:openclaw-alerts}
       - OPENCLAW_ALERT_CHANNEL=${OPENCLAW_ALERT_CHANNEL:-C0AL58T8QMN}
       - HANDOFF_HMAC_KEY=${HANDOFF_HMAC_KEY:-}

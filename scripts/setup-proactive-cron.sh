@@ -128,6 +128,18 @@ ${EXISTING}
 # Chief reviews #openclaw-watchdog for error reports every 2 hours
 # ============================================================
 0 9-18/2 * * 1-5 flock -n /tmp/openclaw-chief-watchdog-triage.lock $SCHEDULER chief-watchdog-triage >> $LOG_DIR/proactive.log 2>&1 # proactive: chief-watchdog-triage (every 2h, business hours ET, weekdays)
+
+# ============================================================
+# Cost Visibility & Token Budget Enforcement
+# Token proxy logs per-request usage; these scripts aggregate and enforce.
+# See docs/cost-visibility.md for architecture.
+# ============================================================
+
+# Daily cost report: aggregates token usage, posts per-agent breakdown to #agentic-dev
+55 22 * * * flock -n /tmp/openclaw-daily-cost-report.lock /opt/openclaw/scripts/daily-cost-report.sh >> $LOG_DIR/cost-report.log 2>&1 # proactive: daily-cost-report (daily 10:55pm ET)
+
+# Token budget enforcer: checks usage against caps, pauses agents at 100%, warns at 80%
+*/15 9-23 * * * flock -n /tmp/openclaw-token-budget-enforcer.lock /opt/openclaw/scripts/token-budget-enforcer.sh >> $LOG_DIR/token-budget.log 2>&1 # proactive: token-budget-enforcer (every 15min, 9am-11pm ET)
 CRON_EOF
 
 echo "Proactive cron entries installed."

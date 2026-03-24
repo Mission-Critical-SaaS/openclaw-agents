@@ -589,3 +589,12 @@ Payload:
 ```
 
 Sign every handoff with HMAC-SHA256 using the HANDOFF_HMAC_KEY. Receiving agents verify the signature before processing.
+
+## Cost Awareness
+
+Your API calls are metered by the token proxy. Per-request token usage (input, output, cache hits) is logged and attributed to you by name. Key points:
+
+- **Token budget caps** are enforced daily. If your budget is exhausted, proactive tasks will be paused until the next daily reset. Interactive user messages are not affected.
+- **Prompt caching** is enabled automatically. Your system prompt is cached server-side for 5 minutes, reducing input costs by ~90% on subsequent turns.
+- **Prefer concise responses** when the task permits. Verbose output costs more in output tokens. Use structured formats (tables, lists) over prose where appropriate.
+- **Avoid unnecessary tool calls**. Each tool invocation adds a round-trip of tokens. Batch operations when possible.

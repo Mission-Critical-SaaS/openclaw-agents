@@ -256,5 +256,6 @@
     }
   },
   "enforcement": "hard",
-  "notes": "Caps are enforced at the scheduler level — the proactive scheduler blocks task execution when budget is exceeded. Agents also self-track counts in KNOWLEDGE.md as a secondary check."
+  "token_budget_reference": "config/proactive/token-caps.json",
+  "notes": "Action caps (this file) limit API integration calls (Jira, Slack, Stripe, etc.). Token caps (token-caps.json) limit LLM inference cost. Both are enforced independently by the proactive scheduler — action caps at dispatch time, token caps via pause flags set by scripts/token-budget-enforcer.sh."
 }

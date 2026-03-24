@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "description": "Per-agent daily token budget caps. Enforced by scripts/token-budget-enforcer.sh. Warning at 80%, pause at 100%.",
+  "defaults": {
+    "daily_input_tokens": 500000,
+    "daily_output_tokens": 50000,
+    "monthly_input_tokens": 10000000,
+    "monthly_output_tokens": 1000000
+  },
+  "overrides": {
+    "kit": { "daily_input_tokens": 800000, "daily_output_tokens": 80000 },
+    "scout": { "daily_input_tokens": 600000, "daily_output_tokens": 60000 },
+    "beacon": { "daily_input_tokens": 600000, "daily_output_tokens": 60000 },
+    "chief": { "daily_input_tokens": 400000, "daily_output_tokens": 40000 },
+    "ledger": { "daily_input_tokens": 400000, "daily_output_tokens": 40000 }
+  },
+  "platform": {
+    "daily_usd_cap": 75.00,
+    "alert_threshold_pct": 80,
+    "pause_threshold_pct": 100
+  },
+  "notes": "Token caps complement action-based caps in budget-caps.json. Action caps limit API integrations (Jira, Slack calls). Token caps limit LLM inference cost. Both are enforced independently."
+}

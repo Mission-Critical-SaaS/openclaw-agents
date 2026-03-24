@@ -496,6 +496,7 @@ WRAPPER_EOF
         cp /app/config/proactive/budget-caps.json "$target_dir/.budget-caps.json" 2>/dev/null || true
         cp /app/config/proactive/handoff-protocol.json "$target_dir/.handoff-protocol.json" 2>/dev/null || true
         cp /app/config/proactive/error-reporting.json "$target_dir/.error-reporting.json" 2>/dev/null || true
+        cp /app/config/proactive/token-caps.json "$target_dir/.token-caps.json" 2>/dev/null || true
       fi
     done
     echo "  ${agent}: proactive configs injected"

@@ -115,6 +115,14 @@ check_budget() {
   local agent="$1"
   local task_name="$2"
   init_budget_counters
+
+  # Check token budget pause flag (set by token-budget-enforcer.sh)
+  if [ -f "/tmp/openclaw-token-pause-${agent}" ]; then
+    log "TOKEN_BUDGET_PAUSED: ${task_name} — agent=${agent} token budget exceeded"
+    log_json "warn" "token_budget_paused" "\"task\":\"$task_name\",\"agent\":\"$agent\""
+    return 1
+  fi
+
   local count=$(get_agent_task_count "$agent")
   local cap=$(get_agent_daily_cap "$agent")
   local pct=$((count * 100 / cap))

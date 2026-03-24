@@ -108,6 +108,8 @@ done
 
 # Create tier-specific log directories
 mkdir -p /opt/openclaw/logs/admin/data /opt/openclaw/logs/standard/data
+# Token metering proxy logs and cost reports
+mkdir -p /opt/openclaw/logs/token-usage /opt/openclaw/logs/cost-reports
 
 # Create tier-specific memory directories (ISOLATED per tier)
 mkdir -p /opt/openclaw-persist/memory-admin /opt/openclaw-persist/memory-standard

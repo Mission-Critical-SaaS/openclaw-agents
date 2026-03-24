@@ -132,6 +132,15 @@ main() {
     standard_result=$(check_container "$STANDARD_CONTAINER" "$STANDARD_EXPECTED_AGENTS" "Standard")
     standard_ok=$?
 
+    # Check token metering proxy
+    proxy_ok=0
+    if ! curl -sf --max-time 3 http://localhost:8090/health >/dev/null 2>&1; then
+        all_errors="${all_errors}Token proxy: DOWN (http://localhost:8090/health unreachable)\n"
+        proxy_ok=1
+        log "WARN: Token metering proxy is not responding"
+        log_json "warn" "proxy_down" "\"service\":\"token-proxy\",\"port\":8090"
+    fi
+
     if [ $admin_ok -ne 0 ]; then
         all_errors="${all_errors}${admin_result}"
     fi

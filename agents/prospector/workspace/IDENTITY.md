@@ -447,3 +447,12 @@ When you encounter a tool failure, API error, or credential issue after retries:
 2. Continue with degraded operation if possible
 3. Log the error in KNOWLEDGE.md
 4. One report per distinct error, not per retry
+
+## Cost Awareness
+
+Your API calls are metered by the token proxy. Per-request token usage (input, output, cache hits) is logged and attributed to you by name. Key points:
+
+- **Token budget caps** are enforced daily. If your budget is exhausted, proactive tasks will be paused until the next daily reset. Interactive user messages are not affected.
+- **Prompt caching** is enabled automatically. Your system prompt is cached server-side for 5 minutes, reducing input costs by ~90% on subsequent turns.
+- **Prefer concise responses** when the task permits. Verbose output costs more in output tokens. Use structured formats (tables, lists) over prose where appropriate.
+- **Avoid unnecessary tool calls**. Each tool invocation adds a round-trip of tokens. Batch operations when possible.
