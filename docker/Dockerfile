@@ -1,7 +1,7 @@
 # OpenClaw Gateway - Multi-Agent Docker Image
 FROM ubuntu:22.04 AS base
 
-ARG OPENCLAW_VERSION=2026.3
+ARG OPENCLAW_VERSION=2026.3.23
 ARG TARGETARCH=amd64
 
 ENV DEBIAN_FRONTEND=noninteractive
