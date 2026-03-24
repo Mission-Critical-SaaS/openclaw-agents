@@ -82,7 +82,14 @@ config = {
 }
 with open('/home/openclaw/.mcporter/mcporter.json', 'w') as f:
     json.dump(config, f, indent=2)
-print('mcporter config written OK')
+# Diagnostic: verify Atlassian creds are present
+site = os.environ.get('ATLASSIAN_SITE_NAME', '')
+email = os.environ.get('ATLASSIAN_USER_EMAIL', '')
+token = os.environ.get('ATLASSIAN_API_TOKEN', '')
+if site and email and token:
+    print(f'mcporter config written OK (jira: {site}.atlassian.net, {len(config[\"mcpServers\"])} servers)')
+else:
+    print(f'WARN: mcporter config written but Atlassian creds incomplete: site={bool(site)} email={bool(email)} token={bool(token)}')
 "
 
 # Create Zoho config file required by @macnishio/zoho-mcp-server
@@ -352,6 +359,13 @@ done
 # crashing the entrypoint when running as non-root (gosu/openclaw user).
 if ! command -v mcporter &> /dev/null; then
   npm install -g mcporter 2>/dev/null || echo "WARN: mcporter not available (install in Dockerfile)"
+fi
+# Verify mcporter config exists and is valid
+if [ -f /home/openclaw/.mcporter/mcporter.json ]; then
+  MCPORTER_SERVERS=$(python3 -c "import json;print(len(json.load(open('/home/openclaw/.mcporter/mcporter.json')).get('mcpServers',{})))" 2>/dev/null || echo "0")
+  echo "mcporter config verified: ${MCPORTER_SERVERS} MCP servers configured"
+else
+  echo "ERROR: mcporter config NOT found at /home/openclaw/.mcporter/mcporter.json"
 fi
 
 if ! command -v gh &> /dev/null; then
