@@ -97,6 +97,19 @@ export JIRA_BASE_URL="https://${ATLASSIAN_SITE_NAME}.atlassian.net"
 export JIRA_USER_EMAIL="${ATLASSIAN_USER_EMAIL}"
 export JIRA_API_TOKEN="${ATLASSIAN_API_TOKEN}"
 
+# ── Validate Atlassian/Jira credentials (required for Trak, Kit) ──
+if [ -z "$ATLASSIAN_SITE_NAME" ] || [ "$ATLASSIAN_SITE_NAME" = "null" ] || \
+   [ -z "$ATLASSIAN_USER_EMAIL" ] || [ "$ATLASSIAN_USER_EMAIL" = "null" ] || \
+   [ -z "$ATLASSIAN_API_TOKEN" ] || [ "$ATLASSIAN_API_TOKEN" = "null" ]; then
+  echo "WARN: Atlassian/Jira credentials missing or incomplete in secret $OPENCLAW_SECRET_NAME"
+  echo "  ATLASSIAN_SITE_NAME=${ATLASSIAN_SITE_NAME:-(empty)}"
+  echo "  ATLASSIAN_USER_EMAIL=${ATLASSIAN_USER_EMAIL:-(empty)}"
+  echo "  ATLASSIAN_API_TOKEN=${ATLASSIAN_API_TOKEN:+set}${ATLASSIAN_API_TOKEN:-MISSING}"
+  echo "  Jira MCP server will fail. Trak, Kit, and other Jira-dependent agents affected."
+else
+  echo "Atlassian/Jira credentials validated (site: $ATLASSIAN_SITE_NAME)"
+fi
+
 export ZENDESK_SUBDOMAIN=$(echo "$SECRET" | jq -r '.ZENDESK_SUBDOMAIN // empty')
 export ZENDESK_EMAIL=$(echo "$SECRET" | jq -r '.ZENDESK_EMAIL // empty')
 export ZENDESK_API_TOKEN=$(echo "$SECRET" | jq -r '.ZENDESK_API_TOKEN // empty')
@@ -129,6 +142,32 @@ if [ "$OPENCLAW_TIER" = "admin" ]; then
   export STRIPE_KEY_GOODHELP=$(echo "$SECRET" | jq -r '.STRIPE_KEY_GOODHELP // empty')
   export STRIPE_KEY_HTS=$(echo "$SECRET" | jq -r '.STRIPE_KEY_HTS // empty')
   export STRIPE_KEY_LMNTL=$(echo "$SECRET" | jq -r '.STRIPE_KEY_LMNTL // empty')
+fi
+
+# ── Extract sales pipeline API keys (standard tier only) ─────
+# Sales agents need Apollo (contact search) and Google Sheets SA (sheets + Gmail)
+# These are stored in separate secrets from the main agent secret
+if [ "$OPENCLAW_TIER" = "standard" ]; then
+  echo "Extracting sales pipeline API keys..."
+  export APOLLO_API_KEY=$(aws_retry "aws secretsmanager get-secret-value \
+    --secret-id 'sales-prospecting/apollo-api-key' --region us-east-1 \
+    --query SecretString --output text" 2>/dev/null || echo "")
+  if [ -n "$APOLLO_API_KEY" ] && [ "$APOLLO_API_KEY" != "null" ]; then
+    echo "  Apollo API key loaded (${#APOLLO_API_KEY} chars)"
+  else
+    echo "  WARN: Apollo API key not found — Outreach contact search will fail"
+    APOLLO_API_KEY=""
+  fi
+
+  export GOOGLE_SHEETS_SA_KEY=$(aws_retry "aws secretsmanager get-secret-value \
+    --secret-id 'sales-prospecting/google-sheets-sa-key' --region us-east-1 \
+    --query SecretString --output text" 2>/dev/null || echo "")
+  if [ -n "$GOOGLE_SHEETS_SA_KEY" ] && [ "$GOOGLE_SHEETS_SA_KEY" != "null" ]; then
+    echo "  Google Sheets SA key loaded"
+  else
+    echo "  WARN: Google Sheets SA key not found — sales pipeline sheet access will fail"
+    GOOGLE_SHEETS_SA_KEY=""
+  fi
 fi
 
 # SECURITY: Clear raw secret JSON from memory

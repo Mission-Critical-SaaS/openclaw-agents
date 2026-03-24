@@ -37,6 +37,9 @@ RUN npm install -g mcporter 2>/dev/null || true
 # Uses embeddinggemma-300m (~329MB model, runs on CPU, negligible overhead)
 RUN npm install -g node-llama-cpp 2>/dev/null || true
 
+# Install Python dependencies for sales agent tools (Google APIs, RSS parsing)
+RUN pip3 install google-api-python-client google-auth google-auth-httplib2 feedparser 2>/dev/null || true
+
 # Create directory structure
 RUN mkdir -p ${OPENCLAW_HOME}/agents/scout/workspace/skills ${OPENCLAW_HOME}/agents/trak/workspace/skills ${OPENCLAW_HOME}/agents/kit/workspace/skills ${OPENCLAW_HOME}/agents/scribe/workspace/skills ${OPENCLAW_HOME}/workspace /data/logs
 

@@ -44,6 +44,7 @@ def stripe_request(api_key, path, params=None):
     req = urllib.request.Request(url, method="GET")
     req.add_header("Authorization", f"Bearer {api_key}")
     req.add_header("Accept", "application/json")
+    req.add_header("User-Agent", "OpenClaw-Agent/1.0")
 
     for attempt in range(3):
         try:

@@ -390,6 +390,8 @@ def get_access_token():
     req.add_header("Authorization", f"Basic {auth}")
     req.add_header("Content-Type", "application/x-www-form-urlencoded")
     req.add_header("Accept", "application/json")
+    req.add_header("User-Agent", "OpenClaw-Agent/1.0")
+    req.add_header("User-Agent", "OpenClaw-Agent/1.0")
     for attempt in range(3):
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
@@ -459,6 +461,8 @@ def qbo_request(method, path, params=None, body=None):
     req = urllib.request.Request(url, data=data, method=method)
     req.add_header("Authorization", f"Bearer {token}")
     req.add_header("Accept", "application/json")
+    req.add_header("User-Agent", "OpenClaw-Agent/1.0")
+    req.add_header("User-Agent", "OpenClaw-Agent/1.0")
     if body:
         req.add_header("Content-Type", "application/json")
 
