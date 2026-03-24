@@ -6,7 +6,8 @@
     "profiles": {
       "anthropic:default": {
         "provider": "anthropic",
-        "mode": "token"
+        "mode": "token",
+        "baseUrl": "${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
       }
     }
   },
@@ -16,7 +17,9 @@
         "primary": "anthropic/claude-opus-4-6"
       },
       "models": {
-        "anthropic/claude-opus-4-6": {}
+        "anthropic/claude-opus-4-6": {
+          "baseUrl": "${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
+        }
       },
       "compaction": {
         "mode": "safeguard"
