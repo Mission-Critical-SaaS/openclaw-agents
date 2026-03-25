@@ -10,6 +10,4 @@ Canonical reference for all Slack channels used by the OpenClaw agent platform. 
 | #sales-ops | C0AMC03JJSY | Sales pipeline coordination | Non-sales agents |
 | #sdlc-reviews | C0AKL3FMGR5 | PR ensemble reviews | General discussion |
 | #openclaw-watchdog | C0AL58T8QMN | System health, agent errors, Chief triage | Customer-visible |
-| #agentic-dev | C086N5031LZ | Daily API cost reports, dev ops discussion | Customer-visible |
-
-**Note**: `#agentic-dev` shares channel ID with `#dev` (C086N5031LZ). Daily cost reports post here at 10:55 PM ET.
+**Note**: Daily API cost reports post to `#agent-ops` at 10:55 PM ET (financial data, restricted access).

@@ -35,9 +35,9 @@ describe('Daily Cost Report (daily-cost-report.sh)', () => {
     expect(script).toContain('api.anthropic.com');
   });
 
-  test('posts to Slack #dev channel (C086N5031LZ)', () => {
+  test('posts to Slack #agent-ops channel (C0AMHF5J9Q9)', () => {
     expect(script).toContain('chat.postMessage');
-    expect(script).toContain('C086N5031LZ');
+    expect(script).toContain('C0AMHF5J9Q9');
   });
 
   test('writes daily JSON to cost-reports directory', () => {

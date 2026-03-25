@@ -18,7 +18,7 @@ Cost tracking uses the **Anthropic Admin Usage API** to pull per-key, per-model 
 ## Daily Cost Report
 
 **Schedule**: Daily at 10:55 PM ET (cron in `scripts/setup-proactive-cron.sh`)
-**Channel**: `#dev` (C086N5031LZ)
+**Channel**: `#agent-ops` (C0AMHF5J9Q9)
 **Script**: `scripts/daily-cost-report.sh`
 
 The report:

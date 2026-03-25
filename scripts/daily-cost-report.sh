@@ -10,7 +10,7 @@ MONTH_START=$(date -u +%Y-%m-01)
 
 REPORT_DIR="/opt/openclaw/logs/cost-reports"
 PROACTIVE_LOG="/opt/openclaw/logs/proactive.jsonl"
-SLACK_CHANNEL="C086N5031LZ"
+SLACK_CHANNEL="C0AMHF5J9Q9"
 
 mkdir -p "$REPORT_DIR"
 
