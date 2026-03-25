@@ -126,7 +126,7 @@ fi
 # Clean up dangling images to prevent disk fill
 docker image prune -f 2>/dev/null || true
 log "Restarting containers..."
-docker-compose down && docker-compose up -d
+docker-compose down --remove-orphans && docker-compose up -d
 
 # Health check function for a single container
 check_container_health() {
