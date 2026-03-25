@@ -111,35 +111,19 @@ describe('Proactive Scheduler pause-flag integration', () => {
 // ---------------------------------------------------------------------------
 // Docker Compose integration
 // ---------------------------------------------------------------------------
-describe('Docker Compose token-proxy integration', () => {
-  let compose: string;
+describe('Cost report uses Anthropic Admin API', () => {
+  let costReport: string;
 
   beforeAll(() => {
-    compose = readScript('docker-compose.yml');
+    costReport = readScript('scripts/daily-cost-report.sh');
   });
 
-  test('docker-compose.yml has ANTHROPIC_BASE_URL pointing to token-proxy', () => {
-    expect(compose).toContain('ANTHROPIC_BASE_URL=http://token-proxy:8090');
+  test('cost report reads admin key from SSM', () => {
+    expect(costReport).toContain('anthropic-admin-key');
   });
 
-  test('docker-compose.yml has token-proxy service definition', () => {
-    expect(compose).toContain('token-proxy:');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Healthcheck checks proxy health (port 8090)
-// ---------------------------------------------------------------------------
-describe('Healthcheck proxy integration', () => {
-  let healthcheck: string;
-
-  beforeAll(() => {
-    healthcheck = readScript('scripts/healthcheck.sh');
-  });
-
-  test('healthcheck.sh checks proxy health on port 8090', () => {
-    expect(healthcheck).toContain('8090');
-    expect(healthcheck).toContain('token-proxy');
+  test('cost report calls Anthropic usage API', () => {
+    expect(costReport).toContain('usage_report');
   });
 });
 

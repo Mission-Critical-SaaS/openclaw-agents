@@ -1,221 +1,314 @@
-#!/usr/bin/env bash
-# daily-cost-report.sh — Generate daily API cost report and post to Slack #agentic-dev
+#!/bin/bash
+# daily-cost-report.sh — Daily API cost report via Anthropic Admin Usage API
+# Posts formatted report to Slack #dev and writes JSON to disk.
 set -euo pipefail
 
-TODAY=$(date +%Y-%m-%d)
-LOG_DIR="/opt/openclaw/logs/token-usage"
+# ─── dates ───────────────────────────────────────────────────────────────────
+TODAY=$(date -u +%Y-%m-%d)
+YESTERDAY=$(date -u -d "yesterday" +%Y-%m-%d 2>/dev/null || date -u -v-1d +%Y-%m-%d)
+MONTH_START=$(date -u +%Y-%m-01)
+
 REPORT_DIR="/opt/openclaw/logs/cost-reports"
+PROACTIVE_LOG="/opt/openclaw/logs/proactive.jsonl"
 SLACK_CHANNEL="C086N5031LZ"
 
 mkdir -p "$REPORT_DIR"
 
-# Retrieve Slack token from running containers
-SLACK_TOKEN=$(docker exec openclaw-agents-standard printenv SLACK_BOT_TOKEN_SCOUT 2>/dev/null \
-    || docker exec openclaw-agents-admin printenv SLACK_BOT_TOKEN_CHIEF 2>/dev/null)
+# ─── admin API key from AWS Secrets Manager ──────────────────────────────────
+ADMIN_KEY=$(aws secretsmanager get-secret-value \
+    --secret-id openclaw/anthropic-admin-key \
+    --region us-east-1 \
+    --query SecretString \
+    --output text 2>/dev/null) || true
 
-if [ -z "$SLACK_TOKEN" ]; then
-    echo "ERROR: Could not retrieve Slack token from any container" >&2
-    exit 1
+if [ -z "${ADMIN_KEY:-}" ]; then
+    echo "WARNING: Could not retrieve Anthropic admin key from Secrets Manager" >&2
+    exit 0
 fi
 
-# Aggregate token usage with Python (bash can't do float math)
-REPORT=$(python3 << 'PYEOF'
-import json, glob, sys, os
-from datetime import datetime, timedelta
+# ─── Anthropic Usage API (token counts by api_key_id) ────────────────────────
+USAGE_JSON=$(curl -sf \
+    "https://api.anthropic.com/v1/organizations/usage_report/messages?starting_at=${YESTERDAY}T00:00:00Z&ending_at=${TODAY}T00:00:00Z&group_by[]=api_key_id&bucket_width=1d" \
+    -H "anthropic-version: 2023-06-01" \
+    -H "x-api-key: $ADMIN_KEY" 2>/dev/null) || true
+
+if [ -z "${USAGE_JSON:-}" ]; then
+    echo "WARNING: Anthropic Usage API returned no data or failed" >&2
+    exit 0
+fi
+
+# ─── Anthropic Cost API (dollar amounts by description) ──────────────────────
+COST_JSON=$(curl -sf \
+    "https://api.anthropic.com/v1/organizations/cost_report?starting_at=${YESTERDAY}T00:00:00Z&ending_at=${TODAY}T00:00:00Z&group_by[]=description&bucket_width=1d" \
+    -H "anthropic-version: 2023-06-01" \
+    -H "x-api-key: $ADMIN_KEY" 2>/dev/null) || true
+
+# ─── MTD cost data ───────────────────────────────────────────────────────────
+MTD_COST_JSON=$(curl -sf \
+    "https://api.anthropic.com/v1/organizations/cost_report?starting_at=${MONTH_START}T00:00:00Z&ending_at=${TODAY}T00:00:00Z&group_by[]=description&bucket_width=1d" \
+    -H "anthropic-version: 2023-06-01" \
+    -H "x-api-key: $ADMIN_KEY" 2>/dev/null) || true
+
+# ─── 30-day average cost data ────────────────────────────────────────────────
+THIRTY_DAYS_AGO=$(date -u -d "30 days ago" +%Y-%m-%d 2>/dev/null || date -u -v-30d +%Y-%m-%d)
+AVG_COST_JSON=$(curl -sf \
+    "https://api.anthropic.com/v1/organizations/cost_report?starting_at=${THIRTY_DAYS_AGO}T00:00:00Z&ending_at=${TODAY}T00:00:00Z&group_by[]=description&bucket_width=1d" \
+    -H "anthropic-version: 2023-06-01" \
+    -H "x-api-key: $ADMIN_KEY" 2>/dev/null) || true
+
+# ─── proactive scheduler log ─────────────────────────────────────────────────
+PROACTIVE_DATA=""
+if [ -f "$PROACTIVE_LOG" ]; then
+    PROACTIVE_DATA=$(grep "\"${YESTERDAY}" "$PROACTIVE_LOG" 2>/dev/null || true)
+elif [ -f "/opt/openclaw/logs/proactive.log" ]; then
+    PROACTIVE_DATA=$(grep "\"${YESTERDAY}" "/opt/openclaw/logs/proactive.log" 2>/dev/null || true)
+fi
+
+# ─── Slack token ─────────────────────────────────────────────────────────────
+SLACK_TOKEN=$(docker exec openclaw-agents-standard printenv SLACK_BOT_TOKEN_SCOUT 2>/dev/null \
+    || docker exec openclaw-agents-admin printenv SLACK_BOT_TOKEN_CHIEF 2>/dev/null || true)
+
+if [ -z "${SLACK_TOKEN:-}" ]; then
+    echo "WARNING: Could not retrieve Slack token from any container" >&2
+fi
+
+# ─── aggregate & format with Python ─────────────────────────────────────────
+REPORT=$(python3 << PYEOF
+import json, sys, os
 from collections import defaultdict
 
-TODAY = datetime.now().strftime("%Y-%m-%d")
-MONTH_START = datetime.now().strftime("%Y-%m-01")
-LOG_DIR = "/opt/openclaw/logs/token-usage"
-REPORT_DIR = "/opt/openclaw/logs/cost-reports"
+YESTERDAY = "$YESTERDAY"
+TODAY = "$TODAY"
+REPORT_DIR = "$REPORT_DIR"
 
-files = glob.glob(os.path.join(LOG_DIR, "*.jsonl"))
-if not files:
-    print(json.dumps({"error": "no log files found"}))
-    sys.exit(0)
+# ── pricing (Opus 4-6) per token ──
+PRICE_UNCACHED_INPUT = 15.00 / 1_000_000    # \$15 / 1M
+PRICE_CACHE_WRITE    = 18.75 / 1_000_000    # \$18.75 / 1M
+PRICE_CACHE_READ     = 1.50 / 1_000_000     # \$1.50 / 1M
+PRICE_OUTPUT         = 75.00 / 1_000_000    # \$75 / 1M
 
-# Parse all records
-all_records = []
-for fpath in files:
-    with open(fpath, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rec = json.loads(line)
-                all_records.append(rec)
-            except json.JSONDecodeError:
-                continue
-
-# Filter today's records
-today_records = [r for r in all_records if r.get("ts", "").startswith(TODAY)]
-
-# Aggregate per agent — today
-agent_today = defaultdict(lambda: {
-    "input_tokens": 0,
-    "output_tokens": 0,
-    "cache_read_input_tokens": 0,
-    "cache_creation_input_tokens": 0,
-    "cost_usd": 0.0,
-})
-
-for r in today_records:
-    agent = r.get("agent", "unknown")
-    a = agent_today[agent]
-    a["input_tokens"] += r.get("input_tokens", 0)
-    a["output_tokens"] += r.get("output_tokens", 0)
-    a["cache_read_input_tokens"] += r.get("cache_read_input_tokens", 0)
-    a["cache_creation_input_tokens"] += r.get("cache_creation_input_tokens", 0)
-    a["cost_usd"] += r.get("cost_usd", 0.0)
-
-# MTD cost
-mtd_records = [r for r in all_records if r.get("ts", "") >= MONTH_START]
-mtd_cost = sum(r.get("cost_usd", 0.0) for r in mtd_records)
-
-# 30-day average
-thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
-last30_records = [r for r in all_records if r.get("ts", "") >= thirty_days_ago]
-last30_cost = sum(r.get("cost_usd", 0.0) for r in last30_records)
-# Count distinct days with records in last 30 days
-last30_days = len(set(r.get("ts", "")[:10] for r in last30_records))
-avg_daily = last30_cost / last30_days if last30_days > 0 else 0.0
-
-# Cache savings estimate: cost of cache_read tokens if they had been billed as input tokens
-# Approximation: cache reads are ~90% cheaper than fresh input, so savings ~ cache_read * cost_per_input * 0.9
-# We'll compute from the ratio of cache_read to total input
-total_cache_read = sum(a["cache_read_input_tokens"] for a in agent_today.values())
-total_input = sum(a["input_tokens"] for a in agent_today.values())
-total_cost = sum(a["cost_usd"] for a in agent_today.values())
-
-# Estimate: if cache hits had been full-price input, cost would be higher
-# effective_input_cost_rate = total_cost / (total_input + total_cache_read * 0.1) if denominator > 0
-# savings = total_cache_read * effective_input_cost_rate * 0.9
-if (total_input + total_cache_read) > 0:
-    # Assume cached tokens cost 10% of regular input price
-    # So savings = cache_read_tokens * (regular_rate * 0.9)
-    # Estimate regular rate from total cost / total effective tokens
-    effective_tokens = total_input + total_cache_read * 0.1
-    if effective_tokens > 0:
-        rate_per_token = total_cost / effective_tokens
-        cache_savings = total_cache_read * rate_per_token * 0.9
-        uncached_cost = total_cost + cache_savings
-        savings_pct = (cache_savings / uncached_cost * 100) if uncached_cost > 0 else 0
-    else:
-        cache_savings = 0.0
-        savings_pct = 0.0
-else:
-    cache_savings = 0.0
-    savings_pct = 0.0
-
-
+# ── helpers ──
 def fmt_tokens(n):
-    """Format token count as human-readable (K or M)."""
     if n >= 1_000_000:
         return f"{n / 1_000_000:.1f}M"
     elif n >= 1_000:
-        return f"{n / 1_000:.0f}K"
-    return str(n)
+        return f"{n / 1_000:.1f}K"
+    return str(int(n))
 
+def fmt_cost(v):
+    if v >= 1000:
+        return f"\${v:,.2f}"
+    return f"\${v:.2f}"
 
-# Build Slack message
+# ── parse usage API response ──
+try:
+    usage = json.loads('''$USAGE_JSON''')
+except (json.JSONDecodeError, ValueError):
+    usage = {}
+
+# ── parse cost API response ──
+try:
+    cost_data = json.loads('''$COST_JSON''')
+except (json.JSONDecodeError, ValueError):
+    cost_data = {}
+
+# ── parse MTD cost ──
+try:
+    mtd_data = json.loads('''$MTD_COST_JSON''')
+except (json.JSONDecodeError, ValueError):
+    mtd_data = {}
+
+# ── parse 30-day cost ──
+try:
+    avg_data = json.loads('''$AVG_COST_JSON''')
+except (json.JSONDecodeError, ValueError):
+    avg_data = {}
+
+# ── parse proactive scheduler data ──
+proactive_lines_raw = '''$PROACTIVE_DATA'''
+proactive_tasks = defaultdict(lambda: {"runs": 0, "agent": "unknown"})
+for line in proactive_lines_raw.strip().split("\n"):
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        rec = json.loads(line)
+        task = rec.get("task", rec.get("task_id", "unknown"))
+        agent = rec.get("agent", "unknown")
+        proactive_tasks[task]["runs"] += 1
+        proactive_tasks[task]["agent"] = agent
+    except (json.JSONDecodeError, ValueError):
+        continue
+
+# ── aggregate usage by API key ──
+keys = {}
+buckets = usage.get("data", [])
+for bucket in buckets:
+    key_id = bucket.get("api_key_id", "unknown")
+    key_name = bucket.get("api_key_name", key_id)
+    if key_name not in keys:
+        keys[key_name] = {
+            "uncached_input": 0,
+            "cache_write": 0,
+            "cache_read": 0,
+            "output": 0,
+        }
+    k = keys[key_name]
+    k["uncached_input"] += bucket.get("input_tokens", 0) - bucket.get("cache_read_input_tokens", 0) - bucket.get("cache_creation_input_tokens", 0)
+    k["cache_write"]    += bucket.get("cache_creation_input_tokens", 0)
+    k["cache_read"]     += bucket.get("cache_read_input_tokens", 0)
+    k["output"]         += bucket.get("output_tokens", 0)
+
+# ── compute estimated cost per key ──
+total_uncached = 0
+total_cache_write = 0
+total_cache_read = 0
+total_output = 0
+total_est_cost = 0.0
+
+for name in keys:
+    k = keys[name]
+    est = (
+        k["uncached_input"] * PRICE_UNCACHED_INPUT
+        + k["cache_write"] * PRICE_CACHE_WRITE
+        + k["cache_read"] * PRICE_CACHE_READ
+        + k["output"] * PRICE_OUTPUT
+    )
+    k["est_cost"] = est
+    total_uncached    += k["uncached_input"]
+    total_cache_write += k["cache_write"]
+    total_cache_read  += k["cache_read"]
+    total_output      += k["output"]
+    total_est_cost    += est
+
+# ── cache efficiency ──
+total_cache_eligible = total_cache_write + total_cache_read
+cache_hit_rate = (total_cache_read / total_cache_eligible * 100) if total_cache_eligible > 0 else 0.0
+
+# cache savings: what it would have cost if all cached tokens were uncached input
+uncached_hypothetical = (
+    (total_uncached + total_cache_write + total_cache_read) * PRICE_UNCACHED_INPUT
+    + total_output * PRICE_OUTPUT
+)
+cache_savings = uncached_hypothetical - total_est_cost
+
+# ── MTD and 30-day average from cost API ──
+mtd_cost = 0.0
+for bucket in mtd_data.get("data", []):
+    mtd_cost += bucket.get("cost_in_cents", 0) / 100.0
+
+avg30_cost = 0.0
+avg30_days = set()
+for bucket in avg_data.get("data", []):
+    avg30_cost += bucket.get("cost_in_cents", 0) / 100.0
+    ts = bucket.get("started_at", "")[:10]
+    if ts:
+        avg30_days.add(ts)
+avg_daily = avg30_cost / len(avg30_days) if avg30_days else 0.0
+
+# ── build Slack message ──
 lines = []
-lines.append(f":bar_chart: *Daily API Cost Report — {TODAY}*")
+lines.append(f":bar_chart: *Daily API Cost Report — {YESTERDAY}*")
 lines.append("")
-lines.append("| Agent | In Tok | Out Tok | Cache% | Cost |")
-lines.append("|-------|--------|---------|--------|------|")
+lines.append("*By API Key:*")
+lines.append("| Key Name | Uncached In | Cache Write | Cache Read | Output | Est. Cost |")
+lines.append("|----------|-------------|-------------|------------|--------|-----------|")
 
-total_in = 0
-total_out = 0
-total_cache_read_all = 0
-total_input_all = 0
-total_cost_all = 0.0
-
-for agent in sorted(agent_today.keys()):
-    a = agent_today[agent]
-    in_tok = a["input_tokens"]
-    out_tok = a["output_tokens"]
-    cr = a["cache_read_input_tokens"]
-    cost = a["cost_usd"]
-    cache_pct = (cr / (cr + in_tok) * 100) if (cr + in_tok) > 0 else 0
-
-    total_in += in_tok
-    total_out += out_tok
-    total_cache_read_all += cr
-    total_input_all += in_tok
-    total_cost_all += cost
-
+for name in sorted(keys.keys()):
+    k = keys[name]
     lines.append(
-        f"| {agent} | {fmt_tokens(in_tok)} | {fmt_tokens(out_tok)} | {cache_pct:.0f}% | ${cost:.2f} |"
+        f"| {name} | {fmt_tokens(k['uncached_input'])} | {fmt_tokens(k['cache_write'])} "
+        f"| {fmt_tokens(k['cache_read'])} | {fmt_tokens(k['output'])} | {fmt_cost(k['est_cost'])} |"
     )
 
-total_cache_pct = (
-    (total_cache_read_all / (total_cache_read_all + total_input_all) * 100)
-    if (total_cache_read_all + total_input_all) > 0
-    else 0
-)
 lines.append(
-    f"| *TOTAL* | {fmt_tokens(total_in)} | {fmt_tokens(total_out)} | {total_cache_pct:.0f}% | ${total_cost_all:.2f} |"
+    f"| *TOTAL* | {fmt_tokens(total_uncached)} | {fmt_tokens(total_cache_write)} "
+    f"| {fmt_tokens(total_cache_read)} | {fmt_tokens(total_output)} | {fmt_cost(total_est_cost)} |"
 )
+
 lines.append("")
-lines.append(f"MTD: ${mtd_cost:.2f} | 30d avg: ${avg_daily:.2f}/day")
 lines.append(
-    f"Cache savings: ${cache_savings:.2f} ({savings_pct:.0f}% reduction vs uncached)"
+    f"*Cache Efficiency:* {cache_hit_rate:.0f}% hit rate "
+    f"({fmt_tokens(total_cache_read)} reads / {fmt_tokens(total_cache_eligible)} total)"
 )
+lines.append(
+    f"*Cache Savings:* ~{fmt_cost(cache_savings)} saved vs uncached "
+    f"({fmt_cost(total_est_cost)} actual vs ~{fmt_cost(uncached_hypothetical)} without caching)"
+)
+
+# ── proactive task activity ──
+if proactive_tasks:
+    lines.append("")
+    lines.append("*Proactive Task Activity:*")
+    lines.append("| Task | Runs | Agent |")
+    lines.append("|------|------|-------|")
+    for task in sorted(proactive_tasks.keys(), key=lambda t: proactive_tasks[t]["runs"], reverse=True):
+        t = proactive_tasks[task]
+        lines.append(f"| {task} | {t['runs']} | {t['agent']} |")
+
+lines.append("")
+lines.append(f"MTD: {fmt_cost(mtd_cost)} | 30d avg: {fmt_cost(avg_daily)}/day")
 
 slack_msg = "\n".join(lines)
 
-# Write daily JSON report
+# ── write daily JSON report ──
 report_data = {
-    "date": TODAY,
-    "agents": {agent: dict(data) for agent, data in agent_today.items()},
+    "date": YESTERDAY,
+    "source": "anthropic-admin-api",
+    "by_key": {name: {
+        "uncached_input_tokens": k["uncached_input"],
+        "cache_write_tokens": k["cache_write"],
+        "cache_read_tokens": k["cache_read"],
+        "output_tokens": k["output"],
+        "est_cost_usd": round(k["est_cost"], 2),
+    } for name, k in keys.items()},
     "totals": {
-        "input_tokens": total_in,
-        "output_tokens": total_out,
-        "cache_read_input_tokens": total_cache_read_all,
-        "cost_usd": total_cost_all,
-        "cache_hit_pct": round(total_cache_pct, 1),
+        "uncached_input_tokens": total_uncached,
+        "cache_write_tokens": total_cache_write,
+        "cache_read_tokens": total_cache_read,
+        "output_tokens": total_output,
+        "est_cost_usd": round(total_est_cost, 2),
+        "cache_hit_pct": round(cache_hit_rate, 1),
+        "cache_savings_usd": round(cache_savings, 2),
     },
+    "proactive_tasks": {task: dict(info) for task, info in proactive_tasks.items()},
     "mtd_cost_usd": round(mtd_cost, 2),
     "avg_daily_30d_usd": round(avg_daily, 2),
-    "cache_savings_usd": round(cache_savings, 2),
-    "cache_savings_pct": round(savings_pct, 1),
 }
 
-report_path = os.path.join(REPORT_DIR, f"{TODAY}.json")
+report_path = os.path.join(REPORT_DIR, f"{YESTERDAY}.json")
+os.makedirs(REPORT_DIR, exist_ok=True)
 with open(report_path, "w") as f:
     json.dump(report_data, f, indent=2)
 
-# Output the Slack message for the shell to post
 print(slack_msg)
 PYEOF
 )
 
-if [ $? -ne 0 ]; then
-    echo "ERROR: Python aggregation failed" >&2
-    exit 1
-fi
-
-# Check for error from Python
-if echo "$REPORT" | grep -q '"error"'; then
-    echo "WARNING: $REPORT" >&2
+if [ -z "${REPORT:-}" ]; then
+    echo "WARNING: Python aggregation produced no output" >&2
     exit 0
 fi
 
-# Escape the message for JSON payload
+# ─── post to Slack ───────────────────────────────────────────────────────────
+if [ -z "${SLACK_TOKEN:-}" ]; then
+    echo "WARNING: No Slack token — report written to disk only" >&2
+    echo "Report written to ${REPORT_DIR}/${YESTERDAY}.json"
+    exit 0
+fi
+
 MSG=$(echo "$REPORT" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')
 
-# Post to Slack
 RESPONSE=$(curl -s -X POST https://slack.com/api/chat.postMessage \
     -H "Authorization: Bearer $SLACK_TOKEN" \
     -H "Content-Type: application/json" \
     -d "{\"channel\":\"$SLACK_CHANNEL\",\"text\":$MSG}")
 
 if echo "$RESPONSE" | python3 -c 'import sys,json; r=json.load(sys.stdin); sys.exit(0 if r.get("ok") else 1)' 2>/dev/null; then
-    echo "Daily cost report posted to #agentic-dev"
+    echo "Daily cost report posted to #dev"
 else
     echo "ERROR: Failed to post to Slack: $RESPONSE" >&2
     exit 1
 fi
 
-echo "Report written to /opt/openclaw/logs/cost-reports/$TODAY.json"
+echo "Report written to ${REPORT_DIR}/${YESTERDAY}.json"

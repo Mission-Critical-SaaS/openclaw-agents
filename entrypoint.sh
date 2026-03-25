@@ -86,11 +86,6 @@ if [ -z "$ANTHROPIC_API_KEY" ] || [ "$ANTHROPIC_API_KEY" = "null" ]; then
   echo "FATAL: ANTHROPIC_API_KEY not found in Secrets Manager secret" >&2
   exit 1
 fi
-# Ensure ANTHROPIC_BASE_URL is set for openclaw.json.tpl envsubst
-# (docker-compose.yml sets this to http://token-proxy:8090, fallback to direct API)
-export ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
-echo "Anthropic base URL: $ANTHROPIC_BASE_URL"
-
 export SLACK_ALLOW_FROM=$(echo "$SECRET" | jq -r '.SLACK_ALLOW_FROM // "[]"')
 export ATLASSIAN_SITE_NAME=$(echo "$SECRET" | jq -r '.ATLASSIAN_SITE_NAME // empty')
 export ATLASSIAN_USER_EMAIL=$(echo "$SECRET" | jq -r '.ATLASSIAN_USER_EMAIL // empty')
