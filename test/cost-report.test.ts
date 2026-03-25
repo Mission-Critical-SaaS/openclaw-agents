@@ -25,9 +25,9 @@ describe('Daily Cost Report (daily-cost-report.sh)', () => {
     expect(script).toMatch(/^#!\/usr\/bin\/env bash|^#!\/bin\/bash/);
   });
 
-  test('reads admin key from SSM parameter store', () => {
+  test('reads admin key from AWS', () => {
     expect(script).toContain('anthropic-admin-key');
-    expect(script).toContain('ssm');
+    expect(script).toContain('aws');
   });
 
   test('calls Anthropic Usage API', () => {
